@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# GitHub workflows and configurations
+.github/
+**/.github/
+*.yml
+*.yaml
+.actionlint.yaml
+.actionlint.yml

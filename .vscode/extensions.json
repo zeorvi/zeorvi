@@ -1,0 +1,14 @@
+{
+  "recommendations": [],
+  "unwantedRecommendations": [
+    "github.vscode-github-actions",
+    "redhat.vscode-yaml",
+    "ms-vscode.vscode-github-actions",
+    "actionlint.actionlint",
+    "github.vscode-pull-request-github",
+    "ms-vscode.github-actions",
+    "cschleiden.vscode-github-actions",
+    "redhat.vscode-commons",
+    "ms-vscode.vscode-yaml"
+  ]
+}

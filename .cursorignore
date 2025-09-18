@@ -1,0 +1,12 @@
+# Ignorar archivos de GitHub completamente
+.github/
+**/.github/
+*.yml
+*.yaml
+.actionlint*
+**/.actionlint*
+
+# Ignorar archivos de configuración problemáticos
+*.workflow
+.github-actions*
+

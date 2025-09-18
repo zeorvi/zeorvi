@@ -1,0 +1,62 @@
+{
+  // Deshabilitar completamente GitHub Actions
+  "github-actions.disable": true,
+  "github-actions.enable": false,
+  "githubActions.enable": false,
+  "githubActions.disable": true,
+  "githubActions.workflows.pinned.workflows": [],
+  "githubActions.workflows.pinned.refresh.enabled": false,
+  
+  // Deshabilitar completamente YAML
+  "yaml.validate": false,
+  "yaml.schemaStore.enable": false,
+  "yaml.completion": false,
+  "yaml.hover": false,
+  "yaml.format.enable": false,
+  "yaml.suggest.parentSkeletonSelectedFirst": false,
+  "yaml.customTags": [],
+  "yaml.schemas": {},
+  
+  // Deshabilitar actionlint
+  "actionlint.enable": false,
+  "actionlint.disable": true,
+  
+  // Deshabilitar otras extensiones relacionadas
+  "redhat.telemetry.enabled": false,
+  
+  // Configurar asociaciones de archivos para evitar procesamiento
+  "files.associations": {
+    "*.yml": "plaintext",
+    "*.yaml": "plaintext"
+  },
+  
+  // Exclusiones de archivos
+  "files.exclude": {
+    "**/.github": true,
+    "**/*.yml": true,
+    "**/*.yaml": true,
+    ".actionlint*": true,
+    "**/.actionlint*": true
+  },
+  "search.exclude": {
+    "**/.github": true,
+    "**/*.yml": true,
+    "**/*.yaml": true,
+    ".actionlint*": true
+  },
+  "files.watcherExclude": {
+    "**/.github/**": true,
+    "**/*.yml": true,
+    "**/*.yaml": true,
+    ".actionlint*": true
+  },
+  
+  // Deshabilitar validaciones y decoraciones de problemas
+  "problems.decorations.enabled": false,
+  "problems.showCurrentInStatus": false,
+  "extensions.ignoreRecommendations": true,
+  
+  // Configuraciones adicionales de TypeScript
+  "typescript.preferences.includePackageJsonAutoImports": "off",
+  "typescript.suggest.autoImports": false
+}

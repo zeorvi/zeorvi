@@ -1,0 +1,167 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Funciones helper para validación de roles
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'admin';
+    }
+    
+    function isRestaurant() {
+      return isAuthenticated() && getUserRole() == 'restaurant';
+    }
+    
+    function getUserRestaurantId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.restaurantId;
+    }
+    
+    function isOwnerRestaurant(restaurantId) {
+      return isRestaurant() && getUserRestaurantId() == restaurantId;
+    }
+    
+    // Reglas para usuarios
+    match /users/{userId} {
+      // Solo admins pueden crear usuarios
+      allow create: if isAdmin();
+      
+      // Los usuarios pueden leer su propia información, admins pueden leer todo
+      allow read: if isAdmin() || request.auth.uid == userId;
+      
+      // Los usuarios pueden actualizar su propia información, admins pueden actualizar todo
+      allow update: if isAdmin() || (request.auth.uid == userId && 
+        !('role' in resource.data) && !('restaurantId' in resource.data));
+      
+      // Solo admins pueden eliminar usuarios
+      allow delete: if isAdmin();
+    }
+    
+    // Reglas para restaurantes
+    match /restaurants/{restaurantId} {
+      // Solo admins pueden crear restaurantes
+      allow create: if isAdmin();
+      
+      // Admins pueden leer todo, restaurantes solo su propio restaurante
+      allow read: if isAdmin() || isOwnerRestaurant(restaurantId);
+      
+      // Admins pueden actualizar todo, restaurantes solo su configuración básica
+      allow update: if isAdmin() || (isOwnerRestaurant(restaurantId) && 
+        !('id' in request.resource.data) && !('ownerId' in request.resource.data));
+      
+      // Solo admins pueden eliminar restaurantes
+      allow delete: if isAdmin();
+    }
+    
+    // Reglas para mesas
+    match /tables/{tableId} {
+      // Solo usuarios autenticados pueden crear mesas
+      allow create: if isAuthenticated() && (isAdmin() || 
+        isOwnerRestaurant(request.resource.data.restaurantId));
+      
+      // Admins pueden leer todo, restaurantes solo sus mesas
+      allow read: if isAdmin() || isOwnerRestaurant(resource.data.restaurantId);
+      
+      // Admins pueden actualizar todo, restaurantes solo sus mesas
+      allow update: if isAdmin() || isOwnerRestaurant(resource.data.restaurantId);
+      
+      // Solo admins pueden eliminar mesas
+      allow delete: if isAdmin();
+    }
+    
+    // Reglas para clientes
+    match /clients/{clientId} {
+      // Usuarios autenticados pueden crear clientes
+      allow create: if isAuthenticated() && (isAdmin() || 
+        isOwnerRestaurant(request.resource.data.restaurantId));
+      
+      // Admins pueden leer todo, restaurantes solo sus clientes
+      allow read: if isAdmin() || isOwnerRestaurant(resource.data.restaurantId);
+      
+      // Admins pueden actualizar todo, restaurantes solo sus clientes
+      allow update: if isAdmin() || isOwnerRestaurant(resource.data.restaurantId);
+      
+      // Solo admins pueden eliminar clientes
+      allow delete: if isAdmin();
+    }
+    
+    // Reglas para reservas
+    match /reservations/{reservationId} {
+      // Usuarios autenticados pueden crear reservas
+      allow create: if isAuthenticated() && (isAdmin() || 
+        isOwnerRestaurant(request.resource.data.restaurantId));
+      
+      // Admins pueden leer todo, restaurantes solo sus reservas
+      allow read: if isAdmin() || isOwnerRestaurant(resource.data.restaurantId);
+      
+      // Admins pueden actualizar todo, restaurantes solo sus reservas
+      allow update: if isAdmin() || isOwnerRestaurant(resource.data.restaurantId);
+      
+      // Solo admins pueden eliminar reservas
+      allow delete: if isAdmin();
+    }
+    
+    // Reglas para notificaciones
+    match /notifications/{notificationId} {
+      // Solo el sistema puede crear notificaciones
+      allow create: if isAdmin();
+      
+      // Los usuarios pueden leer sus notificaciones
+      allow read: if isAuthenticated() && (isAdmin() || 
+        resource.data.userId == request.auth.uid ||
+        isOwnerRestaurant(resource.data.restaurantId));
+      
+      // Los usuarios pueden marcar como leídas sus notificaciones
+      allow update: if isAuthenticated() && (isAdmin() || 
+        resource.data.userId == request.auth.uid ||
+        isOwnerRestaurant(resource.data.restaurantId));
+      
+      // Solo admins pueden eliminar notificaciones
+      allow delete: if isAdmin();
+    }
+    
+    // Reglas para métricas y reportes
+    match /metrics/{metricId} {
+      // Solo el sistema puede crear métricas
+      allow create: if isAdmin();
+      
+      // Admins pueden leer todo, restaurantes solo sus métricas
+      allow read: if isAdmin() || isOwnerRestaurant(resource.data.restaurantId);
+      
+      // Solo el sistema puede actualizar métricas
+      allow update: if isAdmin();
+      
+      // Solo admins pueden eliminar métricas
+      allow delete: if isAdmin();
+    }
+    
+    // Reglas para configuraciones
+    match /configurations/{configId} {
+      // Solo admins pueden crear configuraciones
+      allow create: if isAdmin();
+      
+      // Admins pueden leer todo, restaurantes solo su configuración
+      allow read: if isAdmin() || isOwnerRestaurant(resource.data.restaurantId);
+      
+      // Admins pueden actualizar todo, restaurantes solo su configuración básica
+      allow update: if isAdmin() || (isOwnerRestaurant(resource.data.restaurantId) &&
+        !('restaurantId' in request.resource.data));
+      
+      // Solo admins pueden eliminar configuraciones
+      allow delete: if isAdmin();
+    }
+    
+    // Reglas para logs de auditoría (solo lectura para admins)
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false; // Solo el sistema backend puede escribir logs
+    }
+  }
+}
+
