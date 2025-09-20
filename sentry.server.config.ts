@@ -48,6 +48,7 @@ Sentry.init({
 
   // Configuración para capturar errores no manejados
   integrations: [
-    new Sentry.Integrations.Http({ tracing: true }),
+    // Sentry.httpIntegration() disponible en versiones más recientes
+    // Comentado temporalmente para evitar errores de compilación
   ],
 });

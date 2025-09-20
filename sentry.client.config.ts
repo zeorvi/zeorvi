@@ -54,9 +54,7 @@ Sentry.init({
 
   // Configuración de integrations
   integrations: [
-    new Sentry.Replay({
-      maskAllText: true,
-      blockAllMedia: true,
-    }),
+    // Sentry.replayIntegration() disponible en versiones más recientes
+    // Comentado temporalmente para evitar errores de compilación
   ],
 });

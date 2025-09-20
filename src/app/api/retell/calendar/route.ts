@@ -297,7 +297,7 @@ export async function POST(request: NextRequest) {
       ].filter(Boolean).join(' | ')
     };
     
-    const reservation = await createReservation('elbuensabor', newReservation);
+    const reservation = await createReservation(newReservation);
     
     // Guardar necesidades especiales si las hay
     if (processedSpecialNeeds.length > 0) {
