@@ -254,17 +254,22 @@ export const preloadResource = (href: string, as: 'script' | 'style' | 'font' | 
 }
 
 // Lazy loading para componentes pesados
-export const createLazyComponent = <T extends React.ComponentType<any>>(
-  importFn: () => Promise<{ default: T }>,
+export const createLazyComponent = (
+  importFn: () => Promise<{ default: React.ComponentType<any> }>,
   fallback?: React.ComponentType
 ) => {
   const LazyComponent = React.lazy(importFn)
   
-  return (props: React.ComponentProps<T>) => (
-    <React.Suspense fallback={fallback ? React.createElement(fallback) : null}>
-      <LazyComponent {...props} />
-    </React.Suspense>
-  )
+  const WrappedComponent = (props: any) => 
+    React.createElement(
+      React.Suspense,
+      { fallback: fallback ? React.createElement(fallback) : null },
+      React.createElement(LazyComponent, props)
+    )
+  
+  WrappedComponent.displayName = `LazyComponent(${LazyComponent.displayName || LazyComponent.name || 'Component'})`
+  
+  return WrappedComponent
 }
 
 // Debounce para optimizar eventos frecuentes
