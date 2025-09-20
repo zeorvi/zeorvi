@@ -2,11 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyRetellWebhook } from '@/lib/webhookValidator';
 import { logger } from '@/lib/logger';
 
+interface TableUpdateRequest {
+  tableId?: string;
+  newStatus?: string;
+  clientInfo?: {
+    name?: string;
+    phone?: string;
+    email?: string;
+  };
+  restaurantId?: string;
+}
+
 // GET - Obtener información de mesas para Retell
 export async function GET(request: NextRequest) {
+  let restaurantId: string | null = null;
   try {
     const { searchParams } = new URL(request.url);
-    const restaurantId = searchParams.get('restaurantId');
+    restaurantId = searchParams.get('restaurantId');
     const status = searchParams.get('status'); // 'libre', 'ocupada', 'reservada', 'all'
 
     if (!restaurantId) {
@@ -49,7 +61,11 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    logger.error('Error fetching tables for Retell', { error });
+    logger.error('Error fetching tables for Retell', { 
+      error: (error as Error).message,
+      restaurantId: restaurantId || 'unknown',
+      action: 'GET_tables'
+    });
     return NextResponse.json({ 
       error: 'Error al obtener información de mesas' 
     }, { status: 500 });
@@ -58,16 +74,25 @@ export async function GET(request: NextRequest) {
 
 // POST - Actualizar estado de mesa desde Retell
 export async function POST(request: NextRequest) {
+  let body: TableUpdateRequest = {};
   try {
-    const body = await request.json();
+    body = await request.json();
     
     // Validar webhook de Retell
-    const isValid = await verifyRetellWebhook(request, body);
-    if (!isValid) {
+    const signature = request.headers.get('x-retell-signature') || '';
+    const validation = verifyRetellWebhook(signature, JSON.stringify(body));
+    if (!validation.valid) {
       return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
     }
 
     const { tableId, newStatus, clientInfo, restaurantId } = body;
+
+    // Validar que newStatus esté presente
+    if (!newStatus) {
+      return NextResponse.json({ 
+        error: 'El estado de la mesa es requerido' 
+      }, { status: 400 });
+    }
 
     // Validar estados permitidos
     const validStatuses = ['libre', 'ocupada', 'reservada'];
@@ -99,7 +124,12 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    logger.error('Error updating table via Retell', { error });
+    logger.error('Error updating table via Retell', { 
+      error: (error as Error).message,
+      tableId: body?.tableId || 'unknown',
+      restaurantId: body?.restaurantId || 'unknown',
+      action: 'POST_update_table'
+    });
     return NextResponse.json({ 
       error: 'Error al actualizar mesa' 
     }, { status: 500 });

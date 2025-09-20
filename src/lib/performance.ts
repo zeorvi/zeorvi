@@ -254,7 +254,7 @@ export const preloadResource = (href: string, as: 'script' | 'style' | 'font' | 
 }
 
 // Lazy loading para componentes pesados
-export const createLazyComponent = <T extends React.ComponentType<Record<string, unknown>>>(
+export const createLazyComponent = <T extends React.ComponentType<any>>(
   importFn: () => Promise<{ default: T }>,
   fallback?: React.ComponentType
 ) => {
