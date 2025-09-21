@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: `Llamada procesada: "${message}"`,
+        message: `Llamada procesada: &quot;${message}&quot;`,
         extractedData: processedRequest,
         reservationResult: result,
         agentResponse: generateAgentResponse(processedRequest)
@@ -89,7 +89,7 @@ function parseReservationRequest(message: string) {
       date,
       time,
       people,
-      notes: `Reserva creada via Retell AI - Mensaje original: "${message}"`
+      notes: `Reserva creada via Retell AI - Mensaje original: &quot;${message}&quot;`
     };
   }
 

@@ -105,8 +105,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // Validar webhook de Retell
-    const isValid = await verifyRetellWebhook(request, body);
-    if (!isValid) {
+    const signature = request.headers.get('x-retell-signature') || '';
+    const validation = verifyRetellWebhook(signature, JSON.stringify(body));
+    if (!validation.valid) {
       return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
     }
 

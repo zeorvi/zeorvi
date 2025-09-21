@@ -66,7 +66,7 @@ export const mockTables: Table[] = [
     location: 'Interior',
     client: {
       id: 'C001',
-      name: 'Luis Fernández',
+      name: 'Ana Ruiz',
       phone: '+34987654321',
       totalReservations: 3,
       lastVisit: new Date('2024-01-10')
@@ -95,7 +95,7 @@ export const mockTables: Table[] = [
     location: 'Salón Principal',
     client: {
       id: 'C002',
-      name: 'Ana Ruiz',
+      name: 'Jose Lopez',
       phone: '+34666555444',
       totalReservations: 1,
       lastVisit: new Date()
@@ -132,7 +132,7 @@ export const mockTables: Table[] = [
     location: 'Terraza',
     client: {
       id: 'C003',
-      name: 'María Gómez',
+      name: 'Maria Garcia',
       phone: '+34123456789',
       totalReservations: 5,
       lastVisit: new Date('2024-01-15')
@@ -157,7 +157,7 @@ export const mockTables: Table[] = [
 export const mockClients: Client[] = [
   {
     id: 'C001',
-    name: 'Luis Fernández',
+    name: 'Ana Ruiz',
     phone: '+34987654321',
     totalReservations: 3,
     lastVisit: new Date('2024-01-10'),
@@ -165,7 +165,7 @@ export const mockClients: Client[] = [
   },
   {
     id: 'C002',
-    name: 'Ana Ruiz',
+    name: 'Jose Lopez',
     phone: '+34666555444',
     totalReservations: 1,
     lastVisit: new Date(),
@@ -173,7 +173,7 @@ export const mockClients: Client[] = [
   },
   {
     id: 'C003',
-    name: 'María Gómez',
+    name: 'Maria Garcia',
     phone: '+34123456789',
     totalReservations: 5,
     lastVisit: new Date('2024-01-15'),
@@ -544,5 +544,97 @@ export function getMesasParaLiberarAutomaticamente(): Array<{
       shouldRelease
     };
   }).filter(mesa => mesa.shouldRelease);
+}
+
+// Función para obtener estado completo de mesas para Retell
+export function getTableStatusForRetell() {
+  const mesasLibres = getTablesByStatus('libre');
+  const mesasOcupadas = getTablesByStatus('ocupada');
+  const mesasReservadas = getTablesByStatus('reservada');
+  const ahora = new Date();
+  
+  // Detalles de mesas libres
+  const detalles_libres = mesasLibres.map(mesa => ({
+    id: mesa.id,
+    nombre: mesa.name,
+    capacidad: mesa.capacity,
+    ubicacion: mesa.location
+  }));
+  
+  // Detalles de mesas ocupadas con información de tiempo
+  const detalles_ocupadas = mesasOcupadas.map(mesa => {
+    if (!mesa.reservation) {
+      return {
+        tableId: mesa.id,
+        clientName: mesa.client?.name || 'Cliente',
+        timeOccupied: 0,
+        timeRemaining: 120,
+        status: 'normal',
+        shouldCleanup: false
+      };
+    }
+    
+    // Calcular tiempo transcurrido
+    const horaReserva = mesa.reservation.time;
+    const fechaReserva = new Date(mesa.reservation.date);
+    const [horas, minutos] = horaReserva.split(':').map(Number);
+    const tiempoLlegada = new Date(fechaReserva);
+    tiempoLlegada.setHours(horas, minutos, 0, 0);
+    
+    const tiempoTranscurrido = ahora.getTime() - tiempoLlegada.getTime();
+    const tiempoEnMinutos = Math.floor(tiempoTranscurrido / (60 * 1000));
+    const duracionReserva = mesa.reservation.duration || 120;
+    const tiempoRestante = Math.max(0, duracionReserva - tiempoEnMinutos);
+    
+    let status = 'normal';
+    let shouldCleanup = false;
+    
+    if (tiempoEnMinutos >= 150) { // 2.5 horas
+      status = 'overdue';
+      shouldCleanup = true;
+    } else if (tiempoRestante <= 15) {
+      status = 'warning';
+    }
+    
+    return {
+      tableId: mesa.id,
+      clientName: mesa.client?.name || 'Cliente',
+      timeOccupied: tiempoEnMinutos,
+      timeRemaining: tiempoRestante,
+      status,
+      shouldCleanup
+    };
+  });
+  
+  // Detalles de mesas reservadas
+  const detalles_reservadas = mesasReservadas.map(mesa => {
+    if (!mesa.reservation) {
+      return {
+        mesa: mesa.id,
+        cliente: 'Cliente',
+        hora: '00:00',
+        personas: 0,
+        estado: 'pendiente'
+      };
+    }
+    
+    return {
+      mesa: mesa.id,
+      cliente: mesa.client?.name || 'Cliente',
+      hora: mesa.reservation.time,
+      personas: mesa.reservation.people,
+      estado: mesa.reservation.status
+    };
+  });
+  
+  return {
+    total: mockTables.length,
+    libres: mesasLibres.length,
+    ocupadas: mesasOcupadas.length,
+    reservadas: mesasReservadas.length,
+    detalles_libres,
+    detalles_ocupadas,
+    detalles_reservadas
+  };
 }
 

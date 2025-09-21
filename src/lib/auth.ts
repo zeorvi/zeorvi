@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { jwtVerify, SignJWT } from 'jose';
-import { auth } from './firebase';
+// import { auth } from './firebase'; // Comentado - no usado actualmente
 import { logger, logAuth } from './logger';
 import { AuthenticationError, AuthorizationError } from './errorHandler';
 
@@ -56,7 +56,7 @@ export const verifyJWTToken = async (token: string): Promise<JWTPayload> => {
       audience: JWT_AUDIENCE,
     });
 
-    return payload as JWTPayload;
+    return payload as unknown as JWTPayload;
   } catch (error) {
     logger.warn('Invalid JWT token', { error: (error as Error).message });
     throw new AuthenticationError('Token inválido o expirado');
@@ -81,7 +81,7 @@ export const extractTokenFromRequest = (request: NextRequest): string | null => 
 };
 
 // Verificar autenticación desde Firebase token
-export const verifyFirebaseToken = async (firebaseToken: string): Promise<JWTPayload> => {
+export const verifyFirebaseToken = async (_firebaseToken: string): Promise<JWTPayload> => {
   try {
     // En un entorno real, verificarías el token de Firebase aquí
     // const decodedToken = await admin.auth().verifyIdToken(firebaseToken);
@@ -96,8 +96,8 @@ export const verifyFirebaseToken = async (firebaseToken: string): Promise<JWTPay
 };
 
 // Middleware de autenticación
-export const requireAuth = (handler: Function) => {
-  return async (request: NextRequest, context?: any) => {
+export const requireAuth = (handler: (request: NextRequest, context?: unknown) => Promise<Response>) => {
+  return async (request: NextRequest, context?: unknown) => {
     const token = extractTokenFromRequest(request);
     
     if (!token) {
@@ -107,7 +107,7 @@ export const requireAuth = (handler: Function) => {
     const user = await verifyJWTToken(token);
     
     // Añadir contexto de autenticación al request
-    (request as any).auth = { user, token };
+    (request as NextRequest & {auth: AuthContext}).auth = { user, token };
     
     return handler(request, context);
   };
@@ -115,9 +115,9 @@ export const requireAuth = (handler: Function) => {
 
 // Middleware de autorización por rol
 export const requireRole = (roles: ('admin' | 'restaurant')[]) => {
-  return (handler: Function) => {
-    return requireAuth(async (request: NextRequest, context?: any) => {
-      const auth = (request as any).auth as AuthContext;
+  return (handler: (request: NextRequest, context?: unknown) => Promise<Response>) => {
+    return requireAuth(async (request: NextRequest, context?: unknown) => {
+      const auth = (request as NextRequest & {auth: AuthContext}).auth;
       
       if (!roles.includes(auth.user.role)) {
         logAuth('authorization_failed', auth.user.uid, { 
@@ -138,9 +138,9 @@ export const requireRole = (roles: ('admin' | 'restaurant')[]) => {
 };
 
 // Middleware para verificar acceso a restaurante específico
-export const requireRestaurantAccess = (handler: Function) => {
-  return requireAuth(async (request: NextRequest, context?: any) => {
-    const auth = (request as any).auth as AuthContext;
+export const requireRestaurantAccess = (handler: (request: NextRequest, context?: unknown) => Promise<Response>) => {
+  return requireAuth(async (request: NextRequest, context?: unknown) => {
+    const auth = (request as NextRequest & {auth: AuthContext}).auth;
     const url = new URL(request.url);
     const restaurantId = url.searchParams.get('restaurantId') || 
                         url.pathname.split('/').find(segment => segment.startsWith('rest_'));
@@ -167,14 +167,14 @@ export const requireRestaurantAccess = (handler: Function) => {
 
 // Helper para obtener el contexto de autenticación del request
 export const getAuthContext = (request: NextRequest): AuthContext | null => {
-  return (request as any).auth || null;
+  return (request as NextRequest & {auth?: AuthContext}).auth || null;
 };
 
 // Validar permisos específicos
 export const hasPermission = (
   user: JWTPayload, 
   action: string, 
-  resource?: string
+  _resource?: string
 ): boolean => {
   // Lógica de permisos basada en roles
   switch (user.role) {
@@ -204,9 +204,9 @@ export const hasPermission = (
 
 // Middleware para validar permisos específicos
 export const requirePermission = (action: string, resource?: string) => {
-  return (handler: Function) => {
-    return requireAuth(async (request: NextRequest, context?: any) => {
-      const auth = (request as any).auth as AuthContext;
+  return (handler: (request: NextRequest, context?: unknown) => Promise<Response>) => {
+    return requireAuth(async (request: NextRequest, context?: unknown) => {
+      const auth = (request as NextRequest & {auth: AuthContext}).auth;
       
       if (!hasPermission(auth.user, action, resource)) {
         logAuth('permission_denied', auth.user.uid, { 
@@ -242,7 +242,7 @@ export const generateTemporaryPassword = (): string => {
   return password.split('').sort(() => Math.random() - 0.5).join('');
 };
 
-export default {
+const authService = {
   createJWTToken,
   verifyJWTToken,
   requireAuth,
@@ -253,3 +253,5 @@ export default {
   getAuthContext,
   generateTemporaryPassword
 };
+
+export default authService;

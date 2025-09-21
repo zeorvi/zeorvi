@@ -17,7 +17,7 @@ export interface StripeWebhookData {
   id: string
   object: string
   created: number
-  data: any
+  data: Record<string, unknown>
   type: string
 }
 
@@ -32,7 +32,7 @@ export abstract class WebhookValidator {
   abstract validate(
     signature: string,
     payload: string | Buffer,
-    options?: any
+    options?: Record<string, unknown>
   ): WebhookValidationResult
 }
 
@@ -274,10 +274,10 @@ export class WebhookValidatorFactory {
 export const createWebhookValidationMiddleware = (
   validator: WebhookValidator,
   getSignature: (headers: Headers) => string,
-  getPayload: (request: any) => string | Buffer | Promise<string | Buffer>,
-  options: any = {}
+  getPayload: (request: Request) => string | Buffer | Promise<string | Buffer>,
+  options: Record<string, unknown> = {}
 ) => {
-  return async (request: any) => {
+  return async (request: Request) => {
     try {
       const signature = getSignature(request.headers)
       if (!signature) {
@@ -286,7 +286,7 @@ export const createWebhookValidationMiddleware = (
       }
 
       const payload = await getPayload(request)
-      const result = validator.validate(signature, payload as any, options)
+      const result = validator.validate(signature, payload, options)
 
       if (!result.valid) {
         logger.warn('Webhook validation failed', { error: result.error })
@@ -338,11 +338,11 @@ export const genericWebhookMiddleware = createWebhookValidationMiddleware(
 export const withWebhookValidation = (
   validator: WebhookValidator,
   getSignature: (headers: Headers) => string,
-  getPayload: (request: any) => string | Buffer | Promise<string | Buffer>,
-  handler: (request: any, ...args: any[]) => Promise<Response>,
-  options: any = {}
+  getPayload: (request: Request) => string | Buffer | Promise<string | Buffer>,
+  handler: (request: Request, ...args: unknown[]) => Promise<Response>,
+  options: Record<string, unknown> = {}
 ) => {
-  return async (request: any, ...args: any[]) => {
+  return async (request: Request, ...args: unknown[]) => {
     // Validar webhook
     const middleware = createWebhookValidationMiddleware(validator, getSignature, getPayload, options)
     await middleware(request)

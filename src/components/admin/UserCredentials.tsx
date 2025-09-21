@@ -78,9 +78,9 @@ Accede a: ${window.location.origin}`;
     `;
     
     const printWindow = window.open('', '_blank');
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.print();
+    printWindow?.document.write(printContent);
+    printWindow?.document.close();
+    printWindow?.print();
     
     toast.success('Vista previa de impresión abierta');
   };

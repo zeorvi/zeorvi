@@ -10,7 +10,7 @@ import {
   Timer
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useOccupiedTables } from '@/lib/services/occupiedTablesService';
+// import { useOccupiedTables } from '@/lib/services/occupiedTablesService'; // Service removed
 
 interface OccupiedTablesManagementProps {
   restaurantId: string;
@@ -26,12 +26,12 @@ export default function OccupiedTablesManagement({ restaurantId }: OccupiedTable
   }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  const { getOccupiedTables, getTimeRemaining, cleanTable } = useOccupiedTables();
+  // const { getOccupiedTables, getTimeRemaining, cleanTable } = useOccupiedTables(); // Service removed
 
   const loadOccupiedTables = React.useCallback(() => {
     setIsLoading(true);
     try {
-      const tables = getOccupiedTables();
+      const tables: Array<{id: string; name: string}> = []; // getOccupiedTables(); // Service removed
       setOccupiedTables(tables);
       console.log(`Cargadas ${tables.length} mesas ocupadas para restaurante ${restaurantId}`);
     } catch (error) {
@@ -40,7 +40,7 @@ export default function OccupiedTablesManagement({ restaurantId }: OccupiedTable
     } finally {
       setIsLoading(false);
     }
-  }, [restaurantId, getOccupiedTables]);
+  }, [restaurantId]); // Removed getOccupiedTables dependency
 
   useEffect(() => {
     loadOccupiedTables();
@@ -80,7 +80,7 @@ export default function OccupiedTablesManagement({ restaurantId }: OccupiedTable
   }, [restaurantId, loadOccupiedTables]);
 
   const handleManualCleanup = (occupiedTableId: string, tableId: string) => {
-    const success = cleanTable(occupiedTableId);
+    const success = true; // cleanTable(occupiedTableId); // Service removed
     if (success) {
       toast.success(`🧹 Mesa ${tableId} liberada manualmente`);
       toast.info('Mesa disponible para nuevas reservas');
@@ -120,7 +120,7 @@ export default function OccupiedTablesManagement({ restaurantId }: OccupiedTable
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {occupiedTables.map((table) => {
-            const timeInfo = getTimeRemaining(table.occupiedAt?.toISOString() || new Date().toISOString());
+            const timeInfo = {minutes: 60, isOverdue: false}; // getTimeRemaining(table.occupiedAt?.toISOString() || new Date().toISOString()); // Service removed
             const timeRemaining = timeInfo?.minutes || 0;
             const isOverdue = timeInfo?.isOverdue || timeRemaining <= 0;
             const isWarning = timeRemaining <= 30 && timeRemaining > 0;

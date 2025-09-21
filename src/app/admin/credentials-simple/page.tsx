@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { ArrowLeft, Copy, Download, Send, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Copy, Download, CheckCircle } from 'lucide-react';
 
 export default function CredentialsSimplePage() {
   const [formData, setFormData] = useState({
@@ -20,7 +20,7 @@ export default function CredentialsSimplePage() {
     username: string;
     password: string;
   } | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  // const [isLoading, setIsLoading] = useState(false); // Unused
   const router = useRouter();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {

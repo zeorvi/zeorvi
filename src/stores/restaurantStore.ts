@@ -57,7 +57,7 @@ export const useRestaurantStore = create<RestaurantState>()(
         if (!rest?.openingHours) return true // Asumimos abierto si no hay horarios
 
         const now = new Date()
-        const today = now.toLocaleLowerCase() as keyof typeof rest.openingHours
+        const today = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() as keyof typeof rest.openingHours
         const currentTime = now.toTimeString().slice(0, 5) // HH:MM
 
         const hours = rest.openingHours[today]
@@ -70,7 +70,7 @@ export const useRestaurantStore = create<RestaurantState>()(
         const rest = restaurant || get().currentRestaurant
         if (!rest?.openingHours) return null
 
-        const today = new Date().toLocaleLowerCase() as keyof typeof rest.openingHours
+        const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() as keyof typeof rest.openingHours
         return rest.openingHours[today] || null
       },
 

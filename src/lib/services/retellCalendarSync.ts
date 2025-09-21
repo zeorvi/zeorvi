@@ -27,7 +27,7 @@ export const CALENDAR_EVENTS = {
 // Clase para gestionar la sincronización
 export class RetellCalendarSync {
   private static instance: RetellCalendarSync;
-  private eventListeners: Map<string, Function[]> = new Map();
+  private eventListeners: Map<string, ((data: unknown) => void)[]> = new Map();
 
   static getInstance(): RetellCalendarSync {
     if (!RetellCalendarSync.instance) {
@@ -37,7 +37,7 @@ export class RetellCalendarSync {
   }
 
   // Agregar listener para eventos del calendario
-  on(event: string, callback: Function): void {
+  on(event: string, callback: (data: unknown) => void): void {
     if (!this.eventListeners.has(event)) {
       this.eventListeners.set(event, []);
     }
@@ -45,7 +45,7 @@ export class RetellCalendarSync {
   }
 
   // Remover listener
-  off(event: string, callback: Function): void {
+  off(event: string, callback: (data: unknown) => void): void {
     const listeners = this.eventListeners.get(event);
     if (listeners) {
       const index = listeners.indexOf(callback);
@@ -56,7 +56,7 @@ export class RetellCalendarSync {
   }
 
   // Emitir evento
-  emit(event: string, data: any): void {
+  emit(event: string, data: unknown): void {
     const listeners = this.eventListeners.get(event);
     if (listeners) {
       listeners.forEach(callback => {
@@ -221,14 +221,14 @@ export class RetellCalendarSync {
     const notifications = JSON.parse(localStorage.getItem('retell_notifications') || '[]');
     const today = new Date().toISOString().split('T')[0];
     
-    const todayReservations = notifications.filter((n: any) => 
+    const todayReservations = notifications.filter((n: {timestamp: string; source: string; type: string}) => 
       n.source === 'retell_ai' && 
       n.type === 'success' &&
       new Date(n.timestamp).toISOString().split('T')[0] === today
     );
 
     return {
-      totalReservations: notifications.filter((n: any) => n.source === 'retell_ai').length,
+      totalReservations: notifications.filter((n: {source: string}) => n.source === 'retell_ai').length,
       todayReservations: todayReservations.length,
       pendingReservations: todayReservations.length, // Asumimos que las nuevas están pendientes
       lastActivity: notifications.length > 0 ? new Date(notifications[0].timestamp).toISOString() : null
@@ -242,7 +242,7 @@ export class RetellCalendarSync {
     const notifications = JSON.parse(localStorage.getItem('retell_notifications') || '[]');
     const cutoffDate = Date.now() - (daysToKeep * 24 * 60 * 60 * 1000);
     
-    const recentNotifications = notifications.filter((n: any) => n.timestamp > cutoffDate);
+    const recentNotifications = notifications.filter((n: {timestamp: string}) => new Date(n.timestamp).getTime() > cutoffDate);
     
     localStorage.setItem('retell_notifications', JSON.stringify(recentNotifications));
   }
@@ -257,11 +257,11 @@ export function useRetellCalendarSync() {
   
   return {
     sync,
-    onReservationCreated: (callback: Function) => {
+    onReservationCreated: (callback: (data: unknown) => void) => {
       sync.on(CALENDAR_EVENTS.RESERVATION_CREATED, callback);
       return () => sync.off(CALENDAR_EVENTS.RESERVATION_CREATED, callback);
     },
-    onAvailabilityChecked: (callback: Function) => {
+    onAvailabilityChecked: (callback: (data: unknown) => void) => {
       sync.on(CALENDAR_EVENTS.AVAILABILITY_CHECKED, callback);
       return () => sync.off(CALENDAR_EVENTS.AVAILABILITY_CHECKED, callback);
     },

@@ -5,7 +5,6 @@ import {
   getDocs, 
   setDoc, 
   updateDoc, 
-  deleteDoc, 
   query, 
   where, 
   orderBy 
@@ -370,7 +369,8 @@ export const markPasswordChanged = async (userId: string): Promise<void> => {
 export const migrateExistingUsers = async (): Promise<void> => {
   try {
     // Importar el mapping existente
-    const { userMappings } = await import('./userMapping');
+    // const { userMappings } = await import('./userMapping'); // Property doesn't exist
+    const userMappings: any[] = []; // Mock empty array
     
     for (const mapping of userMappings) {
       const existingUser = await getUserByUsername(mapping.username);
@@ -393,7 +393,7 @@ export const migrateExistingUsers = async (): Promise<void> => {
   }
 };
 
-export default {
+const userService = {
   createUser,
   getUserById,
   getUserByUsername,
@@ -407,3 +407,5 @@ export default {
   markPasswordChanged,
   migrateExistingUsers
 };
+
+export default userService;

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTableStatusForRetell, autoTableCleanup } from '@/lib/services/autoTableCleanup';
-import { getMesasParaLiberarAutomaticamente, completeReservationAutomatically } from '@/lib/restaurantData';
+import { getMesasParaLiberarAutomaticamente, completeReservationAutomatically, getTableStatusForRetell, updateTableStatus } from '@/lib/restaurantData';
 import { logger } from '@/lib/logger';
 
 // GET - Estado completo de mesas para Retell con limpieza automática

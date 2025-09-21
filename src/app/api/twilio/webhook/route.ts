@@ -17,15 +17,15 @@ export const POST = errorHandler(
     const startTime = Date.now();
     
     // Aplicar rate limiting específico para webhooks
-    await rateLimiters.webhook.checkLimit(request);
+    await rateLimiters.webhook.middleware()(request);
     
     // Obtener datos del formulario
     const formData = await request.formData();
     const webhookData = {
-      From: formData.get('From') as string,
-      To: formData.get('To') as string,
-      Body: formData.get('Body') as string,
-      MessageType: formData.get('MessageType') as string || 'text'
+      From: formData.get('From') ?? '',
+      To: formData.get('To') ?? '',
+      Body: formData.get('Body') ?? '',
+      MessageType: formData.get('MessageType') ?? 'text'
     };
 
     // Validar firma de Twilio
@@ -72,12 +72,13 @@ export const POST = errorHandler(
       from,
       to,
       restaurantId,
-      messageType,
+      messageType: messageType ?? 'text', // Valor por defecto si es undefined
     });
 
     // Si Retell AI creó una reserva, responder con confirmación
-    if (response.reservationCreated) {
-      const confirmationMessage = `¡Perfecto! Tu reserva para ${response.reservationDetails.personas} personas el ${response.reservationDetails.fecha} a las ${response.reservationDetails.hora} ha sido confirmada. Te esperamos en ${response.restaurantName}.`;
+    if (response.reservationCreated && response.reservationDetails) {
+      const { personas, fecha, hora, id } = response.reservationDetails;
+      const confirmationMessage = `¡Perfecto! Tu reserva para ${personas} personas el ${fecha} a las ${hora} ha sido confirmada. Te esperamos en ${response.restaurantName}.`;
       
       try {
         // Enviar respuesta por WhatsApp/SMS
@@ -90,7 +91,7 @@ export const POST = errorHandler(
         logger.info('Confirmation message sent', { 
           from: to, 
           to: from, 
-          reservationId: response.reservationDetails.id 
+          reservationId: id 
         });
       } catch (twilioError) {
         logger.error('Error sending Twilio message', { 

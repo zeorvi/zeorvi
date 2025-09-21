@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { getRedis, safeRedisExecute } from './redis'
+import { safeRedisExecute } from './redis'
 import { logger } from './logger'
 import { RateLimitError } from './errorHandler'
 
@@ -55,7 +55,7 @@ export const rateLimitConfigs = {
 export const keyGenerators = {
   // Por IP
   byIP: (request: NextRequest): string => {
-    const ip = request.ip || 
+    const ip = (request as any).ip || 
               request.headers.get('x-forwarded-for')?.split(',')[0] || 
               request.headers.get('x-real-ip') || 
               'unknown'
@@ -76,7 +76,7 @@ export const keyGenerators = {
   
   // Combinado IP + User
   byIPAndUser: (request: NextRequest): string => {
-    const ip = request.ip || 
+    const ip = (request as any).ip || 
               request.headers.get('x-forwarded-for')?.split(',')[0] || 
               'unknown'
     const userId = request.headers.get('x-user-id') || 'anonymous'
@@ -85,7 +85,7 @@ export const keyGenerators = {
   
   // Por endpoint específico
   byEndpoint: (endpoint: string) => (request: NextRequest): string => {
-    const ip = request.ip || 
+    const ip = (request as any).ip || 
               request.headers.get('x-forwarded-for')?.split(',')[0] || 
               'unknown'
     return `rate_limit:endpoint:${endpoint}:${ip}`
@@ -192,7 +192,7 @@ export class RateLimiter {
           key: this.config.keyGenerator(request),
           totalRequests: result.totalRequests,
           maxRequests: this.config.maxRequests,
-          ip: request.ip,
+          ip: (request as any).ip,
           userAgent: request.headers.get('user-agent')
         })
         
@@ -280,19 +280,18 @@ export const rateLimiters = {
 // Helper para aplicar rate limiting a handlers de API
 export const withRateLimit = (
   limiter: RateLimiter,
-  handler: (request: NextRequest, ...args: any[]) => Promise<Response>
+  handler: (request: NextRequest, ...args: unknown[]) => Promise<Response>
 ) => {
-  return async (request: NextRequest, ...args: any[]) => {
+  return async (request: NextRequest, ...args: unknown[]) => {
     const limitResult = await limiter.checkLimit(request)
     
     if (!limitResult.allowed) {
-      throw new RateLimitError(limiter['config'].message)
+      throw new RateLimitError('Rate limit exceeded')
     }
     
     const response = await handler(request, ...args)
     
     // Añadir headers informativos
-    response.headers.set('X-RateLimit-Limit', limiter['config'].maxRequests.toString())
     response.headers.set('X-RateLimit-Remaining', limitResult.remaining.toString())
     response.headers.set('X-RateLimit-Reset', limitResult.resetTime.toString())
     

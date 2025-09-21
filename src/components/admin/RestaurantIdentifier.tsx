@@ -302,7 +302,7 @@ export default function RestaurantIdentifier() {
               <Button 
                 variant="outline" 
                 onClick={() => {
-                  window.open(`/admin/restaurant/${restaurant.id}`, '_blank');
+                  window.open(`/admin/restaurant/${restaurants[0]?.id}`, '_blank');
                   toast.success('Abriendo tabla del restaurante...');
                 }}
                 className="bg-orange-100 text-orange-700 hover:bg-orange-200"

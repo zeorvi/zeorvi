@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { LogOut, Users, Plus, Settings, BarChart3, Phone } from 'lucide-react';
+import { LogOut, Users, Settings, BarChart3, Phone } from 'lucide-react';
 import RestaurantDashboard from '@/components/restaurant/RestaurantDashboard';
 
 // Mapeo de usuarios a emails para Firebase Auth
@@ -106,16 +106,16 @@ export default function LoginPage() {
                       ← Volver
                     </button>
                   )}
-                  <h1 className="text-xl font-bold text-orange-600">
-                    {currentView === 'dashboard' && 'Panel de Administración'}
-                    {currentView === 'create-restaurant' && 'Crear Nuevo Restaurante'}
-                    {currentView === 'configuration' && 'Configuración del Sistema'}
-                    {currentView === 'users' && 'Gestionar Usuarios'}
-                    {currentView === 'reports' && 'Reportes y Estadísticas'}
-                    {currentView === 'view-restaurant' && `Detalles: ${selectedRestaurant}`}
+                  <h1 className="text-2xl font-light text-gray-900 tracking-wide">
+                    {currentView === 'dashboard' && '⚡ Panel de Administración'}
+                    {currentView === 'create-restaurant' && '🏪 Crear Nuevo Restaurante'}
+                    {currentView === 'configuration' && '⚙️ Configuración del Sistema'}
+                    {currentView === 'users' && '👥 Gestionar Usuarios'}
+                    {currentView === 'reports' && '📊 Reportes y Estadísticas'}
+                    {currentView === 'view-restaurant' && `🏪 ${selectedRestaurant}`}
                   </h1>
                 </div>
-                <Button variant="outline" size="sm" onClick={handleLogout}>
+                <Button variant="outline" size="sm" onClick={handleLogout} className="font-light tracking-wide">
                   <LogOut className="h-4 w-4 mr-2" />
                   Cerrar Sesión
                 </Button>
@@ -127,16 +127,16 @@ export default function LoginPage() {
             {currentView === 'dashboard' && (
             <div className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Users className="h-5 w-5 mr-2" />
+              <Card className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-orange-500">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center text-lg font-light tracking-wide">
+                    <Users className="h-6 w-6 mr-3 text-orange-500" />
                     Restaurantes
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-orange-600">2</div>
-                  <p className="text-sm text-gray-600">Restaurantes activos</p>
+                  <div className="text-4xl font-light text-orange-600 mb-1">2</div>
+                  <p className="text-sm text-gray-600 font-light">Restaurantes activos</p>
                 </CardContent>
               </Card>
 
@@ -587,17 +587,17 @@ export default function LoginPage() {
                 <span className="text-white font-bold text-sm">Z</span>
               </div>
             </div>
-            <CardTitle className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+            <CardTitle className="text-3xl font-light bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent tracking-wider">
               ZEORVI
             </CardTitle>
-            <CardDescription className="text-gray-300">
+            <CardDescription className="text-gray-300 font-light text-lg mt-2">
               Inicia sesión para acceder a tu dashboard
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6 md:p-8">
             <form onSubmit={handleLogin} className="space-y-6">
-              <div className="space-y-3">
-                <Label htmlFor="username" className="text-base font-medium text-gray-200">Usuario</Label>
+              <div className="space-y-4">
+                <Label htmlFor="username" className="text-base font-light text-gray-200 tracking-wide">Usuario</Label>
                 <Input
                   id="username"
                   type="text"
@@ -605,11 +605,11 @@ export default function LoginPage() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
-                  className="h-12 text-base bg-black/50 border-cyan-500/30 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20"
+                  className="h-14 text-base bg-black/50 border-cyan-500/30 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20 rounded-xl font-light"
                 />
               </div>
-              <div className="space-y-3">
-                <Label htmlFor="password" className="text-base font-medium text-gray-200">Contraseña</Label>
+              <div className="space-y-4">
+                <Label htmlFor="password" className="text-base font-light text-gray-200 tracking-wide">Contraseña</Label>
                 <Input
                   id="password"
                   type="password"
@@ -617,12 +617,12 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="h-12 text-base bg-black/50 border-cyan-500/30 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20"
+                  className="h-14 text-base bg-black/50 border-cyan-500/30 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20 rounded-xl font-light"
                 />
               </div>
               <Button 
                 type="submit" 
-                className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 h-12 text-base font-medium shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-all duration-300"
+                className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 h-14 text-lg font-light tracking-wide shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-all duration-300 rounded-xl"
                 disabled={isLoading}
               >
                 {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}

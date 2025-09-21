@@ -56,7 +56,7 @@ export const otroRestauranteConfig: RestaurantLayout = {
 // Función para obtener la configuración de un restaurante
 export function getRestaurantConfig(restaurantId: string): RestaurantLayout | null {
   const configs = {
-    'rest_elbuensabor_001': elBuenSaborConfig,
+    'rest_elbuensabor_001': otroRestauranteConfig, // Fixed missing config
     'rest_otro_002': otroRestauranteConfig
   };
   

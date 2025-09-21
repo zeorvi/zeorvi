@@ -1,1221 +1,436 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useEffect } from 'react';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Clock, 
-  Users, 
-  RefreshCw,
-  User,
-  MapPin
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { getReservationsByDate, Reservation, getClientById, Client } from '@/lib/restaurantData';
+
+interface Reservation {
+  id: string;
+  clientName: string;
+  date: string;
+  time: string;
+  partySize: number;
+  table: string;
+  status: 'confirmed' | 'pending' | 'cancelled';
+  phone: string;
+  notes?: string;
+}
 
 interface ReservationCalendarProps {
   restaurantId: string;
+  isDarkMode?: boolean;
 }
 
-export default function ReservationCalendar({ restaurantId }: ReservationCalendarProps) {
+export default function ReservationCalendar({ restaurantId, isDarkMode = false }: ReservationCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'today' | 'week' | 'month' | 'year'>('month');
-  const [selectedClient, setSelectedClient] = useState<Reservation | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState<Date | null>(null);
-  const [showDateDetails, setShowDateDetails] = useState(false);
-  const [showMonthDetails, setShowMonthDetails] = useState(false);
-  const [showNewReservationForm, setShowNewReservationForm] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'pendiente' | 'confirmada' | 'completada' | 'cancelada'>('all');
-  const [sortOrder, setSortOrder] = useState<'date' | 'time' | 'name' | 'status'>('date');
+  const [reservations, setReservations] = useState<Reservation[]>([]);
 
-  const loadReservations = useCallback(() => {
-    setIsLoading(true);
-    try {
-      let allReservations: Reservation[] = [];
-      
-      if (viewMode === 'week') {
-        // Cargar reservas para toda la semana
-        const startOfWeek = new Date(currentDate);
-        startOfWeek.setDate(currentDate.getDate() - currentDate.getDay() + 1); // Lunes
-        
-        for (let i = 0; i < 7; i++) {
-          const day = new Date(startOfWeek);
-          day.setDate(startOfWeek.getDate() + i);
-          const dayReservations = getReservationsByDate(day);
-          allReservations = [...allReservations, ...dayReservations];
-        }
-      } else if (viewMode === 'month') {
-        // Cargar reservas para todo el mes
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
-        const lastDay = new Date(year, month + 1, 0);
-        
-        for (let day = 1; day <= lastDay.getDate(); day++) {
-          const date = new Date(year, month, day);
-          const dayReservations = getReservationsByDate(date);
-          allReservations = [...allReservations, ...dayReservations];
-        }
-      } else if (viewMode === 'year') {
-        // Para vista de año, cargar reservas de todo el año
-        for (let month = 0; month < 12; month++) {
-          const lastDay = new Date(currentDate.getFullYear(), month + 1, 0);
-          
-          for (let day = 1; day <= lastDay.getDate(); day++) {
-            const date = new Date(currentDate.getFullYear(), month, day);
-            const dayReservations = getReservationsByDate(date);
-            allReservations = [...allReservations, ...dayReservations];
-          }
-        }
-      } else {
-        // Para vista 'today' o por defecto
-        allReservations = getReservationsByDate(currentDate);
-      }
-      
-      // Eliminar duplicados por ID
-      const uniqueReservations = allReservations.filter((reservation, index, self) => 
-        index === self.findIndex(r => r.id === reservation.id)
-      );
-      
-      setReservations(uniqueReservations);
-      console.log(`Cargadas ${uniqueReservations.length} reservas para restaurante ${restaurantId} (vista: ${viewMode})`);
-    } catch (error) {
-      console.error(`Error al cargar reservas para restaurante ${restaurantId}:`, error);
-      toast.error('Error al cargar las reservas');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentDate, restaurantId, viewMode]);
+  const monthNames = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
 
-  // Cargar reservas con actualización automática más frecuente
+  const dayNames = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
+
   useEffect(() => {
-    loadReservations();
-    const interval = setInterval(loadReservations, 10000); // Actualizar cada 10 segundos
-    
-    // Escuchar eventos de mesas liberadas automáticamente
-    const handleMesaLiberada = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { mesaId, cliente, tiempoOcupada } = customEvent.detail;
-      
-      toast.success(`🧹 Mesa ${mesaId} liberada automáticamente en el calendario`);
-      toast.info(`${cliente} completó su reserva (${Math.floor(tiempoOcupada / 60)}h ${tiempoOcupada % 60}m) - Mesa disponible para nuevas reservas`);
-      
-      // Recargar reservas para reflejar el cambio
-      loadReservations();
-    };
-    
-    if (typeof window !== 'undefined') {
-      window.addEventListener('mesa-liberada-automaticamente', handleMesaLiberada);
-    }
-    
-    return () => {
-      clearInterval(interval);
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('mesa-liberada-automaticamente', handleMesaLiberada);
+    const mockReservations: Reservation[] = [
+      { 
+        id: '1', 
+        clientName: 'Ana Ruiz', 
+        date: '2025-09-21', 
+        time: '12:30', 
+        partySize: 5, 
+        table: 'M12', 
+        status: 'confirmed', 
+        phone: '+34-91-123-4567',
+        notes: 'Mesa cerca ventana'
+      },
+      { 
+        id: '2', 
+        clientName: 'Jose Lopez', 
+        date: '2025-09-21', 
+        time: '20:30', 
+        partySize: 2, 
+        table: 'M1', 
+        status: 'confirmed', 
+        phone: '+34-91-234-5678',
+        notes: 'Aniversario de boda'
+      },
+      { 
+        id: '3', 
+        clientName: 'Maria Garcia', 
+        date: '2025-09-21', 
+        time: '19:00', 
+        partySize: 4, 
+        table: 'M3', 
+        status: 'pending', 
+        phone: '+34-91-345-6789'
+      },
+      { 
+        id: '3b', 
+        clientName: 'Carlos Rodriguez', 
+        date: '2025-09-21', 
+        time: '14:00', 
+        partySize: 6, 
+        table: 'M8', 
+        status: 'confirmed', 
+        phone: '+34-91-456-7890',
+        notes: 'Cumpleaños familiar'
+      },
+      { 
+        id: '4', 
+        clientName: 'Luis Martinez', 
+        date: '2025-09-22', 
+        time: '14:00', 
+        partySize: 8, 
+        table: 'M15', 
+        status: 'confirmed', 
+        phone: '+34-91-567-8901'
+      },
+      { 
+        id: '5', 
+        clientName: 'Carmen Perez', 
+        date: '2025-09-23', 
+        time: '16:00', 
+        partySize: 12, 
+        table: 'M16', 
+        status: 'confirmed', 
+        phone: '+34-91-789-0123',
+        notes: 'Decoracion especial'
+      },
+      { 
+        id: '6', 
+        clientName: 'Juan Gomez', 
+        date: '2025-09-25', 
+        time: '13:00', 
+        partySize: 6, 
+        table: 'M8', 
+        status: 'confirmed', 
+        phone: '+34-91-890-1234'
+      },
+      { 
+        id: '7', 
+        clientName: 'Laura Sanchez', 
+        date: '2025-10-05', 
+        time: '13:30', 
+        partySize: 8, 
+        table: 'M12', 
+        status: 'confirmed', 
+        phone: '+34-91-123-4567'
+      },
+      { 
+        id: '8', 
+        clientName: 'Pedro Ruiz', 
+        date: '2025-10-15', 
+        time: '15:00', 
+        partySize: 15, 
+        table: 'Salon Privado', 
+        status: 'confirmed', 
+        phone: '+34-91-345-6789'
       }
-    };
-  }, [loadReservations]);
-
-  const getWeekDates = (date: Date) => {
-    const startOfWeek = new Date(date);
-    startOfWeek.setDate(date.getDate() - date.getDay() + 1); // Lunes
+    ];
     
-    const weekDates = [];
-    for (let i = 0; i < 7; i++) {
-      const day = new Date(startOfWeek);
-      day.setDate(startOfWeek.getDate() + i);
-      weekDates.push(day);
-    }
-    return weekDates;
+    setReservations(mockReservations);
+  }, [restaurantId]);
+
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    setCurrentDate(prev => {
+      const newDate = new Date(prev);
+      if (direction === 'prev') {
+        newDate.setMonth(prev.getMonth() - 1);
+      } else {
+        newDate.setMonth(prev.getMonth() + 1);
+      }
+      return newDate;
+    });
   };
 
+  const navigateYear = (direction: 'prev' | 'next') => {
+    setCurrentDate(prev => {
+      const newDate = new Date(prev);
+      if (direction === 'prev') {
+        newDate.setFullYear(prev.getFullYear() - 1);
+      } else {
+        newDate.setFullYear(prev.getFullYear() + 1);
+      }
+      return newDate;
+    });
+  };
 
-  // Función para obtener días del mes
-  const getMonthDates = (date: Date) => {
+  const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
     
-    const monthDates = [];
-    for (let day = 1; day <= lastDay.getDate(); day++) {
-      monthDates.push(new Date(year, month, day));
+    // Convertir el día de la semana para que lunes sea 0
+    let startingDayOfWeek = firstDay.getDay() - 1;
+    if (startingDayOfWeek < 0) startingDayOfWeek = 6; // Domingo se convierte en 6
+
+    const days = [];
+    
+    // Dias del mes anterior para completar la primera semana (empezando en lunes)
+    for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+      const prevDate = new Date(year, month, -i);
+      days.push({ date: prevDate, isCurrentMonth: false });
     }
-    return monthDates;
+    
+    // Dias del mes actual
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      days.push({ date, isCurrentMonth: true });
+    }
+    
+    // Completar hasta 42 dias (6 semanas)
+    const remainingDays = 42 - days.length;
+    for (let day = 1; day <= remainingDays; day++) {
+      const nextDate = new Date(year, month + 1, day);
+      days.push({ date: nextDate, isCurrentMonth: false });
+    }
+    
+    return days;
   };
 
-  // Función para obtener meses del año
-  const getYearMonths = (date: Date) => {
-    const year = date.getFullYear();
-    const months = [];
-    for (let month = 0; month < 12; month++) {
-      months.push(new Date(year, month, 1));
-    }
-    return months;
-  };
-
-  // Obtener reservas para una fecha específica
   const getReservationsForDate = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const day = date.getDate();
-    
-    // Usar restaurantId para filtrar reservas específicas del restaurante
-    return reservations.filter(res => {
-      const resDate = new Date(res.date);
-      return resDate.getFullYear() === year && 
-             resDate.getMonth() === month && 
-             resDate.getDate() === day;
+    const dateStr = date.toISOString().split('T')[0];
+    return reservations.filter(res => res.date === dateStr);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'confirmed': return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'pending': return 'bg-amber-100 text-amber-800 border-amber-200';
+      case 'cancelled': return 'bg-rose-100 text-rose-800 border-rose-200';
+      default: return 'bg-slate-100 text-slate-800 border-slate-200';
+    }
+  };
+
+  const formatDateForDisplay = (date: Date) => {
+    return date.toLocaleDateString('es-ES', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
     });
   };
 
-  // Obtener reservas para un mes específico
-  const getReservationsForMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    // Usar restaurantId para contexto del restaurante específico
-    return reservations.filter(res => {
-      const resDate = new Date(res.date);
-      return resDate.getFullYear() === year && resDate.getMonth() === month;
-    });
-  };
-
-  const getStatusColor = (status: Reservation['status']) => {
-    switch (status) {
-      case 'confirmada':
-        return 'bg-green-500 text-white border-green-600 shadow-md font-bold';
-      case 'completada':
-        return 'bg-blue-500 text-white border-blue-600 shadow-md font-bold';
-      case 'cancelada':
-        return 'bg-red-500 text-white border-red-600 shadow-md font-bold';
-      case 'pendiente':
-        return 'bg-yellow-500 text-black border-yellow-600 shadow-md font-bold';
-      default:
-        return 'bg-green-500 text-white border-green-600 shadow-md font-bold'; // Por defecto confirmada
-    }
-  };
-
-  const getStatusText = (status: Reservation['status']) => {
-    switch (status) {
-      case 'confirmada':
-        return 'Confirmada';
-      case 'cancelada':
-        return 'Cancelada';
-      case 'completada':
-        return 'Completada';
-      case 'pendiente':
-        return 'Pendiente';
-      default:
-        return 'Confirmada'; // Por defecto confirmada
-    }
-  };
-
-  const changeReservationStatus = (reservationId: string, newStatus: Reservation['status']) => {
-    setReservations(prev => 
-      prev.map(res => 
-        res.id === reservationId 
-          ? { ...res, status: newStatus }
-          : res
-      )
-    );
-    
-    // Mensajes específicos según el nuevo estado
-    if (newStatus === 'completada') {
-      toast.success(`🔴 Mesa marcada como OCUPADA`);
-      toast.info('La mesa se ha movido a "Mesas Ocupadas"');
-    } else if (newStatus === 'cancelada') {
-      toast.success(`🟢 Mesa marcada como LIBRE`);
-      toast.info('La mesa se ha movido a "Mesas Libres"');
-    } else if (newStatus === 'confirmada') {
-      toast.success(`🟡 Reserva CONFIRMADA`);
-      toast.info('La reserva permanece en "Mesas Reservadas"');
-    }
-  };
-
-  const showClientInfo = (reservation: Reservation) => {
-    setSelectedClient(reservation);
-    const client = getClientData(reservation.clientId);
-    toast.success(`👤 Información de ${client?.name || 'Cliente'}`);
-  };
-
-  const openDateDetails = (date: Date) => {
-    setSelectedDate(date);
-    setShowDateDetails(true);
-  };
-
-  const openMonthDetails = (month: Date) => {
-    setSelectedMonth(month);
-    setShowMonthDetails(true);
-  };
-
-  // Helper para obtener datos del cliente
-  const getClientData = (clientId: string): Client | null => {
-    return getClientById(clientId);
-  };
-
-
-  const weekDates = getWeekDates(currentDate);
-  const monthDates = getMonthDates(currentDate);
-  const yearMonths = getYearMonths(currentDate);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw className="h-8 w-8 animate-spin text-orange-600" />
-        <span className="ml-2">Cargando reservas...</span>
-      </div>
-    );
-  }
+  const days = getDaysInMonth(currentDate);
+  const currentMonthReservations = reservations.filter(r => 
+    r.date.startsWith(`${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`)
+  );
 
   return (
-    <div className="space-y-6">
-
-      {/* Filtros y controles */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-gray-50 to-white p-4 rounded-xl shadow-sm border">
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-1 bg-white rounded-lg shadow-sm border p-1">
-            {[
-              { value: 'week', label: 'Semana', icon: '📅' },
-              { value: 'month', label: 'Mes', icon: '🗓️' },
-              { value: 'year', label: 'Año', icon: '📊' }
-            ].map(option => (
-              <button
-                key={option.value}
-                onClick={() => setViewMode(option.value as typeof viewMode)}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center space-x-1 ${
-                  viewMode === option.value 
-                    ? 'bg-orange-500 text-white shadow-md' 
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <span>{option.icon}</span>
-                <span className="hidden sm:inline">{option.label}</span>
-              </button>
+    <div className={`p-4 md:p-6 space-y-4 md:space-y-6 transition-colors duration-300 ${
+      isDarkMode ? 'text-white' : 'text-gray-900'
+    }`}>
+      {/* Header del Calendario */}
+      <div className="flex items-center justify-center">
+        <div className={`flex items-center space-x-2 md:space-x-3 rounded-lg md:rounded-xl border shadow-sm px-3 md:px-4 py-1.5 md:py-2 transition-all duration-300 ${
+          isDarkMode 
+            ? 'bg-gradient-to-r from-gray-800 to-gray-700 border-gray-600' 
+            : 'bg-gradient-to-r from-purple-50 to-violet-50 border-purple-200'
+        }`}>
+          {/* Selector de Mes */}
+          <select
+            value={currentDate.getMonth()}
+            onChange={(e) => {
+              const newDate = new Date(currentDate);
+              newDate.setMonth(parseInt(e.target.value));
+              setCurrentDate(newDate);
+            }}
+            className={`px-2 md:px-3 py-1 border rounded-md md:rounded-lg font-medium focus:outline-none focus:ring-1 transition-all duration-300 text-xs md:text-sm ${
+              isDarkMode 
+                ? 'bg-gray-700 border-gray-600 text-white focus:border-gray-500 focus:ring-gray-400' 
+                : 'bg-white border-purple-300 text-purple-900 focus:border-purple-500 focus:ring-purple-200'
+            }`}
+          >
+            {monthNames.map((month, index) => (
+              <option key={index} value={index}>
+                {month}
+              </option>
             ))}
-          </div>
-        </div>
+          </select>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
-          <div className="flex items-center space-x-2">
-            <div className="relative">
-              <select
-                value={filterStatus}
-                onChange={(e) => {
-                  setFilterStatus(e.target.value as typeof filterStatus);
-                  toast.success('🔍 Filtro aplicado');
-                }}
-                className="appearance-none bg-white border border-gray-300 hover:border-orange-400 text-gray-700 px-4 py-2 pr-8 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm"
-              >
-                <option value="all">🔍 Todos los estados</option>
-                <option value="pendiente">🟡 Pendiente</option>
-                <option value="confirmada">🟢 Confirmada</option>
-                <option value="completada">🔵 Completada</option>
-                <option value="cancelada">🔴 Cancelada</option>
-              </select>
-              <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
-            
-            <div className="relative">
-              <select
-                value={sortOrder}
-                onChange={(e) => {
-                  setSortOrder(e.target.value as typeof sortOrder);
-                  toast.success('📊 Orden cambiado');
-                }}
-                className="appearance-none bg-white border border-gray-300 hover:border-orange-400 text-gray-700 px-4 py-2 pr-8 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm"
-              >
-                <option value="date">📅 Por fecha</option>
-                <option value="time">⏰ Por hora</option>
-                <option value="name">👤 Por nombre</option>
-                <option value="status">📊 Por estado</option>
-              </select>
-              <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
-          </div>
-          
-          <div className="relative flex-1 sm:max-w-xs">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <input
-              type="text"
-              placeholder="Buscar cliente, mesa, hora..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 hover:border-orange-400 bg-white text-gray-700 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 shadow-sm"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
+          {/* Selector de Año */}
+          <select
+            value={currentDate.getFullYear()}
+            onChange={(e) => {
+              const newDate = new Date(currentDate);
+              newDate.setFullYear(parseInt(e.target.value));
+              setCurrentDate(newDate);
+            }}
+            className={`px-2 md:px-3 py-1 border rounded-md md:rounded-lg font-medium focus:outline-none focus:ring-1 transition-all duration-300 text-xs md:text-sm ${
+              isDarkMode 
+                ? 'bg-gray-700 border-gray-600 text-white focus:border-gray-500 focus:ring-gray-400' 
+                : 'bg-white border-purple-300 text-purple-900 focus:border-purple-500 focus:ring-purple-200'
+            }`}
+          >
+            <option value={2025}>2025</option>
+            <option value={2026}>2026</option>
+          </select>
         </div>
       </div>
 
-      {/* Navegación de fechas */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gradient-to-r from-orange-50 to-amber-50 p-3 rounded-lg shadow-sm border border-orange-200">
-        <div className="flex items-center space-x-3">
-          <button
-            className="bg-white border border-orange-300 hover:bg-orange-50 hover:border-orange-400 text-orange-700 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md"
-            onClick={() => {
-              const newDate = new Date(currentDate);
-              if (viewMode === 'week') {
-                newDate.setDate(currentDate.getDate() - 7);
-              } else if (viewMode === 'month') {
-                newDate.setMonth(currentDate.getMonth() - 1);
-              } else if (viewMode === 'year') {
-                newDate.setFullYear(currentDate.getFullYear() - 1);
-              }
-              setCurrentDate(newDate);
-            }}
-          >
-            ← Anterior
-          </button>
-          
-          <div className="text-center min-w-40 sm:min-w-52">
-            <h2 className="text-base sm:text-lg font-bold text-orange-800 bg-white px-3 py-1.5 rounded-md shadow-sm border border-orange-200">
-              {viewMode === 'week' && `${weekDates[0].toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${weekDates[6].toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`}
-              {viewMode === 'month' && currentDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
-              {viewMode === 'year' && currentDate.toLocaleDateString('es-ES', { year: 'numeric' })}
-            </h2>
-          </div>
-          
-          <button
-            className="bg-white border border-orange-300 hover:bg-orange-50 hover:border-orange-400 text-orange-700 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md"
-            onClick={() => {
-              const newDate = new Date(currentDate);
-              if (viewMode === 'week') {
-                newDate.setDate(currentDate.getDate() + 7);
-              } else if (viewMode === 'month') {
-                newDate.setMonth(currentDate.getMonth() + 1);
-              } else if (viewMode === 'year') {
-                newDate.setFullYear(currentDate.getFullYear() + 1);
-              }
-              setCurrentDate(newDate);
-            }}
-          >
-            Siguiente →
-          </button>
+      {/* Calendario Principal */}
+      <Card className={`p-4 md:p-6 backdrop-blur-sm border-0 shadow-xl rounded-xl md:rounded-2xl transition-all duration-300 ${
+        isDarkMode ? 'bg-gray-800/60' : 'bg-white/60'
+      }`}>
+        {/* Cabecera de dias */}
+        <div className="grid grid-cols-7 gap-2 -mb-3 -mt-2">
+          {dayNames.map(day => (
+            <div key={day} className={`text-center font-semibold text-xs md:text-sm transition-colors duration-300 ${
+              isDarkMode ? 'text-gray-300' : 'text-slate-600'
+            }`}>
+              {day}
+            </div>
+          ))}
         </div>
-
-        <div className="flex items-center">
-          <button
-            className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg"
-            onClick={() => setCurrentDate(new Date())}
-          >
-            Hoy
-          </button>
-        </div>
-      </div>
-
-      {/* Vista de semana - Diseño moderno */}
-      {viewMode === 'week' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-3">
-          {weekDates.map((date, index) => {
+        
+        {/* Grid del calendario */}
+        <div className="grid grid-cols-7 gap-2">
+          {days.map(({ date, isCurrentMonth }, index) => {
             const dayReservations = getReservationsForDate(date);
-            const today = new Date();
-            const isToday = date.toDateString() === today.toDateString();
-            const isPastDate = date < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            const isToday = date.toDateString() === new Date().toDateString();
+            const isSelected = selectedDate?.toDateString() === date.toDateString();
             
             return (
               <div
                 key={index}
-                className={`relative rounded-2xl p-4 min-h-[280px] cursor-pointer transition-all duration-300 hover:scale-[1.02] border-2 ${
-                  isToday 
-                    ? 'bg-gradient-to-br from-orange-400 to-red-500 border-orange-500 shadow-xl text-white' 
-                    : isPastDate 
-                    ? 'bg-gradient-to-br from-slate-100 to-slate-200 border-slate-300 hover:shadow-lg text-slate-700'
-                    : 'bg-gradient-to-br from-white to-blue-50 border-blue-200 hover:shadow-xl hover:border-blue-400 text-slate-800'
+                onClick={() => setSelectedDate(date)}
+                className={`pt-1 pb-1 px-1 min-h-[70px] md:min-h-[90px] border-2 rounded-lg md:rounded-xl cursor-pointer transition-all duration-200 ${
+                  isCurrentMonth 
+                    ? isDarkMode
+                      ? 'bg-gray-700 hover:bg-gray-600 border-gray-600 hover:border-gray-500'
+                      : 'bg-white hover:bg-blue-50 border-slate-200 hover:border-blue-300'
+                    : isDarkMode
+                      ? 'bg-gray-800 border-gray-700 text-gray-500'
+                      : 'bg-slate-50 border-slate-100 text-slate-400'
+                } ${
+                  isToday ? (isDarkMode ? 'ring-2 ring-blue-400 bg-blue-900/30' : 'ring-2 ring-blue-400 bg-blue-50') : ''
+                } ${
+                  isSelected ? (isDarkMode ? 'ring-2 ring-purple-400 bg-purple-900/30' : 'ring-2 ring-purple-400 bg-purple-50') : ''
                 }`}
-                onClick={() => {
-                  if (dayReservations.length > 0) {
-                    openDateDetails(date);
-                  } else if (!isPastDate) {
-                    setSelectedDate(date);
-                    setShowNewReservationForm(true);
-                    toast.info(`Crear nueva reserva para ${date.toLocaleDateString('es-ES', { 
-                      weekday: 'long', 
-                      day: 'numeric', 
-                      month: 'long' 
-                    })}`);
-                  }
-                }}
               >
-                {/* Header del día */}
-                <div className="text-center mb-4">
-                  <div className={`text-sm font-medium uppercase tracking-wide mb-1 ${
-                    isToday ? 'text-orange-100' : isPastDate ? 'text-slate-500' : 'text-blue-600'
-                  }`}>
-                    {date.toLocaleDateString('es-ES', { weekday: 'short' })}
-                  </div>
-                  <div className={`text-2xl font-bold ${
-                    isToday ? 'text-white' : isPastDate ? 'text-slate-600' : 'text-slate-800'
+                <div className="text-center">
+                  <div className={`text-xs md:text-sm font-semibold mb-1 transition-colors duration-300 ${
+                    isToday 
+                      ? (isDarkMode ? 'text-blue-400' : 'text-blue-700')
+                      : isCurrentMonth 
+                        ? (isDarkMode ? 'text-white' : 'text-slate-900')
+                        : (isDarkMode ? 'text-gray-500' : 'text-slate-400')
                   }`}>
                     {date.getDate()}
                   </div>
-                  {isToday && (
-                    <div className="bg-white/20 text-white text-xs px-2 py-1 rounded-full font-bold mt-1">
-                      HOY
-                    </div>
-                  )}
-                  {dayReservations.length > 0 && (
-                    <div className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold mt-2 ${
-                      isToday ? 'bg-white/30 text-white' : 'bg-orange-500 text-white'
-                    }`}>
-                      {dayReservations.length}
-                    </div>
-                  )}
-                </div>
-
-                {/* Reservas */}
-                <div className="space-y-2">
-                  {dayReservations.slice(0, 4).map((reservation) => {
-                    const client = getClientData(reservation.clientId);
-                    return (
+                  
+                  {/* Reservas del dia */}
+                  <div className="space-y-1">
+                    {dayReservations.slice(0, 2).map(reservation => (
                       <div
                         key={reservation.id}
-                        className={`p-2 rounded-lg text-xs ${
-                          isToday 
-                            ? 'bg-white/20 text-white border border-white/30' 
-                            : isPastDate 
-                            ? 'bg-white/60 text-slate-700 border border-slate-300' 
-                            : 'bg-white text-slate-700 border border-blue-200 shadow-sm'
-                        }`}
+                        className={`text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-md md:rounded-lg border ${getStatusColor(reservation.status)}`}
                       >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-bold">{reservation.time}</span>
-                          <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
-                            reservation.status === 'confirmada' ? 'bg-green-500 text-white' :
-                            reservation.status === 'pendiente' ? 'bg-yellow-500 text-black' :
-                            'bg-red-500 text-white'
-                          }`}>
-                            {reservation.status === 'confirmada' ? '✓' : 
-                             reservation.status === 'pendiente' ? '⏳' : '✗'}
-                          </span>
+                        <div className="font-semibold truncate">
+                          {reservation.time}
                         </div>
-                        <div className="truncate font-medium">{client?.name || 'Cliente'}</div>
-                        <div className="flex justify-between items-center text-xs opacity-80">
-                          <span>{reservation.people}p</span>
-                          <span>Mesa {reservation.tableId}</span>
+                        <div className="truncate">
+                          {reservation.clientName}
                         </div>
                       </div>
-                    );
-                  })}
-                  
-                  {dayReservations.length > 4 && (
-                    <div className={`text-center text-xs font-bold py-2 rounded-lg ${
-                      isToday ? 'bg-white/20 text-white' : 'bg-orange-100 text-orange-700'
-                    }`}>
-                      +{dayReservations.length - 4} más
-                    </div>
-                  )}
-                  
-                  {dayReservations.length === 0 && (
-                    <div className="text-center py-8">
-                      <div className={`text-4xl mb-2 ${isPastDate ? '📝' : '➕'}`}>
-                        {isPastDate ? '📝' : '➕'}
+                    ))}
+                    
+                    {dayReservations.length > 2 && (
+                      <div className="text-xs text-slate-500 font-semibold">
+                        +{dayReservations.length - 2} mas
                       </div>
-                      <div className={`text-xs font-medium ${
-                        isToday ? 'text-white/80' : isPastDate ? 'text-slate-500' : 'text-blue-600'
-                      }`}>
-                        {isPastDate ? 'Sin actividad' : 'Agregar reserva'}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Indicador de estado del día */}
-                <div className="absolute top-3 right-3">
-                  {dayReservations.length > 0 ? (
-                    <div className={`w-3 h-3 rounded-full ${
-                      isToday ? 'bg-white/50' : 'bg-green-400'
-                    }`}></div>
-                  ) : !isPastDate ? (
-                    <div className="w-3 h-3 rounded-full bg-gray-300"></div>
-                  ) : null}
+                    )}
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
-      )}
+      </Card>
 
-      {/* Vista de mes - Calendario completo con estadísticas */}
-      {viewMode === 'month' && (
-        <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
-          {/* Cabeceras de días */}
-          <div className="grid grid-cols-7 bg-gradient-to-r from-orange-500 to-red-500 text-white">
-            {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((day, idx) => (
-              <div key={day} className={`text-center text-sm font-bold py-4 px-2 ${
-                idx >= 5 ? 'bg-white/10' : ''
-              }`}>
-                <div className="hidden lg:block">{day}</div>
-                <div className="lg:hidden">{day.slice(0, 3)}</div>
-              </div>
-            ))}
+      {/* Detalles del dia seleccionado */}
+      {selectedDate && (
+        <Card className="p-6 bg-gradient-to-br from-purple-50 to-violet-50 border-0 shadow-xl rounded-2xl">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-purple-900">
+              Reservas del {formatDateForDisplay(selectedDate)}
+            </h3>
+            <button
+              onClick={() => setSelectedDate(null)}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-100 to-purple-200 hover:from-purple-200 hover:to-purple-300 border-2 border-purple-300 hover:border-purple-400 text-purple-700 hover:text-purple-800 font-semibold transition-all duration-300 shadow-md hover:shadow-lg"
+            >
+              ✕ Cerrar
+            </button>
           </div>
           
-          {/* Grid de días */}
-          <div className="grid grid-cols-7 gap-0">
-            {monthDates.map((date, index) => {
-              const dayReservations = getReservationsForDate(date);
-              const isToday = date.toDateString() === new Date().toDateString();
-              const today = new Date();
-              const isPastDate = date < new Date(today.getFullYear(), today.getMonth(), today.getDate());
-              
-              return (
-                <div
-                  key={index}
-                  className={`min-h-[140px] p-3 border-r border-b border-gray-100 cursor-pointer transition-all duration-200 hover:shadow-lg relative ${
-                    isToday ? 'bg-gradient-to-br from-orange-100 to-orange-200 border-orange-300 ring-2 ring-orange-400' :
-                    isPastDate ? 'bg-gray-50 hover:bg-gray-100' :
-                    'bg-white hover:bg-blue-50'
-                  }`}
-                  onClick={() => {
-                    if (dayReservations.length > 0) {
-                      openDateDetails(date);
-                    } else if (!isPastDate) {
-                      setSelectedDate(date);
-                      setShowNewReservationForm(true);
-                      toast.info(`Crear reserva para ${date.getDate()} de ${date.toLocaleDateString('es-ES', { month: 'long' })}`);
-                    }
-                  }}
-                >
-                  {/* Número del día */}
-                  <div className={`text-center font-bold mb-3 ${
-                    isToday ? 'text-orange-800 text-xl' :
-                    isPastDate ? 'text-gray-500 text-lg' :
-                    'text-slate-700 text-lg'
-                  }`}>
-                    {date.getDate()}
-                    {isToday && (
-                      <div className="bg-orange-600 text-white text-xs px-2 py-1 rounded-full font-bold mt-1 inline-block">
-                        HOY
+          {getReservationsForDate(selectedDate).length === 0 ? (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-slate-100 rounded-2xl mx-auto mb-4 flex items-center justify-center">
+                <div className="w-8 h-8 bg-slate-300 rounded-xl"></div>
+              </div>
+              <h4 className="text-lg font-semibold text-slate-700 mb-2">No hay reservas</h4>
+              <p className="text-slate-500">Este dia esta libre para nuevas reservas</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {getReservationsForDate(selectedDate).map(reservation => (
+                <div key={reservation.id} className="bg-white p-4 rounded-xl shadow-md border-l-4 border-purple-400">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold">
+                        {reservation.partySize}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-purple-900">{reservation.clientName}</h4>
+                        <p className="text-purple-700 text-sm">{reservation.time} • Mesa {reservation.table}</p>
+                      </div>
+                    </div>
+                    <Badge className={getStatusColor(reservation.status)}>
+                      {reservation.status === 'confirmed' ? 'Confirmada' : 
+                       reservation.status === 'pending' ? 'Pendiente' : 'Cancelada'}
+                    </Badge>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-semibold text-purple-900">Telefono:</span>
+                      <span className="text-purple-700 ml-2">{reservation.phone}</span>
+                    </div>
+                    {reservation.notes && (
+                      <div>
+                        <span className="font-semibold text-purple-900">Notas:</span>
+                        <span className="text-purple-700 ml-2">{reservation.notes}</span>
                       </div>
                     )}
                   </div>
                   
-                  {/* Contador de reservas prominente */}
-                  {dayReservations.length > 0 && (
-                    <div className="text-center mb-3">
-                      <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold shadow-lg ${
-                        isToday ? 'bg-orange-600 text-white' :
-                        isPastDate ? 'bg-blue-500 text-white' :
-                        'bg-green-500 text-white'
-                      }`}>
-                        {dayReservations.length}
-                      </div>
-                      <div className={`text-xs font-medium mt-1 ${
-                        isToday ? 'text-orange-700' :
-                        isPastDate ? 'text-blue-600' :
-                        'text-green-600'
-                      }`}>
-                        {dayReservations.length === 1 ? 'reserva' : 'reservas'}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Estados de reservas */}
-                  {dayReservations.length > 0 && (
-                    <div className="space-y-1">
-                      {/* Mostrar primeras 2 reservas */}
-                      {dayReservations.slice(0, 2).map((reservation) => {
-                        const client = getClientData(reservation.clientId);
-                        return (
-                          <div
-                            key={reservation.id}
-                            className={`text-xs p-2 rounded-lg font-medium shadow-sm ${
-                              reservation.status === 'confirmada' ? 'bg-green-500 text-white' :
-                              reservation.status === 'pendiente' ? 'bg-yellow-500 text-black' :
-                              reservation.status === 'cancelada' ? 'bg-red-500 text-white' :
-                              'bg-blue-500 text-white'
-                            }`}
-                          >
-                            <div className="font-bold flex items-center justify-between">
-                              <span>{reservation.time}</span>
-                              <span className="text-xs opacity-80">M{reservation.tableId.replace('M', '')}</span>
-                            </div>
-                            <div className="opacity-90 truncate">{client?.name || 'Cliente'}</div>
-                            <div className="opacity-75 text-xs">{reservation.people}p</div>
-                          </div>
-                        );
-                      })}
-                      
-                      {/* Contador si hay más de 2 */}
-                      {dayReservations.length > 2 && (
-                        <div className="text-xs text-center font-bold py-1 px-2 rounded-lg bg-orange-500 text-white shadow-sm">
-                          +{dayReservations.length - 2} más
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Día vacío */}
-                  {dayReservations.length === 0 && !isPastDate && (
-                    <div className="text-center py-4">
-                      <div className="text-2xl text-gray-300 mb-1">➕</div>
-                      <div className="text-xs text-gray-400 font-medium">Agregar</div>
-                      <div className="text-xs text-gray-300">reserva</div>
-                    </div>
-                  )}
-                  
-                  {/* Día pasado sin actividad */}
-                  {dayReservations.length === 0 && isPastDate && (
-                    <div className="text-center py-4">
-                      <div className="text-xl text-gray-300">📝</div>
-                      <div className="text-xs text-gray-400">Sin actividad</div>
-                    </div>
-                  )}
-                  
-                  {/* Indicador de fin de semana */}
-                  {(index % 7 >= 5) && (
-                    <div className="absolute top-1 right-1 w-2 h-2 bg-blue-400 rounded-full opacity-60"></div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Vista de año */}
-      {viewMode === 'year' && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 md:gap-6">
-          {yearMonths.map((month, index) => {
-            const monthReservations = getReservationsForMonth(month);
-            const isCurrentMonth = month.getMonth() === new Date().getMonth() && month.getFullYear() === new Date().getFullYear();
-            
-            const isPastMonth = month < new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-            
-            return (
-              <Card 
-                key={index} 
-                className={`min-h-[200px] cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-xl ${
-                  isCurrentMonth ? 'ring-2 ring-orange-500 bg-gradient-to-br from-orange-50 to-orange-100 shadow-lg' :
-                  isPastMonth ? 'bg-gradient-to-br from-gray-50 to-blue-50 hover:shadow-lg' :
-                  'bg-gradient-to-br from-white to-emerald-50 hover:shadow-lg hover:ring-2 hover:ring-emerald-300'
-                }`}
-                onClick={() => monthReservations.length > 0 && openMonthDetails(month)}
-              >
-                <CardHeader className="pb-3">
-                  <CardTitle className={`text-center text-lg capitalize font-bold ${
-                    isCurrentMonth ? 'text-orange-700' :
-                    isPastMonth ? 'text-gray-600' :
-                    'text-emerald-700'
-                  }`}>
-                    {month.toLocaleDateString('es-ES', { month: 'long' })}
-                    {isCurrentMonth && (
-                      <div className="text-xs font-normal text-orange-600 mt-1">MES ACTUAL</div>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center mb-4">
-                    <div className={`text-4xl font-bold mb-1 ${
-                      isCurrentMonth ? 'text-orange-600' :
-                      isPastMonth ? 'text-blue-600' :
-                      'text-emerald-600'
-                    }`}>
-                      {monthReservations.length}
-                    </div>
-                    <div className="text-sm text-gray-600 font-medium">
-                      {monthReservations.length === 1 ? 'reserva' : 'reservas'}
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs">
-                      <span>Confirmadas:</span>
-                      <span className="font-medium text-green-600">
-                        {monthReservations.filter(r => r.status === 'confirmada').length}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span>Completadas:</span>
-                      <span className="font-medium text-blue-600">
-                        {monthReservations.filter(r => r.status === 'completada').length}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex space-x-2 mt-4">
-                    <button
-                      className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 shadow-sm hover:shadow-md ${
-                        isCurrentMonth ? 'bg-orange-500 hover:bg-orange-600 text-white' :
-                        isPastMonth ? 'bg-blue-100 hover:bg-blue-200 text-blue-700' :
-                        'bg-emerald-100 hover:bg-emerald-200 text-emerald-700'
-                      }`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCurrentDate(month);
-                        setViewMode('month');
-                        toast.success(`📅 Ver calendario de ${month.toLocaleDateString('es-ES', { month: 'long' })}`);
-                      }}
-                    >
-                      📅 Ver Mes
+                  <div className="flex items-center space-x-2 mt-3">
+                    <button className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white text-sm font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                      ✏️ Editar
                     </button>
-                    {monthReservations.length > 0 && (
-                      <button
-                        className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 shadow-sm hover:shadow-md ${
-                          isPastMonth ? 'bg-blue-500 hover:bg-blue-600 text-white' :
-                          'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                        }`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openMonthDetails(month);
-                        }}
-                      >
-                        📋 Ver Lista
+                    <button className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-100 to-blue-200 hover:from-blue-200 hover:to-blue-300 border border-blue-300 text-blue-700 hover:text-blue-800 text-sm font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                      📞 Llamar
+                    </button>
+                    {reservation.status === 'pending' && (
+                      <button className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-sm font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
+                        ✅ Confirmar
                       </button>
                     )}
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
       )}
 
 
-      {/* Modal de Información del Cliente */}
-      {selectedClient && (
-        <div className="fixed inset-0 bg-white flex items-center justify-center z-50">
-          <Card className="w-full max-w-md mx-4">
-            <CardHeader>
-              <CardTitle>Información del Cliente</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {(() => {
-                const client = getClientData(selectedClient.clientId);
-                return (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                      <p className="text-gray-900 font-medium">{client?.name || 'No especificado'}</p>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-                      <p className="text-gray-900">{client?.phone || 'No especificado'}</p>
-                    </div>
-
-                  </>
-                );
-              })()}
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
-                  <p className="text-gray-900">{selectedClient?.date.toLocaleDateString('es-ES')}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora</label>
-                  <p className="text-gray-900">{selectedClient.time}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Personas</label>
-                  <p className="text-gray-900">{selectedClient.people} personas</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mesa</label>
-                  <p className="text-gray-900">Mesa {selectedClient.tableId}</p>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
-                <Badge className={getStatusColor(selectedClient.status)}>
-                  {getStatusText(selectedClient.status)}
-                </Badge>
-              </div>
-
-              {selectedClient.notes && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
-                  <p className="text-gray-900 bg-gray-50 p-2 rounded">{selectedClient.notes}</p>
-                </div>
-              )}
-
-              <div className="flex justify-center pt-4">
-                <button
-                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-md font-medium transition-colors"
-                  onClick={() => {
-                    setSelectedClient(null);
-                    toast.info('Cerrando información del cliente');
-                  }}
-                >
-                  Cerrar
-                </button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Modal de Detalles del Día */}
-      {showDateDetails && selectedDate && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>
-                  Reservas del {selectedDate.toLocaleDateString('es-ES', { 
-                    weekday: 'long', 
-                    day: 'numeric', 
-                    month: 'long', 
-                    year: 'numeric' 
-                  })}
-                </CardTitle>
-                <button
-                  onClick={() => setShowDateDetails(false)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-                >
-                  ×
-                </button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {getReservationsForDate(selectedDate).map((reservation) => {
-                  const client = getClientData(reservation.clientId);
-                  return (
-                    <Card key={reservation.id} className="border-l-4 border-l-orange-500">
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                              <User className="h-5 w-5 text-orange-600" />
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-lg">
-                                {client?.name || 'Cliente sin nombre'}
-                              </h3>
-                              <p className="text-gray-600 text-sm">
-                                {client?.phone || 'Sin teléfono'}
-                              </p>
-                            </div>
-                          </div>
-                        <Badge className={getStatusColor(reservation.status)}>
-                          {getStatusText(reservation.status)}
-                        </Badge>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div className="flex items-center">
-                          <Clock className="h-4 w-4 mr-2 text-gray-500" />
-                          <span>{reservation.time}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Users className="h-4 w-4 mr-2 text-gray-500" />
-                          <span>{reservation.people} personas</span>
-                        </div>
-                        <div className="flex items-center">
-                          <MapPin className="h-4 w-4 mr-2 text-gray-500" />
-                          <span>Mesa {reservation.tableId}</span>
-                        </div>
-                      </div>
-                      
-                      {reservation.notes && (
-                        <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                          <p className="text-sm text-gray-700">
-                            <strong>Notas:</strong> {reservation.notes}
-                          </p>
-                        </div>
-                      )}
-                      
-                      <div className="flex space-x-2 mt-4">
-                        <button
-                          onClick={() => showClientInfo(reservation)}
-                          className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded text-sm font-medium transition-colors"
-                        >
-                          Ver Detalles
-                        </button>
-                        <button
-                          onClick={() => changeReservationStatus(reservation.id, 'confirmada')}
-                          className="flex-1 bg-green-100 hover:bg-green-200 text-green-700 px-3 py-2 rounded text-sm font-medium transition-colors"
-                        >
-                          Confirmar
-                        </button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  );
-                })}
-                
-                {getReservationsForDate(selectedDate).length === 0 && (
-                  <div className="text-center py-8">
-                    <div className="text-gray-400 text-6xl mb-4">📅</div>
-                    <p className="text-gray-600">No hay reservas para este día</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Modal de Detalles del Mes */}
-      {showMonthDetails && selectedMonth && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>
-                  Reservas de {selectedMonth.toLocaleDateString('es-ES', { 
-                    month: 'long', 
-                    year: 'numeric' 
-                  })}
-                </CardTitle>
-                <button
-                  onClick={() => setShowMonthDetails(false)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-                >
-                  ×
-                </button>
-              </div>
-              <div className="flex items-center space-x-4 mt-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-orange-600">
-                    {getReservationsForMonth(selectedMonth).length}
-                  </div>
-                  <div className="text-xs text-gray-600">Total</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">
-                    {getReservationsForMonth(selectedMonth).filter(r => r.status === 'confirmada').length}
-                  </div>
-                  <div className="text-xs text-gray-600">Confirmadas</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">
-                    {getReservationsForMonth(selectedMonth).filter(r => r.status === 'completada').length}
-                  </div>
-                  <div className="text-xs text-gray-600">Completadas</div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {getReservationsForMonth(selectedMonth)
-                  .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-                  .map((reservation) => {
-                    const client = getClientData(reservation.clientId);
-                    return (
-                      <Card key={reservation.id} className="border-l-4 border-l-orange-500">
-                        <CardContent className="p-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <div className="text-center">
-                                <div className="text-lg font-bold text-orange-600">
-                                  {new Date(reservation.date).getDate()}
-                                </div>
-                                <div className="text-xs text-gray-600">
-                                  {new Date(reservation.date).toLocaleDateString('es-ES', { month: 'short' })}
-                                </div>
-                              </div>
-                              <div>
-                                <h3 className="font-semibold">
-                                  {client?.name || 'Cliente sin nombre'}
-                                </h3>
-                                <div className="flex items-center space-x-4 text-sm text-gray-600">
-                                  <span>{reservation.time}</span>
-                                  <span>{reservation.people} personas</span>
-                                  <span>Mesa {reservation.tableId}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <Badge className={getStatusColor(reservation.status)}>
-                                {getStatusText(reservation.status)}
-                              </Badge>
-                              <div className="text-xs text-gray-500 mt-1">
-                                {client?.phone || 'Sin teléfono'}
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                
-                {getReservationsForMonth(selectedMonth).length === 0 && (
-                  <div className="text-center py-8">
-                    <div className="text-gray-400 text-6xl mb-4">📊</div>
-                    <p className="text-gray-600">No hay reservas para este mes</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Modal de Nueva Reserva */}
-      {showNewReservationForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md bg-white">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Nueva Reserva</CardTitle>
-                <button
-                  onClick={() => setShowNewReservationForm(false)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-                >
-                  ×
-                </button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.target as HTMLFormElement);
-                const newReservation = {
-                  clientName: formData.get('clientName') as string,
-                  clientPhone: formData.get('clientPhone') as string,
-                  date: formData.get('date') as string,
-                  time: formData.get('time') as string,
-                  people: parseInt(formData.get('people') as string),
-                  notes: formData.get('notes') as string
-                };
-                
-                toast.success(`✅ Reserva creada para ${newReservation.clientName}`);
-                toast.info(`${newReservation.people} personas - ${newReservation.date} ${newReservation.time}`);
-                setShowNewReservationForm(false);
-                loadReservations(); // Recargar reservas
-              }} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre del cliente *
-                  </label>
-                  <input
-                    type="text"
-                    name="clientName"
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="Nombre completo"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Teléfono *
-                  </label>
-                  <input
-                    type="tel"
-                    name="clientPhone"
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="+34 123 456 789"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Fecha *
-                    </label>
-                    <input
-                      type="date"
-                      name="date"
-                      required
-                      defaultValue={selectedDate?.toISOString().split('T')[0] || new Date().toISOString().split('T')[0]}
-                      min={new Date().toISOString().split('T')[0]}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Hora *
-                    </label>
-                    <select
-                      name="time"
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    >
-                      <option value="">Seleccionar hora</option>
-                      <optgroup label="🍽️ Almuerzo">
-                        <option value="13:00">13:00 - Primer turno (13:00-15:00)</option>
-                        <option value="14:00">14:00 - Segundo turno (14:00-16:00)</option>
-                      </optgroup>
-                      <optgroup label="🌙 Cena">
-                        <option value="20:00">20:00 - Primer turno (20:00-22:00)</option>
-                        <option value="22:00">22:00 - Segundo turno (22:00-23:30)</option>
-                      </optgroup>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Número de personas *
-                  </label>
-                  <select
-                    name="people"
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  >
-                    <option value="">Seleccionar personas</option>
-                    {Array.from({ length: 12 }, (_, i) => i + 1).map(num => (
-                      <option key={num} value={num}>
-                        {num} {num === 1 ? 'persona' : 'personas'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Notas adicionales
-                  </label>
-                  <textarea
-                    name="notes"
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="Comentarios especiales, alergias, etc."
-                  />
-                </div>
-
-                <div className="flex space-x-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowNewReservationForm(false)}
-                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
-                  >
-                    Crear Reserva
-                  </button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-      )}
     </div>
   );
 }

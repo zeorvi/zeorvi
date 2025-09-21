@@ -1,27 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { 
-  Search, 
-  Filter, 
-  SortAsc, 
-  Clock,
-  Users,
-  Phone,
-  RefreshCw
-} from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Table, getTablesByStatus, updateTableStatus, getRestaurantMetrics } from '@/lib/restaurantData';
 
 interface TablePlanProps {
   restaurantId: string;
+  isDarkMode?: boolean;
 }
 
-export default function TablePlan({ }: TablePlanProps) {
+export default function TablePlan({ isDarkMode = false }: TablePlanProps) {
   const [tables, setTables] = useState<Table[]>([]);
   const [filteredTables, setFilteredTables] = useState<Table[]>([]);
   const [statusFilter, setStatusFilter] = useState<'all' | 'libre' | 'ocupada' | 'reservada'>('all');
@@ -155,209 +144,92 @@ export default function TablePlan({ }: TablePlanProps) {
   }
 
   return (
-    <div className="space-y-6">
-
-
-      {/* Filtros y búsqueda */}
-      <Card>
-        <CardContent className="p-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex-1 min-w-64">
-              <div className="relative">
-                <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <Input
-                  placeholder="Buscar mesa o cliente..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+    <div className="p-4 md:p-6">
+      {/* Título y Leyenda */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 md:mb-8 space-y-4 md:space-y-0">
+        <h1 className={`text-xl md:text-2xl font-bold transition-colors duration-300 ${
+          isDarkMode ? 'text-white' : 'text-gray-800'
+        }`}>Plano de Mesas</h1>
+        
+        {/* Leyenda */}
+        <div className="flex flex-wrap justify-center md:justify-end space-x-4 md:space-x-6">
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+            <span className={`text-sm font-medium transition-colors duration-300 ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>Libre</span>
             </div>
-            
             <div className="flex items-center space-x-2">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as 'all' | 'libre' | 'ocupada' | 'reservada')}
-                className="px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-              >
-                <option value="all">Todas las mesas</option>
-                <option value="libre">Mesas libres</option>
-                <option value="ocupada">Mesas ocupadas</option>
-                <option value="reservada">Mesas reservadas</option>
-              </select>
-              
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => toast.success('Aplicando filtros al plano de mesas')}
-              >
-                <Filter className="h-4 w-4 mr-1" />
-                Filtro
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => toast.success('Ordenando mesas por criterio')}
-              >
-                <SortAsc className="h-4 w-4 mr-1" />
-                Ordenar
-              </Button>
-            </div>
+            <div className="w-4 h-4 bg-yellow-400 rounded-full"></div>
+            <span className={`text-sm font-medium transition-colors duration-300 ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>Reservada</span>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Métricas rápidas */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-        <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-600">Total Mesas</p>
-                <p className="text-xl font-bold text-gray-900">{metrics.totalTables}</p>
-              </div>
-              <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
-                <Users className="h-4 w-4 text-blue-600" />
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 bg-red-500 rounded-full"></div>
+            <span className={`text-sm font-medium transition-colors duration-300 ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>Ocupada</span>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-600">Libres</p>
-                <p className="text-xl font-bold text-green-600">{metrics.freeTables}</p>
-              </div>
-              <div className="h-8 w-8 bg-green-500 rounded-full flex items-center justify-center shadow-md">
-                <div className="h-3 w-3 bg-white rounded-full"></div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-600">Ocupadas</p>
-                <p className="text-xl font-bold text-red-600">{metrics.occupiedTables}</p>
-              </div>
-              <div className="h-8 w-8 bg-red-500 rounded-full flex items-center justify-center shadow-md">
-                <div className="h-3 w-3 bg-white rounded-full"></div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-600">Reservadas</p>
-                <p className="text-xl font-bold text-yellow-600">{metrics.reservedTables}</p>
-              </div>
-              <div className="h-8 w-8 bg-yellow-500 rounded-full flex items-center justify-center shadow-md">
-                <div className="h-3 w-3 bg-white rounded-full"></div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
-      {/* Grid de mesas */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
+      {/* Grid de mesas - 6 columnas y más grandes */}
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-3 md:gap-4 max-w-6xl mx-auto">
         {filteredTables.map((table) => (
-          <Card key={table.id} className={`hover:shadow-lg transition-all duration-200 hover:scale-105 ${getTableCardStyle(table.status)}`}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">{table.name}</CardTitle>
-                <Badge className={getStatusColor(table.status)}>
-                  {getStatusText(table.status)}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex items-center text-sm text-gray-600">
-                <Users className="h-4 w-4 mr-2" />
-                Capacidad: {table.capacity}
-              </div>
-              
-              <div className="flex items-center text-sm text-gray-600">
-                <div className="h-4 w-4 mr-2 rounded bg-gray-300"></div>
-                {table.location}
+          <div 
+            key={table.id} 
+            className={`
+              relative p-4 md:p-8 rounded-lg md:rounded-xl cursor-pointer transition-all duration-200 hover:shadow-lg min-h-[120px] md:min-h-[140px] flex flex-col items-center justify-center
+              ${table.status === 'libre' ? 'bg-green-500' : 
+                table.status === 'ocupada' ? 'bg-red-500' : 
+                'bg-yellow-400'}
+            `}
+            onClick={() => {
+              if (table.client) {
+                toast.info(`Mesa ${table.name} - ${table.client.name} (${table.client.phone})`);
+              } else {
+                toast.info(`Mesa ${table.name} - ${getStatusText(table.status)}`);
+              }
+            }}
+          >
+            {/* Nombre de la mesa */}
+            <div className="text-center mb-2 md:mb-3">
+              <div className="font-bold text-lg md:text-2xl text-white">{table.name}</div>
               </div>
 
+            {/* Información del cliente (si existe) */}
               {table.client && (
-                <>
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Users className="h-4 w-4 mr-2" />
-                    {table.client.name}
+              <div className="space-y-2 text-center text-white">
+                {table.reservation && (
+                  <div className="font-bold text-sm md:text-lg">
+                    {table.reservation.time}
                   </div>
-                  
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Phone className="h-4 w-4 mr-2" />
-                    {table.client.phone}
+                )}
+                <div className="font-bold text-sm md:text-base truncate" title={table.client.name}>
+                  {table.client.name}
+                </div>
+                {table.reservation && (
+                  <div className="font-bold text-sm md:text-base">
+                    {table.reservation.people} pers.
                   </div>
-
-                  {table.reservation && (
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Clock className="h-4 w-4 mr-2" />
-                      {table.reservation.time}
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Acciones */}
-              <div className="flex space-x-2 pt-2">
-                {table.status === 'libre' && (
-                  <Button
-                    size="sm"
-                    onClick={() => handleTableAction(table.id, 'reservar')}
-                    className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-600"
-                  >
-                    Reservar
-                  </Button>
                 )}
-                
-                {table.status === 'reservada' && (
-                  <Button
-                    size="sm"
-                    onClick={() => handleTableAction(table.id, 'ocupar')}
-                    className="flex-1 bg-red-500 hover:bg-red-600 text-white border-red-600"
-                  >
-                    Ocupar
-                  </Button>
-                )}
-                
-                {(table.status === 'ocupada' || table.status === 'reservada') && (
-                  <Button
-                    size="sm"
-                    onClick={() => handleTableAction(table.id, 'liberar')}
-                    className="flex-1 bg-green-500 hover:bg-green-600 text-white border-green-600"
-                  >
-                    Liberar
-                  </Button>
-                )}
+                <div className="text-sm truncate" title={table.client.phone}>
+                  {table.client.phone}
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            )}
+
+            {/* Capacidad (solo si no hay cliente) */}
+            {!table.client && (
+              <div className="text-center text-sm text-white">
+                <div>{table.capacity} pers.</div>
+                <div className="mt-1">{table.location}</div>
+              </div>
+            )}
+          </div>
         ))}
       </div>
-
-      {filteredTables.length === 0 && (
-        <div className="text-center py-12">
-          <div className="text-gray-400 mb-4">
-            <Users className="h-12 w-12 mx-auto" />
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No se encontraron mesas</h3>
-          <p className="text-gray-600">
-            {searchTerm ? 'Intenta con otros términos de búsqueda' : 'No hay mesas que coincidan con los filtros actuales'}
-          </p>
-        </div>
-      )}
     </div>
   );
 }

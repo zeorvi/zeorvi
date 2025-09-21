@@ -14,8 +14,8 @@ const requiredEnvVars = {
 
 // Verificar que todas las variables requeridas estén presentes
 const missingVars = Object.entries(requiredEnvVars)
-  .filter(([_, value]) => !value)
-  .map(([key, _]) => key);
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
 
 if (missingVars.length > 0) {
   console.error('❌ Variables de entorno de Firebase faltantes:', missingVars);

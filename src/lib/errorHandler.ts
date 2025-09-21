@@ -53,8 +53,8 @@ export class RateLimitError extends AppError {
 }
 
 // Middleware para manejo de errores en APIs
-export const errorHandler = (handler: Function) => {
-  return async (request: NextRequest, context?: any) => {
+export const errorHandler = (handler: (request: NextRequest, context?: unknown) => Promise<Response>) => {
+  return async (request: NextRequest, context?: unknown) => {
     try {
       return await handler(request, context);
     } catch (error) {
@@ -67,7 +67,7 @@ export const errorHandler = (handler: Function) => {
 export const handleError = (error: unknown, request?: NextRequest): NextResponse => {
   let statusCode = 500;
   let message = 'Error interno del servidor';
-  let details: any = null;
+  let details: unknown = null;
 
   // Log del error
   if (error instanceof Error) {
@@ -113,7 +113,7 @@ export const handleError = (error: unknown, request?: NextRequest): NextResponse
     error: {
       message,
       statusCode,
-      ...(details && { details }),
+      ...(details && typeof details === 'object' ? { details } : {}),
       ...(process.env.NODE_ENV === 'development' && error instanceof Error && { stack: error.stack })
     },
     timestamp: new Date().toISOString()
@@ -158,16 +158,15 @@ export const safeAsync = async <T>(
 
 // Middleware para rate limiting
 export const withRateLimit = (
-  handler: Function,
+  handler: (request: NextRequest, context?: unknown) => Promise<Response>,
   maxRequests: number = 100,
   windowMs: number = 15 * 60 * 1000 // 15 minutos
 ) => {
   const requests = new Map<string, { count: number; resetTime: number }>();
 
-  return async (request: NextRequest, context?: any) => {
-    const ip = request.ip || request.headers.get('x-forwarded-for') || 'unknown';
+  return async (request: NextRequest, context?: unknown) => {
+    const ip = (request as any).ip || request.headers.get('x-forwarded-for') || 'unknown';
     const now = Date.now();
-    const windowStart = now - windowMs;
 
     // Limpiar entradas expiradas
     for (const [key, value] of requests.entries()) {

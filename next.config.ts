@@ -1,19 +1,20 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Configuración mínima y compatible
+  reactStrictMode: true,
+  swcMinify: true,
+  
+  // Solo webpack config básico
   webpack: (config, { isServer }) => {
-    // Excluir winston del bundle del cliente
     if (!isServer) {
+      // Configuración mínima para el cliente
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
-        path: false,
-        os: false,
-        winston: false,
+        net: false,
+        tls: false,
       };
-      
-      config.externals = config.externals || [];
-      config.externals.push('winston');
     }
     
     return config;

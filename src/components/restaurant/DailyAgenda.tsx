@@ -1,595 +1,271 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useEffect } from 'react';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Clock, 
-  Users, 
-  Plus,
-  RefreshCw,
-  User,
-  MapPin
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { getReservationsByDate, Reservation, getClientById, Client } from '@/lib/restaurantData';
-import { useOccupiedTables } from '@/lib/services/occupiedTablesService';
-import { useTurnSystem } from '@/lib/services/turnSystem';
 
 interface DailyAgendaProps {
   restaurantId: string;
+  restaurantName: string;
+  restaurantType: string;
+}
+
+interface Reservation {
+  id: string;
+  time: string;
+  clientName: string;
+  partySize: number;
+  table: string;
+  status: 'confirmed' | 'pending' | 'cancelled';
+  notes?: string;
+  phone?: string;
 }
 
 export default function DailyAgenda({ restaurantId }: DailyAgendaProps) {
-  const [todayReservations, setTodayReservations] = useState<Reservation[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedClient, setSelectedClient] = useState<Reservation | null>(null);
-  const [showNewReservationForm, setShowNewReservationForm] = useState(false);
-  
-  // Hook para mesas ocupadas
-  const { moveToOccupied } = useOccupiedTables();
-  
-  // Hook para sistema de turnos
-  const { getAllAvailableTimes } = useTurnSystem();
-
-  const loadTodayReservations = useCallback(() => {
-    setIsLoading(true);
-    try {
-      const today = new Date();
-      const reservations = getReservationsByDate(today);
-      setTodayReservations(reservations);
-      console.log(`Cargadas ${reservations.length} reservas para hoy - restaurante ${restaurantId}`);
-    } catch (error) {
-      console.error(`Error al cargar reservas de hoy para restaurante ${restaurantId}:`, error);
-      toast.error('Error al cargar las reservas de hoy');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [restaurantId]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedDate] = useState(new Date());
 
   useEffect(() => {
-    loadTodayReservations();
-    const interval = setInterval(loadTodayReservations, 10000); // Actualizar cada 10 segundos
-    
-    // Escuchar eventos de mesas liberadas automáticamente
-    const handleMesaLiberada = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { mesaId, cliente, tiempoOcupada } = customEvent.detail;
-      
-      toast.success(`🧹 Mesa ${mesaId} liberada automáticamente`);
-      toast.info(`${cliente} terminó su comida (${Math.floor(tiempoOcupada / 60)}h ${tiempoOcupada % 60}m) - Mesa disponible para nuevas reservas`);
-      
-      // Recargar reservas para reflejar el cambio
-      loadTodayReservations();
-    };
-    
-    if (typeof window !== 'undefined') {
-      window.addEventListener('mesa-liberada-automaticamente', handleMesaLiberada);
-    }
-    
-    return () => {
-      clearInterval(interval);
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('mesa-liberada-automaticamente', handleMesaLiberada);
+    // Mock data - en producción vendría de Firebase
+    const mockReservations: Reservation[] = [
+      {
+        id: '1',
+        time: '13:00',
+        clientName: 'Luis Fernández',
+        partySize: 2,
+        table: 'M2',
+        status: 'pending',
+        notes: 'Almuerzo de trabajo',
+        phone: '+34612345678'
+      },
+      {
+        id: '2',
+        time: '14:30',
+        clientName: 'Ana Ruiz',
+        partySize: 4,
+        table: 'M4',
+        status: 'pending',
+        notes: 'Familia con niños',
+        phone: '+34623456789'
+      },
+      {
+        id: '3',
+        time: '20:00',
+        clientName: 'Luis Fernández',
+        partySize: 2,
+        table: 'M6',
+        status: 'pending',
+        notes: 'Mesa romántica, sin ruido - Primer turno de cena',
+        phone: '+34634567890'
+      },
+      {
+        id: '4',
+        time: '21:30',
+        clientName: 'María González',
+        partySize: 6,
+        table: 'M8',
+        status: 'confirmed',
+        notes: 'Celebración de cumpleaños',
+        phone: '+34645678901'
       }
-    };
-  }, [loadTodayReservations]);
+    ];
 
-  const getClientData = (clientId: string): Client | null => {
-    return getClientById(clientId);
+    setReservations(mockReservations);
+    setLoading(false);
+  }, [restaurantId]);
+
+  const formatDate = (date: Date) => {
+    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    
+    return `${days[date.getDay()]}, ${date.getDate()} De ${months[date.getMonth()]} De ${date.getFullYear()}`;
   };
 
-  const getStatusColor = (status: Reservation['status']) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 'confirmada':
-        return 'bg-green-500 text-white border-green-600 shadow-md font-bold';
-      case 'completada':
-        return 'bg-blue-500 text-white border-blue-600 shadow-md font-bold';
-      case 'cancelada':
-        return 'bg-red-500 text-white border-red-600 shadow-md font-bold';
-      case 'pendiente':
-        return 'bg-yellow-500 text-black border-yellow-600 shadow-md font-bold';
-      default:
-        return 'bg-green-500 text-white border-green-600 shadow-md font-bold'; // Por defecto confirmada
+      case 'confirmed': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+      case 'pending': return 'bg-amber-100 text-amber-800 border-amber-200';
+      case 'cancelled': return 'bg-rose-100 text-rose-800 border-rose-200';
+      default: return 'bg-slate-100 text-slate-800 border-slate-200';
     }
   };
 
-  const getStatusText = (status: Reservation['status']) => {
+  const getStatusText = (status: string) => {
     switch (status) {
-      case 'confirmada': return 'Confirmada';
-      case 'completada': return 'Completada';
-      case 'cancelada': return 'Cancelada';
-      case 'pendiente': return 'Pendiente';
-      default: return 'Confirmada'; // Por defecto confirmada
+      case 'confirmed': return 'Confirmada';
+      case 'pending': return 'Pendiente';
+      case 'cancelled': return 'Cancelada';
+      default: return status;
     }
   };
 
-  const changeReservationStatus = (reservationId: string, newStatus: Reservation['status']) => {
-    setTodayReservations(prev => 
-      prev.map(res => 
-        res.id === reservationId 
-          ? { ...res, status: newStatus }
-          : res
-      )
-    );
-
-    // Mensajes específicos para cada estado
-    switch (newStatus) {
-      case 'pendiente':
-        toast.info('🟡 Reserva marcada como PENDIENTE');
-        toast('Esperando la llegada del cliente');
-        break;
-      case 'confirmada':
-        toast.success('🟢 Reserva CONFIRMADA');
-        toast.success('Cliente ha llegado y está en su mesa');
-        break;
-      case 'cancelada':
-        toast.error('🔴 Reserva CANCELADA');
-        toast.info('Mesa liberada y disponible para otros clientes');
-        break;
-      case 'completada':
-        toast.success('🔵 Reserva COMPLETADA');
-        toast.info('Mesa liberada y disponible');
-        break;
-    }
-  };
-
-  const showClientInfo = (reservation: Reservation) => {
-    setSelectedClient(reservation);
-    const client = getClientData(reservation.clientId);
-    toast.success(`👤 Información de ${client?.name || 'Cliente'}`);
-  };
-
-  const handleMoveToOccupied = (reservation: Reservation) => {
-    const client = getClientData(reservation.clientId);
-    if (client) {
-      // Mover a mesas ocupadas
-      moveToOccupied(reservation, client);
-      
-      // Remover de la agenda diaria
-      setTodayReservations(prev => prev.filter(res => res.id !== reservation.id));
-      
-      // Mostrar confirmación
-      toast.success('🧹 Mesa limpiada y marcada como ocupada');
-      toast.info(`Mesa ${reservation.tableId} se liberará automáticamente en ${reservation.duration} minutos`);
-    }
-  };
-
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw className="h-8 w-8 animate-spin text-orange-600" />
-        <span className="ml-2 text-gray-600">Cargando agenda del día...</span>
+      <div className="p-12">
+        <div className="animate-pulse space-y-6">
+          <div className="h-12 bg-slate-200 rounded-2xl w-2/3"></div>
+          <div className="space-y-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-32 bg-slate-200 rounded-2xl"></div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
 
-  const today = new Date();
-  const todayFormatted = today.toLocaleDateString('es-ES', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
-
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-6">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 capitalize">
-            Agenda de {todayFormatted}
-          </h1>
-          <p className="text-gray-600 mt-1 text-base md:text-lg">
-            {todayReservations.length} {todayReservations.length === 1 ? 'reserva programada' : 'reservas programadas'} para hoy
-          </p>
-        </div>
-        
-        <div className="flex items-center space-x-3 w-full md:w-auto">
-          <button
-            onClick={() => loadTodayReservations()}
-            className="border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 px-4 md:px-6 py-2.5 md:py-3 rounded-lg text-base font-medium flex items-center transition-colors shadow-sm flex-1 md:flex-none"
-          >
-            <RefreshCw className="h-5 w-5 mr-2" />
-            Actualizar
-          </button>
-          <button 
-            className="bg-orange-600 hover:bg-orange-700 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-lg text-base font-medium flex items-center transition-colors shadow-sm flex-1 md:flex-none"
-            onClick={() => {
-              setShowNewReservationForm(true);
-              toast.success('📝 Abriendo formulario de nueva reserva');
-            }}
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Nueva Reserva
-          </button>
+    <div className="p-12 bg-gradient-to-br from-slate-50 via-white to-slate-100 min-h-screen">
+      {/* Header Elegante */}
+      <div className="mb-12">
+        <div className="flex items-center justify-between">
+          <div className="space-y-4">
+            <h1 className="text-4xl font-bold text-slate-900 tracking-tight">
+              Agenda De {formatDate(selectedDate)}
+            </h1>
+            <p className="text-xl text-slate-600 font-medium">
+              {reservations.length} reservas programadas para hoy
+            </p>
+          </div>
+          
+          <div className="flex items-center space-x-6">
+            <Button 
+              variant="outline" 
+              className="px-6 py-3 rounded-2xl border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-semibold"
+            >
+              Actualizar
+            </Button>
+            <Button className="px-8 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold shadow-lg">
+              Nueva Reserva
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Reservas del día - Estilo página principal */}
-      {todayReservations.length === 0 ? (
-        <Card className="text-center py-12 bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200">
-          <CardContent>
-            <div className="text-6xl mb-4">📅</div>
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">
-              No hay reservas para hoy
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Comienza agregando la primera reserva del día
-            </p>
-            <button
-              onClick={() => setShowNewReservationForm(true)}
-              className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-lg font-medium flex items-center mx-auto transition-colors shadow-md"
-            >
-              <Plus className="h-5 w-5 mr-2" />
-              Crear Primera Reserva
-            </button>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="bg-white border-gray-200 shadow-2xl">
-          <CardContent className="p-4">
-            <h3 className="text-gray-900 font-semibold mb-4 text-lg">Reservas de Hoy</h3>
-            <div className="space-y-3">
-              {todayReservations
-                .sort((a, b) => a.time.localeCompare(b.time))
-                .map((reservation) => {
-                  const client = getClientData(reservation.clientId);
-                  
-                  return (
-                    <div key={reservation.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border-2 border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md">
-                      <div className="flex-1">
-                        <div className="mb-2">
-                          <div className="bg-blue-100 text-blue-800 px-2 py-1 rounded-md text-xs font-bold inline-block mb-2">
-                            Mesa {reservation.tableId}
-                          </div>
-                          <div className="text-gray-900 font-semibold text-lg">{reservation.time}</div>
-                        </div>
-                        <div className="text-gray-600 text-sm">
-                          {client?.name || 'Cliente sin nombre'} • {reservation.people} personas
-                        </div>
-                        {reservation.notes && (
-                          <div className="text-xs text-gray-500 mt-1 truncate">
-                            {reservation.notes}
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center space-x-2 ml-4">
-                        {/* Botones de acción - 3 estados */}
-                        <div className="flex space-x-1">
-                          {/* Botón Pendiente */}
-                          <button
-                            onClick={() => {
-                              changeReservationStatus(reservation.id, 'pendiente');
-                              toast.info('Reserva marcada como pendiente');
-                            }}
-                            className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                              reservation.status === 'pendiente' 
-                                ? 'bg-yellow-500 text-white border border-yellow-600' 
-                                : 'bg-yellow-100 hover:bg-yellow-200 text-yellow-700'
-                            }`}
-                          >
-                            Pendiente
-                          </button>
-                          
-                          {/* Botón Confirmar */}
-                          <button
-                            onClick={() => {
-                              changeReservationStatus(reservation.id, 'confirmada');
-                              toast.success('Reserva confirmada - Cliente llegó');
-                            }}
-                            className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                              reservation.status === 'confirmada' 
-                                ? 'bg-green-500 text-white border border-green-600' 
-                                : 'bg-green-100 hover:bg-green-200 text-green-700'
-                            }`}
-                          >
-                            Confirmar
-                          </button>
-                          
-                          {/* Botón Cancelar */}
-                          <button
-                            onClick={() => {
-                              changeReservationStatus(reservation.id, 'cancelada');
-                              toast.error('Reserva cancelada');
-                            }}
-                            className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                              reservation.status === 'cancelada' 
-                                ? 'bg-red-500 text-white border border-red-600' 
-                                : 'bg-red-100 hover:bg-red-200 text-red-700'
-                            }`}
-                          >
-                            Cancelar
-                          </button>
-                          
-                          {/* Botón Ver */}
-                          <button
-                            onClick={() => showClientInfo(reservation)}
-                            className="px-2 py-1 rounded text-xs font-medium bg-blue-100 hover:bg-blue-200 text-blue-700 transition-colors"
-                          >
-                            Ver
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Modal de Información del Cliente */}
-      {selectedClient && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Información del Cliente</CardTitle>
-                <button
-                  onClick={() => setSelectedClient(null)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-                >
-                  ×
-                </button>
+      {/* Reservas del Día */}
+      <div className="space-y-8">
+        <h2 className="text-2xl font-bold text-slate-900 tracking-tight mb-8">Reservas de Hoy</h2>
+        
+        {reservations.length === 0 ? (
+          <Card className="p-16 text-center bg-white/60 backdrop-blur-sm border-0 shadow-xl rounded-3xl">
+            <div className="space-y-6">
+              <div className="w-24 h-24 bg-slate-100 rounded-full mx-auto flex items-center justify-center">
+                <div className="w-12 h-12 bg-slate-300 rounded-full"></div>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {(() => {
-                const client = getClientData(selectedClient.clientId);
-                return (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                      <p className="text-gray-900 font-medium">{client?.name || 'No especificado'}</p>
+              <div>
+                <h3 className="text-2xl font-bold text-slate-900 mb-2">No hay reservas programadas</h3>
+                <p className="text-slate-600 text-lg">El día está libre para reservas walk-in</p>
+              </div>
+            </div>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {reservations.map((reservation) => (
+              <Card key={reservation.id} className="p-4 bg-white/60 backdrop-blur-sm border-0 shadow-lg rounded-xl hover:shadow-xl transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    {/* Hora más pequeña */}
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-gradient-to-br from-slate-100 to-slate-200 rounded-lg flex items-center justify-center shadow-md">
+                        <span className="text-sm font-bold text-slate-700">{reservation.time}</span>
+                      </div>
                     </div>
                     
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-                      <p className="text-gray-900">{client?.phone || 'No especificado'}</p>
+                    {/* Mesa más pequeña */}
+                    <div className="text-center">
+                      <div className="px-3 py-1 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-md shadow-md">
+                        <span className="text-white font-bold text-xs">Mesa {reservation.table}</span>
+                      </div>
                     </div>
-
-                  </>
-                );
-              })()}
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
-                  <p className="text-gray-900">{selectedClient?.date.toLocaleDateString('es-ES')}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hora</label>
-                  <p className="text-gray-900">{selectedClient.time}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Personas</label>
-                  <p className="text-gray-900">{selectedClient.people} personas</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mesa</label>
-                  <p className="text-gray-900">Mesa {selectedClient.tableId}</p>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
-                <Badge className={getStatusColor(selectedClient.status)}>
-                  {getStatusText(selectedClient.status)}
-                </Badge>
-              </div>
-
-              {selectedClient.notes && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
-                  <p className="text-gray-900 bg-gray-50 p-2 rounded">{selectedClient.notes}</p>
-                </div>
-              )}
-
-              <div className="flex justify-center pt-4">
-                <button
-                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-md font-medium transition-colors"
-                  onClick={() => {
-                    setSelectedClient(null);
-                    toast.info('Cerrando información del cliente');
-                  }}
-                >
-                  Cerrar
-                </button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Modal de Nueva Reserva */}
-      {showNewReservationForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md bg-white">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Nueva Reserva para Hoy</CardTitle>
-                <button
-                  onClick={() => setShowNewReservationForm(false)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-                >
-                  ×
-                </button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.target as HTMLFormElement);
-                
-                // Procesar necesidades especiales
-                const specialNeedsArray = formData.getAll('specialNeeds') as string[];
-                const specialNeedsText = specialNeedsArray.length > 0 
-                  ? specialNeedsArray.map(need => {
-                      switch(need) {
-                        case 'celiac': return '🌾 Celíaco';
-                        case 'vegetarian': return '🥗 Vegetariano';
-                        case 'wheelchair': return '♿ Silla ruedas';
-                        case 'baby_chair': return '👶 Silla bebé';
-                        case 'birthday': return '🎂 Cumpleaños';
-                        case 'anniversary': return '💕 Aniversario';
-                        default: return need;
-                      }
-                    }).join(', ')
-                  : '';
-                
-                const newReservation = {
-                  clientName: formData.get('clientName') as string,
-                  clientPhone: formData.get('clientPhone') as string,
-                  time: formData.get('time') as string,
-                  people: parseInt(formData.get('people') as string),
-                  notes: formData.get('notes') as string,
-                  specialNeeds: specialNeedsText
-                };
-                
-                toast.success(`✅ Reserva creada para ${newReservation.clientName}`);
-                if (specialNeedsText) {
-                  toast.info(`Necesidades especiales: ${specialNeedsText}`);
-                }
-                toast.info(`${newReservation.people} personas - Hoy ${newReservation.time}`);
-                setShowNewReservationForm(false);
-                loadTodayReservations(); // Recargar reservas
-              }} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre del cliente *
-                  </label>
-                  <input
-                    type="text"
-                    name="clientName"
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="Nombre completo"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Teléfono *
-                  </label>
-                  <input
-                    type="tel"
-                    name="clientPhone"
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="+34 123 456 789"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Hora *
-                    </label>
-                    <select
-                      name="time"
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    >
-                      <option value="">Seleccionar turno</option>
-                      <optgroup label="🍽️ Almuerzo">
-                        <option value="13:00">13:00 - Primer turno (13:00-15:00)</option>
-                        <option value="14:00">14:00 - Segundo turno (14:00-16:00)</option>
-                      </optgroup>
-                      <optgroup label="🌙 Cena">
-                        <option value="20:00">20:00 - Primer turno (20:00-22:00)</option>
-                        <option value="22:00">22:00 - Segundo turno (22:00-23:30)</option>
-                      </optgroup>
-                    </select>
+                    
+                    {/* Información del Cliente más compacta */}
+                    <div className="space-y-1">
+                      <h3 className="text-lg font-bold text-slate-900">{reservation.clientName}</h3>
+                      <div className="flex items-center space-x-3 text-xs">
+                        <span className="text-slate-600 font-medium">{reservation.partySize} personas</span>
+                        <span className="text-slate-400">•</span>
+                        <span className="text-slate-500 font-medium">{reservation.phone}</span>
+                      </div>
+                      {reservation.notes && (
+                        <p className="text-slate-500 italic text-xs max-w-md">{reservation.notes}</p>
+                      )}
+                    </div>
                   </div>
                   
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Personas *
-                    </label>
-                    <select
-                      name="people"
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    >
-                      <option value="">Seleccionar</option>
-                      {Array.from({ length: 12 }, (_, i) => i + 1).map(num => (
-                        <option key={num} value={num}>
-                          {num} {num === 1 ? 'persona' : 'personas'}
-                        </option>
-                      ))}
-                    </select>
+                  {/* Status y Acciones más compactas */}
+                  <div className="flex items-center space-x-3">
+                    <Badge className={`px-2 py-1 text-xs font-semibold rounded-md ${getStatusColor(reservation.status)}`}>
+                      {getStatusText(reservation.status)}
+                    </Badge>
+                    
+                    <div className="flex space-x-2">
+                      {reservation.status === 'pending' && (
+                        <>
+                          <Button 
+                            size="sm" 
+                            className="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-md font-semibold text-xs"
+                          >
+                            Confirmar
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="px-3 py-1 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-md font-semibold text-xs"
+                          >
+                            Cancelar
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Necesidades especiales
-                  </label>
-                  <div className="grid grid-cols-2 gap-2 mb-3">
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" name="specialNeeds" value="celiac" className="rounded" />
-                      <span className="text-sm">🌾 Celíaco</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" name="specialNeeds" value="vegetarian" className="rounded" />
-                      <span className="text-sm">🥗 Vegetariano</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" name="specialNeeds" value="wheelchair" className="rounded" />
-                      <span className="text-sm">♿ Silla ruedas</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" name="specialNeeds" value="baby_chair" className="rounded" />
-                      <span className="text-sm">👶 Silla bebé</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" name="specialNeeds" value="birthday" className="rounded" />
-                      <span className="text-sm">🎂 Cumpleaños</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <input type="checkbox" name="specialNeeds" value="anniversary" className="rounded" />
-                      <span className="text-sm">💕 Aniversario</span>
-                    </label>
-                  </div>
-                </div>
+      {/* Resumen del Día */}
+      <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8">
+        <Card className="p-8 bg-gradient-to-br from-emerald-50 to-teal-50 border-0 shadow-xl rounded-3xl">
+          <div className="text-center space-y-4">
+            <div className="w-16 h-16 bg-emerald-500 rounded-2xl mx-auto flex items-center justify-center shadow-lg">
+              <div className="w-8 h-8 bg-white rounded-lg"></div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-emerald-700">{reservations.filter(r => r.status === 'confirmed').length}</div>
+              <div className="text-emerald-600 font-semibold text-lg">Confirmadas</div>
+            </div>
+          </div>
+        </Card>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Notas adicionales
-                  </label>
-                  <textarea
-                    name="notes"
-                    rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    placeholder="Otras alergias, comentarios especiales..."
-                  />
-                </div>
+        <Card className="p-8 bg-gradient-to-br from-amber-50 to-orange-50 border-0 shadow-xl rounded-3xl">
+          <div className="text-center space-y-4">
+            <div className="w-16 h-16 bg-amber-500 rounded-2xl mx-auto flex items-center justify-center shadow-lg">
+              <div className="w-8 h-8 bg-white rounded-lg"></div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-amber-700">{reservations.filter(r => r.status === 'pending').length}</div>
+              <div className="text-amber-600 font-semibold text-lg">Pendientes</div>
+            </div>
+          </div>
+        </Card>
 
-                <div className="flex space-x-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowNewReservationForm(false)}
-                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md font-medium transition-colors"
-                  >
-                    Crear Reserva
-                  </button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+        <Card className="p-8 bg-gradient-to-br from-blue-50 to-indigo-50 border-0 shadow-xl rounded-3xl">
+          <div className="text-center space-y-4">
+            <div className="w-16 h-16 bg-blue-500 rounded-2xl mx-auto flex items-center justify-center shadow-lg">
+              <div className="w-8 h-8 bg-white rounded-lg"></div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-blue-700">{reservations.reduce((sum, r) => sum + r.partySize, 0)}</div>
+              <div className="text-blue-600 font-semibold text-lg">Comensales</div>
+            </div>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

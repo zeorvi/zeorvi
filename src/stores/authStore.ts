@@ -169,7 +169,7 @@ export const useAuthStore = create<AuthState>()(
           
           logger.info('User profile updated', {
             userId: currentMapping.id,
-            updatedFields: Object.keys(profile)
+            updatedFields: Object.keys(profile || {})
           })
         }
       },

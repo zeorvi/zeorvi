@@ -1,7 +1,7 @@
 // Sistema de mapeo de usuarios
 // Mapea nombres de usuario a emails de Firebase
 
-interface UserMapping {
+export interface UserMapping {
   username: string;
   email: string;
   role: 'admin' | 'restaurant';

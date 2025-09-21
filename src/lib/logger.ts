@@ -1,18 +1,18 @@
 // Logger simple que funciona en cualquier entorno (Edge Runtime compatible)
 const createLogger = () => ({
-  info: (message: string, meta?: any) => {
+  info: (message: string, meta?: unknown) => {
     const timestamp = new Date().toISOString();
     console.log(`[${timestamp}] [INFO] ${message}`, meta ? JSON.stringify(meta) : '');
   },
-  warn: (message: string, meta?: any) => {
+  warn: (message: string, meta?: unknown) => {
     const timestamp = new Date().toISOString();
     console.warn(`[${timestamp}] [WARN] ${message}`, meta ? JSON.stringify(meta) : '');
   },
-  error: (message: string, meta?: any) => {
+  error: (message: string, meta?: unknown) => {
     const timestamp = new Date().toISOString();
     console.error(`[${timestamp}] [ERROR] ${message}`, meta ? JSON.stringify(meta) : '');
   },
-  debug: (message: string, meta?: any) => {
+  debug: (message: string, meta?: unknown) => {
     const timestamp = new Date().toISOString();
     console.debug(`[${timestamp}] [DEBUG] ${message}`, meta ? JSON.stringify(meta) : '');
   }
@@ -24,7 +24,7 @@ export const logger = createLogger();
 export const auditLogger = createLogger();
 
 // Funciones helper para logging estructurado
-export const logAuth = (action: string, userId?: string, details?: any) => {
+export const logAuth = (action: string, userId?: string, details?: unknown) => {
   auditLogger.info('Authentication event', {
     action,
     userId,
@@ -44,7 +44,7 @@ export const logAPI = (method: string, path: string, userId?: string, status?: n
   });
 };
 
-export const logError = (error: Error, context?: any) => {
+export const logError = (error: Error, context?: unknown) => {
   logger.error('Application Error', {
     message: error.message,
     stack: error.stack,
@@ -53,7 +53,7 @@ export const logError = (error: Error, context?: any) => {
   });
 };
 
-export const logReservation = (action: string, reservationId: string, restaurantId: string, details?: any) => {
+export const logReservation = (action: string, reservationId: string, restaurantId: string, details?: unknown) => {
   auditLogger.info('Reservation event', {
     action,
     reservationId,

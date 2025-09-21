@@ -29,7 +29,7 @@ export interface TableData {
 
 // Clase para manejar sincronización en tiempo real
 class RealtimeSyncManager {
-  private listeners: Map<string, Function[]> = new Map();
+  private listeners: Map<string, ((data: unknown) => void)[]> = new Map();
   private reservations: ReservationData[] = [];
   private tables: TableData[] = [];
 
@@ -83,12 +83,12 @@ class RealtimeSyncManager {
   private setupRetellWebhookListener() {
     // Simular recepción de webhooks de Retell
     if (typeof window !== 'undefined') {
-      (window as any).handleRetellReservation = this.handleRetellReservation.bind(this);
+      (window as Window & {handleRetellReservation?: Function}).handleRetellReservation = this.handleRetellReservation.bind(this);
     }
   }
 
   // Suscribirse a cambios
-  subscribe(component: string, callback: Function) {
+  subscribe(component: string, callback: (data: unknown) => void) {
     if (!this.listeners.has(component)) {
       this.listeners.set(component, []);
     }
@@ -96,7 +96,7 @@ class RealtimeSyncManager {
   }
 
   // Desuscribirse
-  unsubscribe(component: string, callback: Function) {
+  unsubscribe(component: string, callback: (data: unknown) => void) {
     const componentListeners = this.listeners.get(component);
     if (componentListeners) {
       const index = componentListeners.indexOf(callback);
@@ -107,7 +107,7 @@ class RealtimeSyncManager {
   }
 
   // Notificar a todos los componentes
-  private notifyListeners(component: string, data: any) {
+  private notifyListeners(component: string, data: unknown) {
     const componentListeners = this.listeners.get(component);
     if (componentListeners) {
       componentListeners.forEach(callback => callback(data));
@@ -131,8 +131,8 @@ class RealtimeSyncManager {
       const newReservation: ReservationData = {
         ...reservationData,
         id: `res_retell_${Date.now()}`,
-        tableId: assignmentResult.table?.id || 'auto-assign',
-        location: assignmentResult.table?.location || reservationData.location || 'Salón Principal',
+        tableId: (assignmentResult as any).table?.id || 'auto-assign',
+        location: (assignmentResult as any).table?.location || reservationData.location || 'Salón Principal',
         createdAt: new Date().toISOString(),
         source: 'retell'
       };
@@ -142,14 +142,14 @@ class RealtimeSyncManager {
 
       // 4. ACTUALIZAR ESTADO DE MESA
       if (assignmentResult.table) {
-        this.updateTableStatus(assignmentResult.table.id, 'reservada', reservationData.clientName, reservationData.time);
+        this.updateTableStatus((assignmentResult as any).table.id, 'reservada', reservationData.clientName, reservationData.time);
       }
 
       // 5. NOTIFICAR A TODOS LOS COMPONENTES
       this.notifyAllComponents(newReservation);
 
       // 6. ALERTAS AL STAFF
-      this.notifyStaff(newReservation, assignmentResult);
+      this.notifyStaff(newReservation, assignmentResult as unknown as {table?: TableData; reason: string});
 
       return { success: true, reservation: newReservation, assignment: assignmentResult };
 
@@ -257,7 +257,7 @@ class RealtimeSyncManager {
   }
 
   // 2. MANEJAR CONFLICTOS
-  private handleConflicts(conflicts: any[], reservationData: any) {
+  private handleConflicts(conflicts: Array<{type: string; message: string}>, _reservationData: unknown) {
     conflicts.forEach(conflict => {
       if (conflict.type === 'time_conflict') {
         toast.error('⚠️ Conflicto de horario detectado');
@@ -280,7 +280,7 @@ class RealtimeSyncManager {
     }
 
     // Algoritmo de asignación inteligente
-    let bestTable = null;
+    let bestTable: TableData | null = null;
     let score = -1;
 
     availableTables.forEach(table => {
@@ -337,7 +337,7 @@ class RealtimeSyncManager {
   }
 
   // 5. ALERTAS AL STAFF
-  private notifyStaff(reservation: ReservationData, assignment: any) {
+  private notifyStaff(reservation: ReservationData, assignment: {table?: TableData; reason: string}) {
     // Alerta principal
     toast.success(`🔔 NUEVA RESERVA - ${reservation.clientName}`);
     toast.info(`📅 ${reservation.date} ${reservation.time} - ${reservation.people} personas`);
@@ -372,7 +372,7 @@ class RealtimeSyncManager {
     return Math.min(usage, 10); // Máximo 10 para el cálculo
   }
 
-  private getSuggestedAlternatives(reservationData: any) {
+  private getSuggestedAlternatives(reservationData: {time: string; people: number}) {
     const nextHour = this.addHoursToTime(reservationData.time, 1);
     const prevHour = this.addHoursToTime(reservationData.time, -1);
     
@@ -446,11 +446,11 @@ export const realtimeSync = new RealtimeSyncManager();
 
 // Hook para componentes React
 export function useRealtimeSync(componentName: string) {
-  const subscribe = (callback: Function) => {
+  const subscribe = (callback: (data: unknown) => void) => {
     realtimeSync.subscribe(componentName, callback);
   };
 
-  const unsubscribe = (callback: Function) => {
+  const unsubscribe = (callback: (data: unknown) => void) => {
     realtimeSync.unsubscribe(componentName, callback);
   };
 

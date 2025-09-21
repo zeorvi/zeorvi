@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Plus, 
   Trash2, 
-  Save, 
   Wand2,
   MapPin,
   Users,
@@ -19,7 +18,6 @@ import {
   Eye,
   Settings,
   Lightbulb,
-  ArrowRight,
   Calculator
 } from 'lucide-react';
 
@@ -515,7 +513,7 @@ ${generatedTables.map(table => `    { id: '${table.id}', name: '${table.name}', 
                           .map(table => (
                             <div key={table.id} className="border rounded p-2 text-center">
                               <div className="font-semibold text-sm">{table.name}</div>
-                              <Badge className={getCapacityColor(table.capacity)} size="sm">
+                              <Badge className={getCapacityColor(table.capacity)}>
                                 {table.capacity}
                               </Badge>
                             </div>

@@ -138,13 +138,14 @@ export class TwilioAdapter {
           sid: twilioMessage.sid,
           status: twilioMessage.status
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as Error & {code?: string};
         logger.error('Error sending Twilio message', {
-          error: error.message,
-          code: error.code,
+          error: err.message,
+          code: err.code,
           to: message.to
         })
-        throw new Error(`Failed to send message: ${error.message}`)
+        throw new Error(`Failed to send message: ${err.message}`)
       }
     })
   }
@@ -178,13 +179,13 @@ export class TwilioAdapter {
           sid: twilioCall.sid,
           status: twilioCall.status
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.error('Error making Twilio call', {
-          error: error.message,
-          code: error.code,
+          error: (error as Error).message,
+          code: (error as any).code,
           to: call.to
         })
-        throw new Error(`Failed to make call: ${error.message}`)
+        throw new Error(`Failed to make call: ${(error as Error).message}`)
       }
     })
   }
@@ -214,12 +215,12 @@ export class TwilioAdapter {
   // Procesar datos de webhook
   processWebhookData(formData: FormData): TwilioWebhookData {
     const rawData = {
-      From: formData.get('From') as string,
-      To: formData.get('To') as string,
-      Body: formData.get('Body') as string,
-      MessageType: formData.get('MessageType') as string,
-      CallSid: formData.get('CallSid') as string,
-      CallStatus: formData.get('CallStatus') as string,
+      From: formData.get('From') ?? '',
+      To: formData.get('To') ?? '',
+      Body: formData.get('Body') ?? '',
+      MessageType: formData.get('MessageType') ?? 'text',
+      CallSid: formData.get('CallSid') ?? '',
+      CallStatus: formData.get('CallStatus') ?? '',
     }
 
     // Validar datos básicos
@@ -264,9 +265,9 @@ export class TwilioAdapter {
           phoneNumber: number.phoneNumber,
           friendlyName: number.friendlyName
         }))
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.error('Error fetching Twilio phone numbers', { error })
-        throw new Error(`Failed to fetch phone numbers: ${error.message}`)
+        throw new Error(`Failed to fetch phone numbers: ${(error as Error).message}`)
       }
     })
   }
@@ -294,13 +295,13 @@ export class TwilioAdapter {
           phoneNumber,
           webhookUrl
         })
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.error('Error configuring Twilio webhook', {
-          error: error.message,
+          error: (error as Error).message,
           phoneNumber,
           webhookUrl
         })
-        throw new Error(`Failed to configure webhook: ${error.message}`)
+        throw new Error(`Failed to configure webhook: ${(error as Error).message}`)
       }
     })
   }

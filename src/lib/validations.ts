@@ -90,7 +90,7 @@ export const retellWebhookSchema = z.object({
   event: z.string(),
   call_id: z.string(),
   agent_id: z.string(),
-  data: z.record(z.any()).optional()
+  data: z.record(z.string(), z.unknown()).optional()
 });
 
 // Validaciones de configuración
