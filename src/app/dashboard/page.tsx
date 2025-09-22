@@ -1,4 +1,5 @@
 'use client';
+// Dashboard optimizado para Vercel deployment
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
