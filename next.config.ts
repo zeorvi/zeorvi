@@ -4,9 +4,9 @@ const nextConfig: NextConfig = {
   // Configuración optimizada para rendimiento
   reactStrictMode: true,
   
-  // Optimizaciones de rendimiento
+  // Optimizaciones de rendimiento compatibles con Vercel
   experimental: {
-    optimizeCss: true,
+    // Deshabilitamos optimizeCss temporalmente para evitar conflictos con critters
     optimizePackageImports: ['lucide-react', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
   },
   
@@ -41,7 +41,7 @@ const nextConfig: NextConfig = {
     ];
   },
   
-  // Webpack optimizado
+  // Webpack optimizado para compatibilidad con Vercel
   webpack: (config, { isServer, dev }) => {
     if (!isServer) {
       // Configuración optimizada para el cliente
@@ -50,24 +50,6 @@ const nextConfig: NextConfig = {
         fs: false,
         net: false,
         tls: false,
-      };
-      
-      // Optimización de bundle
-      config.optimization.splitChunks = {
-        chunks: 'all',
-        cacheGroups: {
-          vendor: {
-            test: /[\\/]node_modules[\\/]/,
-            name: 'vendors',
-            chunks: 'all',
-          },
-          common: {
-            name: 'common',
-            minChunks: 2,
-            chunks: 'all',
-            enforce: true,
-          },
-        },
       };
     }
     
