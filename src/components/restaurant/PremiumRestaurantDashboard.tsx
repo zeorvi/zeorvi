@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getRestaurantData, type RestaurantData } from '@/lib/restaurantService';
+import { useRestaurantTables } from '@/hooks/useRestaurantTables';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import OpenAIChat from '@/components/ai/OpenAIChat';
 import ReservationCalendar from './ReservationCalendar';
-import TablePlan from './TablePlan';
-import { Sun, Moon } from 'lucide-react';
+import TablePlan from './TablePlanNew';
+import { Sun, Moon, RefreshCw } from 'lucide-react';
 
 interface PremiumRestaurantDashboardProps {
   restaurantId: string;
@@ -35,85 +37,36 @@ export default function PremiumRestaurantDashboard({
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [restaurantData, setRestaurantData] = useState<RestaurantData | null>(null);
+  
+  // Hook para gestión global de mesas
+  const { 
+    updateTableStatus
+  } = useRestaurantTables(restaurantId);
 
   useEffect(() => {
-    // Datos realistas para Restaurante El Buen Sabor - Familiar
-    const mockReservations: Reservation[] = [
-      {
-        id: 'res_001',
-        time: '12:30',
-        clientName: 'Ana Ruiz',
-        partySize: 5,
-        table: 'M12',
-        status: 'confirmed',
-        notes: 'Comida familiar dominical - Mesa grande cerca de ventana',
-        phone: '+34612345678'
-      },
-      {
-        id: 'res_002',
-        time: '13:15',
-        clientName: 'Jose Lopez',
-        partySize: 2,
-        table: 'M5',
-        status: 'confirmed',
-        notes: 'Aniversario de bodas - Mesa romántica, vino recomendado',
-        phone: '+34623456789'
-      },
-      {
-        id: 'res_003',
-        time: '14:00',
-        clientName: 'Maria Garcia',
-        partySize: 8,
-        table: 'M15',
-        status: 'pending',
-        notes: 'Comida de negocios - Necesitan privacidad y WiFi',
-        phone: '+34634567890'
-      },
-      {
-        id: 'res_004',
-        time: '15:30',
-        clientName: 'Luis Martinez',
-        partySize: 6,
-        table: 'M8',
-        status: 'confirmed',
-        notes: 'Cumpleaños de la abuela (85 años) - Pastel especial solicitado',
-        phone: '+34645678901'
-      },
-      {
-        id: 'res_005',
-        time: '19:00',
-        clientName: 'Carmen Perez',
-        partySize: 4,
-        table: 'M3',
-        status: 'pending',
-        notes: 'Graduación - Presupuesto limitado, menú económico',
-        phone: '+34656789012'
-      },
-      {
-        id: 'res_006',
-        time: '20:30',
-        clientName: 'Juan Gomez',
-        partySize: 2,
-        table: 'M1',
-        status: 'confirmed',
-        notes: 'Propuesta de matrimonio - Mesa íntima, velas, música suave',
-        phone: '+34667890123'
-      },
-      {
-        id: 'res_007',
-        time: '21:15',
-        clientName: 'Laura Sanchez',
-        partySize: 7,
-        table: 'M14',
-        status: 'pending',
-        notes: 'Reunión familiar - Incluye bebé en silla alta',
-        phone: '+34678901234'
-      }
-    ];
 
-    setReservations(mockReservations);
-    setLoading(false);
-  }, [restaurantId]);
+    // Cargar datos del restaurante
+    const loadRestaurantData = async () => {
+      try {
+        const data = await getRestaurantData(restaurantId);
+        setRestaurantData(data);
+        console.log('🏪 Restaurant data loaded for dashboard:', data);
+        
+        // NO generar datos mock - Retell AI se encargará de las reservas reales
+        console.log('🪑 Tables configured for restaurant:', data?.tables);
+        console.log('📅 No mock reservations - waiting for real data from Retell AI');
+        setReservations([]); // Dashboard vacío hasta que lleguen datos reales
+      } catch (error) {
+        console.error('❌ Error loading restaurant data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadRestaurantData();
+  }, [restaurantId, restaurantData?.name, restaurantName]);
+
 
 
   const getStatusColor = (status: string) => {
@@ -174,7 +127,8 @@ export default function PremiumRestaurantDashboard({
               <div>
                 <h1 className={`text-lg md:text-xl font-bold tracking-tight transition-colors duration-300 ${
                   isDarkMode ? 'text-white' : 'text-slate-900'
-                }`}>{restaurantName}</h1>
+                }`}>{restaurantData?.name || restaurantName}</h1>
+                
                 <p className={`text-xs md:text-sm font-medium capitalize transition-colors duration-300 ${
                   isDarkMode ? 'text-gray-400' : 'text-slate-500'
                 }`}>{restaurantType}</p>
@@ -202,6 +156,16 @@ export default function PremiumRestaurantDashboard({
             <div className="flex items-center space-x-4">
               {/* Botón de modo oscuro/claro */}
               <Button
+                onClick={() => window.location.reload()}
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 md:h-9 md:w-9 transition-all duration-300 bg-blue-500 border-blue-600 text-white hover:bg-blue-600 mr-2"
+                title="Forzar actualización completa"
+              >
+                <RefreshCw className="h-3.5 w-3.5 md:h-4 md:w-4" />
+              </Button>
+              
+              <Button
                 onClick={() => setIsDarkMode(!isDarkMode)}
                 variant="outline"
                 size="sm"
@@ -214,7 +178,7 @@ export default function PremiumRestaurantDashboard({
                 {isDarkMode ? <Sun className="h-3.5 w-3.5 md:h-4 md:w-4" /> : <Moon className="h-3.5 w-3.5 md:h-4 md:w-4" />}
               </Button>
               
-              {/* Stats en tiempo real de El Buen Sabor */}
+              {/* Stats en tiempo real del restaurante */}
             </div>
           </div>
         </div>
@@ -234,7 +198,6 @@ export default function PremiumRestaurantDashboard({
                 { id: 'reservations', label: 'Gestión de Reservas', color: 'violet' },
                 { id: 'tables', label: 'Control de Mesas', color: 'orange' },
                 { id: 'clients', label: 'Base de Clientes', color: 'red' },
-                { id: 'staff', label: 'Gestión de Personal', color: 'blue' },
                 { id: 'ai_chat', label: 'Chat con IA', color: 'purple' },
                 { id: 'settings', label: 'Configuración', color: 'slate' }
               ].map(item => (
@@ -285,7 +248,7 @@ export default function PremiumRestaurantDashboard({
                       </div>
                     </div>
                   </Card>
-                ) : (
+                ) : reservations.length > 0 ? (
                   <div className="space-y-3">
                     {reservations.map((reservation) => (
                       <Card key={reservation.id} className={`p-3 md:p-4 backdrop-blur-sm border-0 shadow-lg rounded-lg md:rounded-xl hover:shadow-xl transition-all duration-300 ${
@@ -344,16 +307,23 @@ export default function PremiumRestaurantDashboard({
                                 <>
                                   <Button 
                                     size="sm" 
-                                    className="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-md font-semibold text-xs"
+                                    onClick={() => updateTableStatus(reservation.table, 'ocupada', {
+                                      name: reservation.clientName,
+                                      phone: reservation.phone || '',
+                                      partySize: reservation.partySize,
+                                      notes: reservation.notes || ''
+                                    })}
+                                    className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md font-semibold text-xs"
                                   >
-                                    Confirmar
+                                    Ocupar Mesa
                                   </Button>
                                   <Button 
                                     size="sm" 
+                                    onClick={() => updateTableStatus(reservation.table, 'libre')}
                                     variant="outline"
-                                    className="px-3 py-1 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-md font-semibold text-xs"
+                                    className="px-3 py-1 border border-green-200 text-green-600 hover:bg-green-50 rounded-md font-semibold text-xs"
                                   >
-                                    Cancelar
+                                    Liberar Mesa
                                   </Button>
                                 </>
                               )}
@@ -362,6 +332,18 @@ export default function PremiumRestaurantDashboard({
                         </div>
                       </Card>
                     ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className={`text-gray-400 mb-4 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                      📅 Sin reservas para hoy
+                    </div>
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-600' : 'text-gray-500'}`}>
+                      Las reservas aparecerán aquí cuando los clientes llamen a {restaurantData?.name || restaurantName}
+                    </p>
+                    <p className={`text-xs mt-2 ${isDarkMode ? 'text-gray-700' : 'text-gray-400'}`}>
+                      🤖 Retell AI se encarga automáticamente de gestionar las reservas
+                    </p>
                   </div>
                 )}
               </div>
@@ -372,11 +354,20 @@ export default function PremiumRestaurantDashboard({
 
           {/* Otras secciones */}
           {activeSection === 'reservations' && (
-            <ReservationCalendar restaurantId={restaurantId} isDarkMode={isDarkMode} />
+            <ReservationCalendar 
+              key={`reservations-${restaurantId}-${restaurantData?.name}`}
+              restaurantId={restaurantId} 
+              isDarkMode={isDarkMode} 
+              restaurantTables={restaurantData?.tables}
+            />
           )}
 
           {activeSection === 'tables' && (
-            <TablePlan restaurantId={restaurantId} isDarkMode={isDarkMode} />
+            <TablePlan 
+              key={`tables-${restaurantId}-${restaurantData?.name}`}
+              restaurantId={restaurantId} 
+              isDarkMode={isDarkMode} 
+            />
           )}
 
           {activeSection === 'clients' && (
@@ -390,51 +381,14 @@ export default function PremiumRestaurantDashboard({
               }`}>
                 <h3 className={`text-xl font-bold mb-4 transition-colors duration-300 ${
                   isDarkMode ? 'text-yellow-300' : 'text-yellow-900'
-                }`}>⭐ Clientes VIP</h3>
-                <div className="space-y-3">
-                  <div className={`flex items-center justify-between p-3 rounded-xl shadow-md transition-all duration-300 ${
-                    isDarkMode ? 'bg-gray-800/70' : 'bg-white'
-                  }`}>
-                    <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-xl flex items-center justify-center">
-                        <div className="w-5 h-5 bg-white rounded-lg"></div>
-                      </div>
-                      <div>
-                        <h4 className={`font-bold transition-colors duration-300 ${
-                          isDarkMode ? 'text-yellow-300' : 'text-yellow-900'
-                        }`}>Ana Ruiz</h4>
-                        <p className={`text-sm transition-colors duration-300 ${
-                          isDarkMode ? 'text-yellow-400' : 'text-yellow-700'
-                        }`}>Cliente Gold • 18 visitas</p>
-                        <p className={`text-xs transition-colors duration-300 ${
-                          isDarkMode ? 'text-yellow-500' : 'text-yellow-600'
-                        }`}>Vienen todos los domingos • Mesa preferida: M12</p>
-                      </div>
-                    </div>
-                    <Badge className="bg-yellow-100 text-yellow-800">Oro</Badge>
+                }`}>⭐ Base de Clientes</h3>
+                <div className="text-center py-8">
+                  <div className={`text-gray-400 mb-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                    👥 Sistema de clientes en desarrollo
                   </div>
-
-                  <div className={`flex items-center justify-between p-3 rounded-xl shadow-md transition-all duration-300 ${
-                    isDarkMode ? 'bg-gray-800/70' : 'bg-white'
-                  }`}>
-                    <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-gradient-to-br from-gray-400 to-gray-600 rounded-xl flex items-center justify-center">
-                        <div className="w-5 h-5 bg-white rounded-lg"></div>
-                      </div>
-                      <div>
-                        <h4 className={`font-bold transition-colors duration-300 ${
-                          isDarkMode ? 'text-gray-200' : 'text-gray-900'
-                        }`}>Jose Lopez</h4>
-                        <p className={`text-sm transition-colors duration-300 ${
-                          isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                        }`}>Cliente Silver • 8 visitas</p>
-                        <p className={`text-xs transition-colors duration-300 ${
-                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                        }`}>Celebran fechas especiales • Mesa preferida: M5</p>
-                      </div>
-                    </div>
-                    <Badge className="bg-gray-100 text-gray-800">Plata</Badge>
-                  </div>
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-600' : 'text-gray-500'}`}>
+                    Los datos de clientes se irán acumulando con el uso del sistema de {restaurantData?.name || restaurantName}
+                  </p>
                 </div>
               </Card>
 
@@ -442,79 +396,6 @@ export default function PremiumRestaurantDashboard({
           )}
 
 
-          {activeSection === 'staff' && (
-            <div className="p-6 space-y-8">
-
-              {/* Personal en turno */}
-              <Card className={`p-6 border-0 shadow-xl rounded-2xl transition-all duration-300 ${
-                isDarkMode 
-                  ? 'bg-gradient-to-br from-blue-900/20 to-indigo-900/20' 
-                  : 'bg-gradient-to-br from-blue-50 to-indigo-50'
-              }`}>
-                <h3 className={`text-xl font-bold mb-4 transition-colors duration-300 ${
-                  isDarkMode ? 'text-blue-300' : 'text-blue-900'
-                }`}>👥 Personal en Turno (6 de 8)</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className={`flex items-center space-x-3 p-4 rounded-xl shadow-md transition-all duration-300 ${
-                    isDarkMode ? 'bg-gray-800/70' : 'bg-white'
-                  }`}>
-                    <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                    <div>
-                      <span className={`font-semibold transition-colors duration-300 ${
-                        isDarkMode ? 'text-blue-300' : 'text-blue-900'
-                      }`}>María Elena Vásquez</span>
-                      <p className={`text-sm transition-colors duration-300 ${
-                        isDarkMode ? 'text-blue-400' : 'text-blue-700'
-                      }`}>Gerente • 11:00-21:00</p>
-                    </div>
-                  </div>
-                  
-                  <div className={`flex items-center space-x-3 p-4 rounded-xl shadow-md transition-all duration-300 ${
-                    isDarkMode ? 'bg-gray-800/70' : 'bg-white'
-                  }`}>
-                    <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                    <div>
-                      <span className={`font-semibold transition-colors duration-300 ${
-                        isDarkMode ? 'text-blue-300' : 'text-blue-900'
-                      }`}>José Luis Hernández</span>
-                      <p className={`text-sm transition-colors duration-300 ${
-                        isDarkMode ? 'text-blue-400' : 'text-blue-700'
-                      }`}>Chef Principal • 10:00-20:00</p>
-                    </div>
-                  </div>
-                  
-                  <div className={`flex items-center space-x-3 p-4 rounded-xl shadow-md transition-all duration-300 ${
-                    isDarkMode ? 'bg-gray-800/70' : 'bg-white'
-                  }`}>
-                    <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                    <div>
-                      <span className={`font-semibold transition-colors duration-300 ${
-                        isDarkMode ? 'text-blue-300' : 'text-blue-900'
-                      }`}>Ana Sofía Morales</span>
-                      <p className={`text-sm transition-colors duration-300 ${
-                        isDarkMode ? 'text-blue-400' : 'text-blue-700'
-                      }`}>Mesera • 11:30-21:30</p>
-                    </div>
-                  </div>
-                  
-                  <div className={`flex items-center space-x-3 p-4 rounded-xl shadow-md transition-all duration-300 ${
-                    isDarkMode ? 'bg-gray-800/70' : 'bg-white'
-                  }`}>
-                    <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                    <div>
-                      <span className={`font-semibold transition-colors duration-300 ${
-                        isDarkMode ? 'text-blue-300' : 'text-blue-900'
-                      }`}>Roberto García</span>
-                      <p className={`text-sm transition-colors duration-300 ${
-                        isDarkMode ? 'text-blue-400' : 'text-blue-700'
-                      }`}>Mesero • 11:30-21:30</p>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-            </div>
-          )}
 
           {activeSection === 'ai_chat' && (
             <div className="w-full max-w-full">
@@ -539,29 +420,29 @@ export default function PremiumRestaurantDashboard({
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-semibold text-blue-900 mb-2">Nombre</label>
-                      <div className="bg-white p-3 rounded-lg border border-blue-200">Restaurante El Buen Sabor</div>
+                      <div className="bg-white p-3 rounded-lg border border-blue-200">{restaurantData?.name || restaurantName}</div>
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-blue-900 mb-2">Tipo</label>
-                      <div className="bg-white p-3 rounded-lg border border-blue-200">Restaurante Familiar</div>
+                      <div className="bg-white p-3 rounded-lg border border-blue-200">{restaurantData?.type || restaurantType}</div>
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-blue-900 mb-2">Teléfono</label>
-                      <div className="bg-white p-3 rounded-lg border border-blue-200">+52-55-5555-0100</div>
+                      <div className="bg-white p-3 rounded-lg border border-blue-200">{restaurantData?.phone || '+34 000 000 000'}</div>
                     </div>
                   </div>
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-semibold text-blue-900 mb-2">Dirección</label>
-                      <div className="bg-white p-3 rounded-lg border border-blue-200">Av. Insurgentes Sur 1234, Col. Del Valle, CDMX</div>
+                      <div className="bg-white p-3 rounded-lg border border-blue-200">{restaurantData?.address || 'Dirección no especificada'}</div>
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-blue-900 mb-2">Email</label>
-                      <div className="bg-white p-3 rounded-lg border border-blue-200">contacto@elbuensabor.mx</div>
+                      <div className="bg-white p-3 rounded-lg border border-blue-200">{restaurantData?.email || 'email@restaurante.com'}</div>
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-blue-900 mb-2">Sitio Web</label>
-                      <div className="bg-white p-3 rounded-lg border border-blue-200">www.elbuensabor.mx</div>
+                      <div className="bg-white p-3 rounded-lg border border-blue-200">www.{restaurantData?.name?.toLowerCase().replace(/\s+/g, '') || 'restaurante'}.com</div>
                     </div>
                   </div>
                 </div>

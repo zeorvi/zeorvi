@@ -20,9 +20,15 @@ interface Reservation {
 interface ReservationCalendarProps {
   restaurantId: string;
   isDarkMode?: boolean;
+  restaurantTables?: Array<{
+    id: string;
+    name: string;
+    capacity: number;
+    location: string;
+  }>;
 }
 
-export default function ReservationCalendar({ restaurantId, isDarkMode = false }: ReservationCalendarProps) {
+export default function ReservationCalendar({ restaurantId, isDarkMode = false, restaurantTables }: ReservationCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -35,105 +41,11 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false }
   const dayNames = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
 
   useEffect(() => {
-    const mockReservations: Reservation[] = [
-      { 
-        id: '1', 
-        clientName: 'Ana Ruiz', 
-        date: '2025-09-21', 
-        time: '12:30', 
-        partySize: 5, 
-        table: 'M12', 
-        status: 'confirmed', 
-        phone: '+34-91-123-4567',
-        notes: 'Mesa cerca ventana'
-      },
-      { 
-        id: '2', 
-        clientName: 'Jose Lopez', 
-        date: '2025-09-21', 
-        time: '20:30', 
-        partySize: 2, 
-        table: 'M1', 
-        status: 'confirmed', 
-        phone: '+34-91-234-5678',
-        notes: 'Aniversario de boda'
-      },
-      { 
-        id: '3', 
-        clientName: 'Maria Garcia', 
-        date: '2025-09-21', 
-        time: '19:00', 
-        partySize: 4, 
-        table: 'M3', 
-        status: 'pending', 
-        phone: '+34-91-345-6789'
-      },
-      { 
-        id: '3b', 
-        clientName: 'Carlos Rodriguez', 
-        date: '2025-09-21', 
-        time: '14:00', 
-        partySize: 6, 
-        table: 'M8', 
-        status: 'confirmed', 
-        phone: '+34-91-456-7890',
-        notes: 'Cumpleaños familiar'
-      },
-      { 
-        id: '4', 
-        clientName: 'Luis Martinez', 
-        date: '2025-09-22', 
-        time: '14:00', 
-        partySize: 8, 
-        table: 'M15', 
-        status: 'confirmed', 
-        phone: '+34-91-567-8901'
-      },
-      { 
-        id: '5', 
-        clientName: 'Carmen Perez', 
-        date: '2025-09-23', 
-        time: '16:00', 
-        partySize: 12, 
-        table: 'M16', 
-        status: 'confirmed', 
-        phone: '+34-91-789-0123',
-        notes: 'Decoracion especial'
-      },
-      { 
-        id: '6', 
-        clientName: 'Juan Gomez', 
-        date: '2025-09-25', 
-        time: '13:00', 
-        partySize: 6, 
-        table: 'M8', 
-        status: 'confirmed', 
-        phone: '+34-91-890-1234'
-      },
-      { 
-        id: '7', 
-        clientName: 'Laura Sanchez', 
-        date: '2025-10-05', 
-        time: '13:30', 
-        partySize: 8, 
-        table: 'M12', 
-        status: 'confirmed', 
-        phone: '+34-91-123-4567'
-      },
-      { 
-        id: '8', 
-        clientName: 'Pedro Ruiz', 
-        date: '2025-10-15', 
-        time: '15:00', 
-        partySize: 15, 
-        table: 'Salon Privado', 
-        status: 'confirmed', 
-        phone: '+34-91-345-6789'
-      }
-    ];
-    
-    setReservations(mockReservations);
-  }, [restaurantId]);
+
+    // NO generar datos mock - Retell AI gestiona las reservas reales
+    console.log('📅 ReservationCalendar: No mock data - waiting for real reservations');
+    setReservations([]); // Calendario vacío hasta que lleguen reservas reales
+  }, [restaurantId, restaurantTables]);
 
   const navigateMonth = (direction: 'prev' | 'next') => {
     setCurrentDate(prev => {

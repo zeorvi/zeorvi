@@ -33,6 +33,9 @@ export default function DemoFormSection() {
           <p className="text-lg sm:text-xl text-gray-300">
             Ve ZEORVI en acción con tu restaurante
           </p>
+          <p className="text-base sm:text-lg text-cyan-400 mt-2">
+            contacto@zeorvi.com
+          </p>
         </div>
 
         <Card className="bg-gradient-to-br from-black/60 to-gray-900/60 border-cyan-500/30 backdrop-blur-sm shadow-2xl shadow-cyan-500/10">

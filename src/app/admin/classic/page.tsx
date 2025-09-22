@@ -1,6 +1,6 @@
 'use client';
 
-import AdminDashboard from '@/components/admin/AdminDashboard';
+import SimpleAdminDashboard from '@/components/admin/SimpleAdminDashboard';
 
 export default function ClassicAdminPage() {
   return (
@@ -26,7 +26,7 @@ export default function ClassicAdminPage() {
         </div>
       </div>
       
-      <AdminDashboard />
+      <SimpleAdminDashboard />
     </div>
   );
 }

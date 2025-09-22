@@ -180,7 +180,7 @@ export default function AIManagerDashboard({ restaurantId, restaurantName, resta
         purpose: 'cancellation',
         outcome: 'successful',
         summary: 'Confirmación de cancelación de reserva. Cliente tuvo emergencia familiar.',
-        actionItems: ['Liberar mesa M5 para las 19:00', 'Ofrecer reagendar para próxima semana'],
+        actionItems: ['Liberar mesa para las 19:00', 'Ofrecer reagendar para próxima semana'],
         reservationId: 'res_002',
         rating: 4,
         cost: 1.75,

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { addUserMappingWithUsername } from '@/lib/userMapping';
+import { createRestaurant } from '@/lib/restaurantService';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,14 +24,25 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface TableSpec {
+interface IndividualTable {
+  name: string; // "Mesa 1", "Mesa 8", etc.
   capacity: number;
-  count: number;
+  // Solo creamos mesas gestionadas por llamada
+}
+
+interface GeneratedTable {
+  id: string;
+  name: string;
+  capacity: number;
+  location: string;
+  position: { x: number; y: number };
+  notes: string;
+  // Todas las mesas son gestionadas por llamada
 }
 
 interface LocationSpec {
   name: string;
-  tables: TableSpec[];
+  tables: IndividualTable[];
 }
 
 export default function CreateRestaurantPage() {
@@ -47,11 +59,23 @@ export default function CreateRestaurantPage() {
     twilioNumber: ''
   });
 
-  // Configuración de mesas
+  // Configuración de mesas (solo las que se gestionan por llamada)
   const [locations, setLocations] = useState<LocationSpec[]>([
-    { name: 'Comedor 1', tables: [{ capacity: 2, count: 2 }, { capacity: 4, count: 4 }, { capacity: 6, count: 2 }] },
-    { name: 'Comedor 2', tables: [{ capacity: 4, count: 3 }, { capacity: 8, count: 2 }] },
-    { name: 'Terraza', tables: [{ capacity: 4, count: 4 }, { capacity: 6, count: 2 }] }
+    { 
+      name: 'Comedor 1', 
+      tables: [
+        { name: 'Mesa 1', capacity: 4 },
+        { name: 'Mesa 2', capacity: 2 },
+        { name: 'Mesa 6', capacity: 6 }
+      ] 
+    },
+    { 
+      name: 'Terraza', 
+      tables: [
+        { name: 'Mesa 8', capacity: 4 },
+        { name: 'Mesa 10', capacity: 4 }
+      ] 
+    }
   ]);
 
   // Credenciales generadas
@@ -63,22 +87,59 @@ export default function CreateRestaurantPage() {
     configCode: string;
   } | null>(null);
 
-  // Plantillas predefinidas
+  // Plantillas predefinidas (solo mesas por llamada)
   const templates = {
     'Restaurante Pequeño': [
-      { name: 'Comedor Principal', tables: [{ capacity: 2, count: 4 }, { capacity: 4, count: 6 }] },
-      { name: 'Terraza', tables: [{ capacity: 2, count: 3 }, { capacity: 4, count: 4 }] }
+      { name: 'Comedor Principal', tables: [
+        { name: 'Mesa 1', capacity: 2 },
+        { name: 'Mesa 2', capacity: 4 },
+        { name: 'Mesa 4', capacity: 4 }
+      ]},
+      { name: 'Terraza', tables: [
+        { name: 'Mesa 8', capacity: 4 },
+        { name: 'Mesa 10', capacity: 2 }
+      ]}
     ],
     'Restaurante Mediano': [
-      { name: 'Comedor 1', tables: [{ capacity: 2, count: 3 }, { capacity: 4, count: 6 }, { capacity: 6, count: 3 }] },
-      { name: 'Comedor 2', tables: [{ capacity: 4, count: 4 }, { capacity: 8, count: 2 }] },
-      { name: 'Terraza', tables: [{ capacity: 4, count: 6 }, { capacity: 6, count: 3 }] }
+      { name: 'Comedor 1', tables: [
+        { name: 'Mesa 1', capacity: 4 },
+        { name: 'Mesa 2', capacity: 4 },
+        { name: 'Mesa 3', capacity: 6 },
+        { name: 'Mesa 5', capacity: 2 }
+      ]},
+      { name: 'Comedor 2', tables: [
+        { name: 'Mesa 10', capacity: 6 },
+        { name: 'Mesa 11', capacity: 8 },
+        { name: 'Mesa 12', capacity: 4 }
+      ]},
+      { name: 'Terraza', tables: [
+        { name: 'Mesa 20', capacity: 4 },
+        { name: 'Mesa 21', capacity: 6 }
+      ]}
     ],
     'Restaurante Grande': [
-      { name: 'Comedor 1', tables: [{ capacity: 2, count: 4 }, { capacity: 4, count: 8 }, { capacity: 6, count: 4 }] },
-      { name: 'Comedor 2', tables: [{ capacity: 4, count: 6 }, { capacity: 8, count: 4 }] },
-      { name: 'Terraza', tables: [{ capacity: 4, count: 8 }, { capacity: 6, count: 4 }, { capacity: 10, count: 2 }] },
-      { name: 'Salón Privado', tables: [{ capacity: 12, count: 2 }, { capacity: 15, count: 1 }] }
+      { name: 'Comedor 1', tables: [
+        { name: 'Mesa 1', capacity: 4 },
+        { name: 'Mesa 2', capacity: 4 },
+        { name: 'Mesa 3', capacity: 6 },
+        { name: 'Mesa 4', capacity: 2 },
+        { name: 'Mesa 6', capacity: 2 }
+      ]},
+      { name: 'Comedor 2', tables: [
+        { name: 'Mesa 10', capacity: 6 },
+        { name: 'Mesa 11', capacity: 8 },
+        { name: 'Mesa 12', capacity: 4 },
+        { name: 'Mesa 14', capacity: 4 }
+      ]},
+      { name: 'Terraza', tables: [
+        { name: 'Mesa 20', capacity: 4 },
+        { name: 'Mesa 21', capacity: 6 },
+        { name: 'Mesa 22', capacity: 4 }
+      ]},
+      { name: 'Salón Privado', tables: [
+        { name: 'Mesa 30', capacity: 12 },
+        { name: 'Mesa 31', capacity: 15 }
+      ]}
     ]
   };
 
@@ -88,7 +149,8 @@ export default function CreateRestaurantPage() {
   };
 
   const addLocation = () => {
-    setLocations([...locations, { name: '', tables: [{ capacity: 2, count: 1 }] }]);
+    const nextTableNumber = getNextTableNumber();
+    setLocations([...locations, { name: '', tables: [{ name: `Mesa ${nextTableNumber}`, capacity: 4 }] }]);
   };
 
   const removeLocation = (index: number) => {
@@ -101,56 +163,71 @@ export default function CreateRestaurantPage() {
     setLocations(newLocations);
   };
 
-  const addTableSpec = (locationIndex: number) => {
+  const addTable = (locationIndex: number) => {
     const newLocations = [...locations];
-    newLocations[locationIndex].tables.push({ capacity: 2, count: 1 });
+    const nextTableNumber = getNextTableNumber();
+    newLocations[locationIndex].tables.push({ 
+      name: `Mesa ${nextTableNumber}`, 
+      capacity: 4
+    });
     setLocations(newLocations);
   };
 
-  const removeTableSpec = (locationIndex: number, tableIndex: number) => {
+  const removeTable = (locationIndex: number, tableIndex: number) => {
     const newLocations = [...locations];
     newLocations[locationIndex].tables.splice(tableIndex, 1);
     setLocations(newLocations);
   };
 
-  const updateTableSpec = (locationIndex: number, tableIndex: number, field: 'capacity' | 'count', value: number) => {
+  const updateTable = (locationIndex: number, tableIndex: number, field: 'name' | 'capacity', value: string | number) => {
     const newLocations = [...locations];
-    newLocations[locationIndex].tables[tableIndex][field] = value;
+    if (field === 'name') {
+      newLocations[locationIndex].tables[tableIndex].name = value as string;
+    } else if (field === 'capacity') {
+      newLocations[locationIndex].tables[tableIndex].capacity = value as number;
+    }
     setLocations(newLocations);
   };
 
-  const generateTables = () => {
-    const tables: any[] = [];
-    let tableCounter = 1;
+  // Ya no necesitamos toggle porque todas las mesas son por llamada
 
-    locations.forEach((location, locationIndex) => {
+  const getNextTableNumber = () => {
+    const allTables = locations.flatMap(loc => loc.tables);
+    const usedNumbers = allTables
+      .map(table => parseInt(table.name.replace('Mesa ', '')))
+      .filter(num => !isNaN(num));
+    
+    let nextNumber = 1;
+    while (usedNumbers.includes(nextNumber)) {
+      nextNumber++;
+    }
+    return nextNumber;
+  };
+
+  const generateTables = (): GeneratedTable[] => {
+    const tables: GeneratedTable[] = [];
+
+    locations.forEach((location) => {
       if (!location.name.trim()) return;
 
       let positionX = 1;
       let positionY = 1;
       const maxTablesPerRow = 4;
 
-      location.tables.forEach((tableSpec) => {
-        for (let i = 0; i < tableSpec.count; i++) {
-          const locationPrefix = location.name.replace(/\s+/g, '').substring(0, 2).toUpperCase();
-          const tableId = `${locationPrefix}-${tableCounter}`;
-          const tableName = `${locationPrefix}-${tableCounter}`;
-          
-          tables.push({
-            id: tableId,
-            name: tableName,
-            capacity: tableSpec.capacity,
-            location: location.name,
-            position: { x: positionX, y: positionY },
-            notes: generateTableNotes(tableSpec.capacity, location.name)
-          });
+      location.tables.forEach((table) => {
+        tables.push({
+          id: table.name.toLowerCase().replace(/\s+/g, '_'),
+          name: table.name,
+          capacity: table.capacity,
+          location: location.name,
+          position: { x: positionX, y: positionY },
+          notes: generateTableNotes(table.capacity, location.name)
+        });
 
-          positionX++;
-          if (positionX > maxTablesPerRow) {
-            positionX = 1;
-            positionY++;
-          }
-          tableCounter++;
+        positionX++;
+        if (positionX > maxTablesPerRow) {
+          positionX = 1;
+          positionY++;
         }
       });
     });
@@ -185,16 +262,23 @@ export default function CreateRestaurantPage() {
   };
 
   const getTotalTables = () => {
-    return locations.reduce((total, location) => {
-      return total + location.tables.reduce((sum, table) => sum + table.count, 0);
+    console.log('🔍 Debug getTotalTables:', locations);
+    const total = locations.reduce((total, location) => {
+      const locationTables = location.tables.length;
+      console.log(`📍 ${location.name}: ${locationTables} mesas`);
+      return total + locationTables;
     }, 0);
+    console.log('🎯 Total final:', total);
+    return total;
   };
 
   const getTotalCapacity = () => {
     return locations.reduce((total, location) => {
-      return total + location.tables.reduce((sum, table) => sum + (table.capacity * table.count), 0);
+      return total + location.tables.reduce((sum, table) => sum + table.capacity, 0);
     }, 0);
   };
+
+  // Función removida - no se usa
 
   const generateConfigCode = () => {
     const restaurantId = restaurantData.name.toLowerCase().replace(/\s+/g, '_') + '_001';
@@ -302,13 +386,39 @@ IMPORTANTE:
 
       addUserMappingWithUsername(newUserMapping);
 
-      // 4. Generar código de configuración
+      // 4. Generar mesas configuradas
+      const generatedTables = generateTables();
+      console.log('🪑 Generated tables for restaurant:', generatedTables);
+      
+      // 5. Guardar restaurante en Firestore
+      const restaurantSuccess = await createRestaurant({
+        id: userCredential.user.uid,
+        name: restaurantData.name,
+        email: restaurantData.email,
+        phone: restaurantData.phone,
+        address: restaurantData.address,
+        twilioNumber: restaurantData.twilioNumber,
+        credentials: {
+          username,
+          password: tempPassword,
+          lastLogin: new Date().toISOString()
+        },
+        tables: generatedTables,
+        retellConfig: newUserMapping.retellConfig,
+        twilioConfig: newUserMapping.twilioConfig
+      });
+
+      if (!restaurantSuccess) {
+        throw new Error('Error al guardar el restaurante en la base de datos');
+      }
+
+      // 6. Generar código de configuración
       const configCode = generateConfigCode();
       
-      // 5. Generar configuración de Retell
+      // 7. Generar configuración de Retell
       const retellConfig = generateRetellConfig();
 
-      // 6. Mostrar credenciales
+      // 8. Mostrar credenciales
       setGeneratedCredentials({
         username,
         email: restaurantData.email,
@@ -319,13 +429,22 @@ IMPORTANTE:
 
       setStep(3);
       toast.success('✅ Restaurante creado exitosamente');
+      
+      // Mostrar mensaje de que el dashboard está listo
+      setTimeout(() => {
+        toast.success('🎉 Dashboard del restaurante está listo para usar');
+      }, 1500);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error al crear restaurante:', error);
-      if (error.code === 'auth/email-already-in-use') {
-        toast.error('Este email ya está registrado');
+      if (error instanceof Error) {
+        if ('code' in error && error.code === 'auth/email-already-in-use') {
+          toast.error('Este email ya está registrado');
+        } else {
+          toast.error(error.message || 'Error al crear restaurante');
+        }
       } else {
-        toast.error(error.message || 'Error al crear restaurante');
+        toast.error('Error al crear restaurante');
       }
     } finally {
       setIsLoading(false);
@@ -338,12 +457,32 @@ IMPORTANTE:
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-pink-500/10 rounded-full blur-2xl animate-pulse delay-500"></div>
+      </div>
+
+      <div className="relative z-10 p-6">
+        <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Crear Restaurante Completo</h1>
-          <p className="text-gray-600 mt-2">
+          <div className="flex items-center space-x-4 mb-4">
+            <Button
+              variant="outline"
+              onClick={() => router.push('/admin')}
+              className="bg-transparent border-cyan-400/50 text-cyan-300 hover:bg-cyan-400/20 hover:border-cyan-400 flex items-center space-x-2"
+            >
+              <ArrowRight className="h-4 w-4 rotate-180" />
+              <span>Volver al Panel Admin</span>
+            </Button>
+          </div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+            Crear Restaurante Completo
+          </h1>
+          <p className="text-gray-300 mt-2">
             Crea un restaurante con sus mesas y genera credenciales automáticamente
           </p>
         </div>
@@ -351,22 +490,22 @@ IMPORTANTE:
         {/* Progress Steps */}
         <div className="mb-8">
           <div className="flex items-center space-x-4">
-            <div className={`flex items-center space-x-2 ${step >= 1 ? 'text-orange-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 1 ? 'bg-orange-600 text-white' : 'bg-gray-200'}`}>
+            <div className={`flex items-center space-x-2 ${step >= 1 ? 'text-cyan-400' : 'text-gray-500'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 1 ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white' : 'bg-gray-700 text-gray-400'}`}>
                 1
               </div>
               <span className="font-medium">Datos del Restaurante</span>
             </div>
-            <ArrowRight className="h-4 w-4 text-gray-400" />
-            <div className={`flex items-center space-x-2 ${step >= 2 ? 'text-orange-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 2 ? 'bg-orange-600 text-white' : 'bg-gray-200'}`}>
+            <ArrowRight className="h-4 w-4 text-gray-500" />
+            <div className={`flex items-center space-x-2 ${step >= 2 ? 'text-cyan-400' : 'text-gray-500'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 2 ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white' : 'bg-gray-700 text-gray-400'}`}>
                 2
               </div>
               <span className="font-medium">Configurar Mesas</span>
             </div>
-            <ArrowRight className="h-4 w-4 text-gray-400" />
-            <div className={`flex items-center space-x-2 ${step >= 3 ? 'text-orange-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 3 ? 'bg-orange-600 text-white' : 'bg-gray-200'}`}>
+            <ArrowRight className="h-4 w-4 text-gray-500" />
+            <div className={`flex items-center space-x-2 ${step >= 3 ? 'text-cyan-400' : 'text-gray-500'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 3 ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white' : 'bg-gray-700 text-gray-400'}`}>
                 3
               </div>
               <span className="font-medium">Credenciales</span>
@@ -376,76 +515,84 @@ IMPORTANTE:
 
         {/* Step 1: Datos del Restaurante */}
         {step === 1 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Información del Restaurante</CardTitle>
-              <CardDescription>
-                Completa los datos básicos del restaurante
-              </CardDescription>
-            </CardHeader>
+          <div className="relative group">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+            <Card className="relative bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-xl border border-cyan-400/30 shadow-2xl shadow-cyan-500/20">
+              <CardHeader>
+                <CardTitle className="text-white text-xl font-bold">Información del Restaurante</CardTitle>
+                <CardDescription className="text-gray-300">
+                  Completa los datos básicos del restaurante
+                </CardDescription>
+              </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nombre del Restaurante</Label>
+                  <Label htmlFor="name" className="text-cyan-300 font-medium">Nombre del Restaurante</Label>
                   <Input
                     id="name"
                     value={restaurantData.name}
                     onChange={(e) => setRestaurantData({ ...restaurantData, name: e.target.value })}
                     placeholder="Ej: Restaurante El Buen Sabor"
+                    className="bg-slate-700/50 border-cyan-400/30 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20"
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email del Administrador</Label>
+                  <Label htmlFor="email" className="text-cyan-300 font-medium">Email del Administrador</Label>
                   <Input
                     id="email"
                     type="email"
                     value={restaurantData.email}
                     onChange={(e) => setRestaurantData({ ...restaurantData, email: e.target.value })}
                     placeholder="admin@restaurante.com"
+                    className="bg-slate-700/50 border-cyan-400/30 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20"
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Teléfono del Restaurante</Label>
+                  <Label htmlFor="phone" className="text-cyan-300 font-medium">Teléfono del Restaurante</Label>
                   <Input
                     id="phone"
                     value={restaurantData.phone}
                     onChange={(e) => setRestaurantData({ ...restaurantData, phone: e.target.value })}
                     placeholder="+34 912 345 678"
+                    className="bg-slate-700/50 border-cyan-400/30 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20"
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="twilioNumber">Número Twilio</Label>
+                  <Label htmlFor="twilioNumber" className="text-cyan-300 font-medium">Número Twilio</Label>
                   <Input
                     id="twilioNumber"
                     value={restaurantData.twilioNumber}
                     onChange={(e) => setRestaurantData({ ...restaurantData, twilioNumber: e.target.value })}
                     placeholder="+1234567890"
+                    className="bg-slate-700/50 border-cyan-400/30 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20"
                     required
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="address">Dirección</Label>
+                <Label htmlFor="address" className="text-cyan-300 font-medium">Dirección</Label>
                 <Input
                   id="address"
                   value={restaurantData.address}
                   onChange={(e) => setRestaurantData({ ...restaurantData, address: e.target.value })}
                   placeholder="Calle Principal 123, Ciudad"
+                  className="bg-slate-700/50 border-cyan-400/30 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20"
                   required
                 />
               </div>
               <Button 
                 onClick={() => setStep(2)} 
-                className="w-full bg-orange-600 hover:bg-orange-700"
+                className="w-full bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white font-semibold shadow-lg"
                 disabled={!restaurantData.name || !restaurantData.email || !restaurantData.phone}
               >
                 Siguiente: Configurar Mesas
               </Button>
             </CardContent>
           </Card>
+          </div>
         )}
 
         {/* Step 2: Configurar Mesas */}
@@ -473,7 +620,7 @@ IMPORTANTE:
                     >
                       <div className="font-semibold">{key}</div>
                       <div className="text-sm text-gray-600">
-                        {template.length} ubicaciones, {template.reduce((sum, loc) => sum + loc.tables.reduce((s, t) => s + t.count, 0), 0)} mesas
+                        {template.length} ubicaciones, {template.reduce((sum, loc) => sum + loc.tables.length, 0)} mesas
                       </div>
                     </Button>
                   ))}
@@ -483,113 +630,131 @@ IMPORTANTE:
 
             {/* Estadísticas */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Total Mesas</p>
-                      <p className="text-2xl font-bold text-gray-900">{getTotalTables()}</p>
+              <div className="relative group">
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+                <Card className="relative bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-xl border border-blue-400/30 shadow-2xl shadow-blue-500/20">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-blue-300">Total Mesas</p>
+                        <p className="text-2xl font-bold text-white">{getTotalTables()}</p>
+                        <div className="text-xs text-gray-400 mt-1">
+                          📞 Solo mesas gestionadas por llamada
+                        </div>
+                      </div>
+                      <Users className="h-8 w-8 text-blue-400" />
                     </div>
-                    <Users className="h-8 w-8 text-blue-600" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Capacidad Total</p>
-                      <p className="text-2xl font-bold text-gray-900">{getTotalCapacity()}</p>
+                  </CardContent>
+                </Card>
+              </div>
+              <div className="relative group">
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+                <Card className="relative bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-xl border border-green-400/30 shadow-2xl shadow-green-500/20">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-green-300">Capacidad Total</p>
+                        <p className="text-2xl font-bold text-white">{getTotalCapacity()}</p>
+                        <div className="text-xs text-gray-400 mt-1">personas</div>
+                      </div>
+                      <MapPin className="h-8 w-8 text-green-400" />
                     </div>
-                    <MapPin className="h-8 w-8 text-green-600" />
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">Ubicaciones</p>
-                      <p className="text-2xl font-bold text-gray-900">{locations.length}</p>
+                  </CardContent>
+                </Card>
+              </div>
+              <div className="relative group">
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+                <Card className="relative bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-xl border border-purple-400/30 shadow-2xl shadow-purple-500/20">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-purple-300">Ubicaciones</p>
+                        <p className="text-2xl font-bold text-white">{locations.length}</p>
+                        <div className="text-xs text-gray-400 mt-1">
+                          {locations.map(loc => loc.name).join(', ')}
+                        </div>
+                      </div>
+                      <CheckCircle className="h-8 w-8 text-purple-400" />
                     </div>
-                    <CheckCircle className="h-8 w-8 text-purple-600" />
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
 
             {/* Configuración de ubicaciones */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {locations.map((location, locationIndex) => (
-                <Card key={locationIndex}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <Input
-                          value={location.name}
-                          onChange={(e) => updateLocationName(locationIndex, e.target.value)}
-                          placeholder="Nombre de la ubicación (ej: Comedor 1)"
-                          className="text-lg font-semibold"
-                        />
+                <div key={locationIndex} className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+                  <Card className="relative bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-xl border border-purple-400/30 shadow-2xl shadow-purple-500/20">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <Input
+                            value={location.name}
+                            onChange={(e) => updateLocationName(locationIndex, e.target.value)}
+                            placeholder="Nombre de la ubicación (ej: Comedor 1)"
+                            className="text-lg font-semibold bg-slate-700/50 border-purple-400/30 text-white placeholder-gray-400 focus:border-purple-400 focus:ring-purple-400/20"
+                          />
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeLocation(locationIndex)}
+                          className="text-red-400 hover:text-red-300 border-red-400/30 hover:bg-red-400/20"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeLocation(locationIndex)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardHeader>
+                    </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium">Especificación de Mesas</Label>
+                      <Label className="text-sm font-medium text-purple-300">Especificación de Mesas</Label>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => addTableSpec(locationIndex)}
+                        onClick={() => addTable(locationIndex)}
+                        className="bg-transparent border-purple-400/50 text-purple-300 hover:bg-purple-400/20 hover:border-purple-400"
                       >
                         <Plus className="h-4 w-4 mr-1" />
-                        Agregar
+                        Agregar Mesa
                       </Button>
                     </div>
 
                     {location.tables.map((table, tableIndex) => (
-                      <div key={tableIndex} className="flex items-center space-x-2 p-3 border rounded-lg bg-gray-50">
-                        <div className="flex-1">
-                          <Label className="text-xs text-gray-600">Capacidad</Label>
+                      <div key={tableIndex} className="flex items-center space-x-3 p-4 border rounded-xl bg-slate-700/30 border-purple-400/20 hover:bg-slate-700/50 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <Label className="text-xs text-purple-300 font-medium">Nombre de mesa</Label>
+                          <Input
+                            type="text"
+                            value={table.name}
+                            onChange={(e) => updateTable(locationIndex, tableIndex, 'name', e.target.value)}
+                            placeholder="Mesa 1"
+                            className="w-full bg-slate-600/50 border-purple-400/30 text-white font-semibold focus:border-purple-400 focus:ring-purple-400/20"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <Label className="text-xs text-purple-300 font-medium">Capacidad</Label>
                           <Input
                             type="number"
                             value={table.capacity}
-                            onChange={(e) => updateTableSpec(locationIndex, tableIndex, 'capacity', parseInt(e.target.value) || 2)}
+                            onChange={(e) => updateTable(locationIndex, tableIndex, 'capacity', parseInt(e.target.value) || 2)}
                             min="1"
                             max="20"
-                            className="w-20"
+                            className="w-full bg-slate-600/50 border-purple-400/30 text-white text-center font-semibold focus:border-purple-400 focus:ring-purple-400/20"
                           />
                         </div>
-                        <div className="flex-1">
-                          <Label className="text-xs text-gray-600">Cantidad</Label>
-                          <Input
-                            type="number"
-                            value={table.count}
-                            onChange={(e) => updateTableSpec(locationIndex, tableIndex, 'count', parseInt(e.target.value) || 1)}
-                            min="1"
-                            max="50"
-                            className="w-20"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <Label className="text-xs text-gray-600">Total</Label>
-                          <div className="px-3 py-2 bg-white rounded text-sm font-medium border">
-                            {table.capacity * table.count} personas
+                        <div className="flex-1 min-w-0">
+                          <Label className="text-xs text-cyan-300 font-medium">Gestión</Label>
+                          <div className="px-3 py-2 bg-cyan-500/20 border border-cyan-400/30 rounded text-xs font-semibold text-cyan-300 text-center">
+                            📞 Por llamada
                           </div>
                         </div>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => removeTableSpec(locationIndex, tableIndex)}
-                          className="text-red-600 hover:text-red-700"
+                          onClick={() => removeTable(locationIndex, tableIndex)}
+                          className="text-red-400 hover:text-red-300 border-red-400/30 hover:bg-red-400/20 shrink-0"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -597,45 +762,49 @@ IMPORTANTE:
                     ))}
 
                     {location.tables.length === 0 && (
-                      <div className="text-center py-4 text-gray-500">
-                        <p>No hay mesas especificadas</p>
-                        <p className="text-sm">Haz clic en "Agregar" para empezar</p>
+                      <div className="text-center py-6 text-gray-400">
+                        <p className="text-purple-300">No hay mesas especificadas</p>
+                        <p className="text-sm text-gray-500">Haz clic en &quot;Agregar Mesa&quot; para empezar</p>
                       </div>
                     )}
                   </CardContent>
                 </Card>
+                </div>
               ))}
 
               {/* Botón para agregar ubicación */}
-              <Card className="border-dashed border-2 border-gray-300">
-                <CardContent className="flex items-center justify-center h-full min-h-[200px]">
-                  <Button
-                    variant="outline"
-                    onClick={addLocation}
-                    className="h-auto p-6 flex flex-col items-center space-y-2"
-                  >
-                    <Plus className="h-8 w-8" />
-                    <span className="font-semibold">Agregar Ubicación</span>
-                    <span className="text-sm text-gray-600">Comedor, Terraza, etc.</span>
-                  </Button>
-                </CardContent>
-              </Card>
+              <div className="relative group">
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+                <Card className="relative border-dashed border-2 border-cyan-400/30 bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-xl">
+                  <CardContent className="flex items-center justify-center h-full min-h-[200px]">
+                    <Button
+                      variant="outline"
+                      onClick={addLocation}
+                      className="h-auto p-6 flex flex-col items-center space-y-2 bg-transparent border-cyan-400/50 text-cyan-300 hover:bg-cyan-400/20 hover:border-cyan-400"
+                    >
+                      <Plus className="h-8 w-8" />
+                      <span className="font-semibold">Agregar Ubicación</span>
+                      <span className="text-sm text-gray-400">Comedor, Terraza, etc.</span>
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
 
             <div className="flex space-x-4">
               <Button 
                 variant="outline" 
                 onClick={() => setStep(1)}
-                className="flex-1"
+                className="flex-1 bg-transparent border-cyan-400/50 text-cyan-300 hover:bg-cyan-400/20 hover:border-cyan-400"
               >
-                Anterior
+                ← Anterior
               </Button>
               <Button 
                 onClick={handleCreateRestaurant}
-                className="flex-1 bg-orange-600 hover:bg-orange-700"
+                className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold shadow-lg"
                 disabled={isLoading || getTotalTables() === 0}
               >
-                {isLoading ? 'Creando...' : 'Crear Restaurante'}
+                {isLoading ? '⏳ Creando...' : '🚀 Crear Restaurante'}
               </Button>
             </div>
           </div>
@@ -643,16 +812,18 @@ IMPORTANTE:
 
         {/* Step 3: Credenciales */}
         {step === 3 && generatedCredentials && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-                <span>Restaurante Creado Exitosamente</span>
-              </CardTitle>
-              <CardDescription>
-                Aquí tienes las credenciales y configuración del restaurante
-              </CardDescription>
-            </CardHeader>
+          <div className="relative group">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+            <Card className="relative bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-xl border border-green-400/30 shadow-2xl shadow-green-500/20">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2 text-white text-xl font-bold">
+                  <CheckCircle className="h-5 w-5 text-green-400" />
+                  <span>Restaurante Creado Exitosamente</span>
+                </CardTitle>
+                <CardDescription className="text-gray-300">
+                  Aquí tienes las credenciales y configuración del restaurante
+                </CardDescription>
+              </CardHeader>
             <CardContent className="space-y-6">
               {/* Credenciales */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -755,7 +926,7 @@ IMPORTANTE:
                 </pre>
               </div>
 
-              <div className="flex space-x-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Button 
                   variant="outline" 
                   onClick={() => {
@@ -763,25 +934,47 @@ IMPORTANTE:
                     setGeneratedCredentials(null);
                     setRestaurantData({ name: '', email: '', phone: '', address: '', twilioNumber: '' });
                     setLocations([
-                      { name: 'Comedor 1', tables: [{ capacity: 2, count: 2 }, { capacity: 4, count: 4 }, { capacity: 6, count: 2 }] },
-                      { name: 'Comedor 2', tables: [{ capacity: 4, count: 3 }, { capacity: 8, count: 2 }] },
-                      { name: 'Terraza', tables: [{ capacity: 4, count: 4 }, { capacity: 6, count: 2 }] }
+                      { 
+                        name: 'Comedor 1', 
+                        tables: [
+                          { name: 'Mesa 1', capacity: 4 },
+                          { name: 'Mesa 2', capacity: 2 }
+                        ] 
+                      },
+                      { 
+                        name: 'Terraza', 
+                        tables: [
+                          { name: 'Mesa 8', capacity: 4 }
+                        ] 
+                      }
                     ]);
                   }}
-                  className="flex-1"
+                  className="bg-transparent border-cyan-400/50 text-cyan-300 hover:bg-cyan-400/20 hover:border-cyan-400"
                 >
                   Crear Otro Restaurante
                 </Button>
                 <Button 
+                  onClick={() => {
+                    // Abrir el dashboard del restaurante en una nueva pestaña
+                    toast.success('🚀 Abriendo dashboard del restaurante...');
+                    window.open('/login', '_blank');
+                  }}
+                  className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold shadow-lg"
+                >
+                  🎯 Probar Dashboard
+                </Button>
+                <Button 
                   onClick={() => router.push('/admin')}
-                  className="flex-1 bg-orange-600 hover:bg-orange-700"
+                  className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white font-semibold shadow-lg"
                 >
                   Volver al Admin
                 </Button>
               </div>
             </CardContent>
           </Card>
+          </div>
         )}
+        </div>
       </div>
     </div>
   );

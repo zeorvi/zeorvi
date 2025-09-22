@@ -35,9 +35,10 @@ export default function HeroSection() {
               <p className="text-lg sm:text-xl md:text-2xl text-gray-200 font-light leading-relaxed">
                 Más reservas. Menos trabajo. Cero llamadas perdidas.
               </p>
-              <p className="text-base sm:text-lg text-cyan-300 font-light leading-relaxed max-w-2xl">
-                Tu asistente de voz IA profesional atiende cada llamada con la calidez humana que tus clientes esperan, gestionando reservas, respondiendo dudas sobre el menú, confirmando horarios y capturando cada oportunidad de negocio las 24 horas del día.
-              </p>
+              <div className="text-base sm:text-lg text-cyan-300 font-light leading-relaxed max-w-2xl">
+                <p>Tu asistente con IA avanzada coge todas las llamadas sin perderse ninguna.</p>
+                <p>Gestiona reservas 24/7 y asigna la mejor mesa con calidez humana.</p>
+              </div>
               
               <div className="flex flex-wrap justify-center lg:justify-start gap-2 sm:gap-3 text-sm">
                 <span className="bg-green-500/20 text-green-400 px-3 py-2 rounded-full border border-green-400/30 font-semibold">

@@ -7,8 +7,12 @@ import { Badge } from '@/components/ui/badge';
 
 interface DailyAgendaProps {
   restaurantId: string;
-  restaurantName: string;
-  restaurantType: string;
+  restaurantTables?: Array<{
+    id: string;
+    name: string;
+    capacity: number;
+    location: string;
+  }>;
 }
 
 interface Reservation {
@@ -22,59 +26,18 @@ interface Reservation {
   phone?: string;
 }
 
-export default function DailyAgenda({ restaurantId }: DailyAgendaProps) {
+export default function DailyAgenda({ restaurantId, restaurantTables }: DailyAgendaProps) {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate] = useState(new Date());
 
   useEffect(() => {
-    // Mock data - en producción vendría de Firebase
-    const mockReservations: Reservation[] = [
-      {
-        id: '1',
-        time: '13:00',
-        clientName: 'Luis Fernández',
-        partySize: 2,
-        table: 'M2',
-        status: 'pending',
-        notes: 'Almuerzo de trabajo',
-        phone: '+34612345678'
-      },
-      {
-        id: '2',
-        time: '14:30',
-        clientName: 'Ana Ruiz',
-        partySize: 4,
-        table: 'M4',
-        status: 'pending',
-        notes: 'Familia con niños',
-        phone: '+34623456789'
-      },
-      {
-        id: '3',
-        time: '20:00',
-        clientName: 'Luis Fernández',
-        partySize: 2,
-        table: 'M6',
-        status: 'pending',
-        notes: 'Mesa romántica, sin ruido - Primer turno de cena',
-        phone: '+34634567890'
-      },
-      {
-        id: '4',
-        time: '21:30',
-        clientName: 'María González',
-        partySize: 6,
-        table: 'M8',
-        status: 'confirmed',
-        notes: 'Celebración de cumpleaños',
-        phone: '+34645678901'
-      }
-    ];
 
-    setReservations(mockReservations);
+    // NO generar datos mock - Retell AI gestiona las reservas reales
+    console.log('📅 DailyAgenda: No mock data - waiting for real reservations');
+    setReservations([]); // Agenda vacía hasta que lleguen reservas reales
     setLoading(false);
-  }, [restaurantId]);
+  }, [restaurantId, restaurantTables]);
 
   const formatDate = (date: Date) => {
     const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];

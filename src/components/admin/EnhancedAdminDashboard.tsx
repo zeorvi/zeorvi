@@ -7,7 +7,6 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
 // Importar componentes existentes
-import AdminDashboard from './AdminDashboard';
 import SimpleAdminDashboard from './SimpleAdminDashboard';
 import SuperAdminDashboard from './SuperAdminDashboard';
 
@@ -124,7 +123,7 @@ export default function EnhancedAdminDashboard({
         );
       
       case 'classic':
-        return <AdminDashboard />;
+        return <SimpleAdminDashboard />;
       
       case 'simple':
         return <SimpleAdminDashboard />;

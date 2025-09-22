@@ -64,7 +64,7 @@ export default function InstallationROISection() {
 
               <div className="space-y-6">
                 <div className="relative">
-                  <div className="absolute left-6 top-16 bottom-0 w-px bg-gradient-to-b from-green-400 to-transparent"></div>
+                  <div className="absolute left-6 top-16 h-20 w-px bg-gradient-to-b from-green-400 to-green-400/30"></div>
                   <div className="flex items-start space-x-4">
                     <div className="relative z-10 bg-gradient-to-r from-green-400 to-emerald-500 w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg shadow-green-500/25">
                       <span className="text-black font-black text-lg">1</span>
@@ -79,7 +79,7 @@ export default function InstallationROISection() {
                 </div>
 
                 <div className="relative">
-                  <div className="absolute left-6 top-16 bottom-0 w-px bg-gradient-to-b from-green-400 to-transparent"></div>
+                  <div className="absolute left-6 top-16 h-20 w-px bg-gradient-to-b from-green-400 to-green-400/30"></div>
                   <div className="flex items-start space-x-4">
                     <div className="relative z-10 bg-gradient-to-r from-green-400 to-emerald-500 w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg shadow-green-500/25">
                       <span className="text-black font-black text-lg">2</span>
@@ -100,6 +100,9 @@ export default function InstallationROISection() {
                     </div>
                     <div className="flex-1 pt-2">
                       <h4 className="text-white font-bold text-lg mb-2">IA Funcionando</h4>
+                      <p className="text-gray-300 text-sm leading-relaxed">
+                        Tu asistente de IA ya está atendiendo llamadas, gestionando reservas y optimizando tu operación 24/7.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -126,7 +129,7 @@ export default function InstallationROISection() {
 
               <div className="space-y-6">
                 <div className="relative">
-                  <div className="absolute left-6 top-16 bottom-0 w-px bg-gradient-to-b from-yellow-400 to-transparent"></div>
+                  <div className="absolute left-6 top-16 h-20 w-px bg-gradient-to-b from-yellow-400 to-yellow-400/30"></div>
                   <div className="flex items-start space-x-4">
                     <div className="relative z-10 bg-gradient-to-r from-yellow-400 to-orange-500 w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg shadow-yellow-500/25">
                       <span className="text-black font-black text-lg">75%</span>
@@ -141,7 +144,7 @@ export default function InstallationROISection() {
                 </div>
 
                 <div className="relative">
-                  <div className="absolute left-6 top-16 bottom-0 w-px bg-gradient-to-b from-orange-400 to-transparent"></div>
+                  <div className="absolute left-6 top-16 h-20 w-px bg-gradient-to-b from-orange-400 to-orange-400/30"></div>
                   <div className="flex items-start space-x-4">
                     <div className="relative z-10 bg-gradient-to-r from-orange-400 to-red-500 w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-500/25">
                       <span className="text-black font-black text-lg">90%</span>
@@ -162,11 +165,8 @@ export default function InstallationROISection() {
                     </div>
                     <div className="flex-1 pt-2">
                       <h4 className="text-white font-bold text-lg mb-2">Errores Eliminados</h4>
-                      <p className="text-red-400 font-semibold text-sm mb-1">
+                      <p className="text-gray-300 text-sm leading-relaxed">
                         Cero reservas mal anotadas, doble-reservadas o información incorrecta.
-                      </p>
-                      <p className="text-green-400 text-xs font-medium">
-                        → Recuperación de inversión: menos de 1 semana
                       </p>
                     </div>
                   </div>

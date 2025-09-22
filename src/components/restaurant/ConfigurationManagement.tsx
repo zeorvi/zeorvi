@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getRestaurantData } from '@/lib/restaurantService';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,35 +58,109 @@ export default function ConfigurationManagement({
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'basic' | 'hours' | 'notifications'>('basic');
 
-  // Mock data - en producción vendría de Firebase
+  // Cargar configuración real del restaurante
   useEffect(() => {
-    const mockConfig: RestaurantConfig = {
-      basicInfo: {
-        name: restaurantName,
-        phone: '+34 912 345 678',
-        email: 'info@elbuensabor.com',
-        address: 'Calle Mayor 123, Madrid, España',
-        description: 'Restaurante familiar con comida tradicional española'
-      },
-      operatingHours: {
-        monday: { open: '12:00', close: '23:00', closed: false },
-        tuesday: { open: '12:00', close: '23:00', closed: false },
-        wednesday: { open: '12:00', close: '23:00', closed: false },
-        thursday: { open: '12:00', close: '23:00', closed: false },
-        friday: { open: '12:00', close: '00:00', closed: false },
-        saturday: { open: '12:00', close: '00:00', closed: false },
-        sunday: { open: '12:00', close: '22:00', closed: false }
-      },
-      notifications: {
-        emailNotifications: true,
-        smsNotifications: true,
-        reservationReminders: true,
-        newReservationAlerts: true
+    const loadRestaurantConfig = async () => {
+      setIsLoading(true);
+      
+      try {
+        console.log('🔍 Loading restaurant config for:', restaurantId);
+        const restaurantData = await getRestaurantData(restaurantId);
+        
+        if (restaurantData) {
+          console.log('✅ Restaurant data loaded for config:', restaurantData);
+          
+          const dynamicConfig: RestaurantConfig = {
+            basicInfo: {
+              name: restaurantData.name,
+              phone: restaurantData.phone || '+34 000 000 000',
+              email: restaurantData.email,
+              address: restaurantData.address || 'Dirección no especificada',
+              description: `Restaurante ${restaurantData.type || 'tradicional'} - ${restaurantData.name}`
+            },
+            operatingHours: {
+              monday: { open: '12:00', close: '23:00', closed: false },
+              tuesday: { open: '12:00', close: '23:00', closed: false },
+              wednesday: { open: '12:00', close: '23:00', closed: false },
+              thursday: { open: '12:00', close: '23:00', closed: false },
+              friday: { open: '12:00', close: '00:00', closed: false },
+              saturday: { open: '12:00', close: '00:00', closed: false },
+              sunday: { open: '12:00', close: '22:00', closed: false }
+            },
+            notifications: {
+              emailNotifications: true,
+              smsNotifications: true,
+              reservationReminders: true,
+              newReservationAlerts: true
+            }
+          };
+          
+          setConfig(dynamicConfig);
+        } else {
+          console.log('⚠️ No restaurant data found, using fallback');
+          // Fallback config
+          const fallbackConfig: RestaurantConfig = {
+            basicInfo: {
+              name: restaurantName,
+              phone: '+34 000 000 000',
+              email: 'info@restaurante.com',
+              address: 'Dirección no especificada',
+              description: 'Restaurante en configuración'
+            },
+            operatingHours: {
+              monday: { open: '12:00', close: '23:00', closed: false },
+              tuesday: { open: '12:00', close: '23:00', closed: false },
+              wednesday: { open: '12:00', close: '23:00', closed: false },
+              thursday: { open: '12:00', close: '23:00', closed: false },
+              friday: { open: '12:00', close: '00:00', closed: false },
+              saturday: { open: '12:00', close: '00:00', closed: false },
+              sunday: { open: '12:00', close: '22:00', closed: false }
+            },
+            notifications: {
+              emailNotifications: true,
+              smsNotifications: true,
+              reservationReminders: true,
+              newReservationAlerts: true
+            }
+          };
+          
+          setConfig(fallbackConfig);
+        }
+      } catch (error) {
+        console.error('❌ Error loading restaurant config:', error);
+        // Usar configuración de fallback
+        const fallbackConfig: RestaurantConfig = {
+          basicInfo: {
+            name: restaurantName,
+            phone: '+34 000 000 000',
+            email: 'info@restaurante.com',
+            address: 'Dirección no especificada',
+            description: 'Restaurante en configuración'
+          },
+          operatingHours: {
+            monday: { open: '12:00', close: '23:00', closed: false },
+            tuesday: { open: '12:00', close: '23:00', closed: false },
+            wednesday: { open: '12:00', close: '23:00', closed: false },
+            thursday: { open: '12:00', close: '23:00', closed: false },
+            friday: { open: '12:00', close: '00:00', closed: false },
+            saturday: { open: '12:00', close: '00:00', closed: false },
+            sunday: { open: '12:00', close: '22:00', closed: false }
+          },
+          notifications: {
+            emailNotifications: true,
+            smsNotifications: true,
+            reservationReminders: true,
+            newReservationAlerts: true
+          }
+        };
+        
+        setConfig(fallbackConfig);
+      } finally {
+        setIsLoading(false);
       }
     };
-    
-    setConfig(mockConfig);
-    setIsLoading(false);
+
+    loadRestaurantConfig();
   }, [restaurantId, restaurantName, restaurantType]);
 
   const handleSave = async () => {

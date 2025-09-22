@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getRestaurantData } from '@/lib/restaurantService';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -43,71 +44,67 @@ export default function FreeTablesManagement({ restaurantId }: { restaurantId: s
 
   // Mock data - en producción vendría de Firebase
   useEffect(() => {
-    const loadTables = () => {
+    const loadTables = async () => {
       setIsLoading(true);
       
-      setTimeout(() => {
-        const mockTables: Table[] = [
+      try {
+        console.log('🔍 Loading restaurant data for tables:', restaurantId);
+        const restaurantData = await getRestaurantData(restaurantId);
+        
+        if (restaurantData && restaurantData.tables) {
+          console.log('✅ Tables found:', restaurantData.tables);
+          
+          // Convertir las mesas del restaurante al formato necesario
+          const dynamicTables: Table[] = restaurantData.tables.map((table: any, index: number) => ({
+            id: table.id || `table_${index + 1}`,
+            name: table.name,
+            capacity: table.capacity,
+            location: table.location,
+            status: 'libre', // Por defecto todas están libres
+            lastUsed: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(), // Fecha aleatoria en la última semana
+            notes: table.notes || `Mesa para ${table.capacity} personas en ${table.location}`
+          }));
+          
+          setTables(dynamicTables);
+          setFilteredTables(dynamicTables);
+        } else {
+          console.log('⚠️ No tables found, using fallback');
+          // Fallback si no hay mesas configuradas
+          const fallbackTables: Table[] = [
+            {
+              id: '1',
+              name: 'Mesa 1',
+              capacity: 4,
+              location: 'Comedor Principal',
+              status: 'libre',
+              lastUsed: new Date().toISOString(),
+              notes: 'Mesa principal del restaurante'
+            }
+          ];
+          
+          setTables(fallbackTables);
+          setFilteredTables(fallbackTables);
+        }
+      } catch (error) {
+        console.error('❌ Error loading restaurant tables:', error);
+        // Usar datos de fallback en caso de error
+        const fallbackTables: Table[] = [
           {
             id: '1',
             name: 'Mesa 1',
-            capacity: 2,
-            location: 'Terraza',
-            status: 'libre',
-            lastUsed: '2024-01-19T20:30:00Z',
-            notes: 'Mesa cerca de la entrada'
-          },
-          {
-            id: '2',
-            name: 'Mesa 2',
             capacity: 4,
-            location: 'Salón Principal',
+            location: 'Comedor Principal',
             status: 'libre',
-            lastUsed: '2024-01-18T19:00:00Z',
-            notes: 'Vista a la calle'
-          },
-          {
-            id: '3',
-            name: 'Mesa 3',
-            capacity: 6,
-            location: 'Salón Principal',
-            status: 'libre',
-            lastUsed: '2024-01-17T21:00:00Z',
-            notes: 'Mesa redonda'
-          },
-          {
-            id: '4',
-            name: 'Mesa 4',
-            capacity: 2,
-            location: 'Terraza',
-            status: 'libre',
-            lastUsed: '2024-01-16T18:30:00Z',
-            notes: 'Mesa alta'
-          },
-          {
-            id: '5',
-            name: 'Mesa 5',
-            capacity: 8,
-            location: 'Salón Privado',
-            status: 'libre',
-            lastUsed: '2024-01-15T20:00:00Z',
-            notes: 'Para grupos grandes'
-          },
-          {
-            id: '6',
-            name: 'Mesa 6',
-            capacity: 4,
-            location: 'Terraza',
-            status: 'libre',
-            lastUsed: '2024-01-14T19:30:00Z',
-            notes: 'Mesa junto a la barra'
+            lastUsed: new Date().toISOString(),
+            notes: 'Mesa principal del restaurante'
           }
         ];
         
-        setTables(mockTables);
-        setFilteredTables(mockTables);
+        setTables(fallbackTables);
+        setFilteredTables(fallbackTables);
+      } finally {
         setIsLoading(false);
-      }, 1000);
+      }
     };
 
     loadTables();

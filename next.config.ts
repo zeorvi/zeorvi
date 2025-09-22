@@ -3,7 +3,11 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Configuración mínima y compatible
   reactStrictMode: true,
-  swcMinify: true,
+  
+  // Configuración para evitar problemas de caché
+  experimental: {
+    optimizeCss: false,
+  },
   
   // Solo webpack config básico
   webpack: (config, { isServer }) => {

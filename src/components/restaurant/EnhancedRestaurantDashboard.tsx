@@ -28,6 +28,7 @@ export default function EnhancedRestaurantDashboard({
   // Usar el diseño premium consistente
   return (
     <PremiumRestaurantDashboard
+      key={`premium-${restaurantId}-${restaurantName}`} // Forzar re-render
       restaurantId={restaurantId}
       restaurantName={restaurantName}
       restaurantType={restaurantType}
