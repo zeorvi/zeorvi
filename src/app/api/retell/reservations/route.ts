@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyRetellWebhook } from '@/lib/webhookValidator';
 import { logger } from '@/lib/logger';
-import { realtimeSync } from '@/lib/realtimeSync';
+import { db } from '@/lib/database';
 import { createSecureAPIMiddleware, validateAndSanitize, reservationSchema, createSecureResponse, getClientIP } from '@/lib/apiSecurity';
 
 // POST - Crear nueva reserva desde Retell (PROTEGIDO CON SEGURIDAD ANTI-HACKEO)
@@ -50,38 +50,36 @@ const securePOST = createSecureAPIMiddleware()(async function POST(request: Next
       restaurantId 
     } = { ...validatedData, notes: body.notes, restaurantId: body.restaurantId };
 
-    // 3. Procesar reserva con datos validados
-    const result = await realtimeSync.handleRetellReservation({
-      clientName,
-      phone,
-      email,
-      date,
-      time,
-      people,
-      tableId,
-      location: tableId,
-      status: 'confirmada', // Las reservas de Retell se confirman automáticamente
+    // 3. Procesar reserva con datos validados usando nuestra DB
+    const reservation = await db.createReservation(restaurantId, {
+      client_name: clientName,
+      client_phone: phone,
+      client_email: email,
+      reservation_date: new Date(date),
+      reservation_time: time,
+      party_size: people,
+      table_id: tableId ? parseInt(tableId) : undefined,
+      duration_minutes: 120,
+      status: 'confirmed', // Las reservas de Retell se confirman automáticamente
       notes: notes || '',
-      source: 'retell'
+      special_requests: '',
+      source: 'retell',
+      source_data: { retell_call_id: body.call_id || '', confidence: body.confidence || 0 }
     });
 
-    if (result.success) {
-      logger.info('Reservation created and synced via Retell', { 
-        reservationId: result.reservation?.id,
-        clientName,
-        restaurantId,
-        ip: clientIP
-      });
+    logger.info('Reservation created via Retell', { 
+      reservationId: reservation.id,
+      clientName,
+      restaurantId,
+      ip: clientIP
+    });
 
-      return createSecureResponse({
-        success: true,
-        reservation: result.reservation,
-        message: `Reserva creada para ${clientName} el ${date} a las ${time}. Actualizado en agenda diaria, gestión de reservas, salón y todas las secciones automáticamente.`,
-        dashboardUpdated: true
-      });
-    } else {
-      throw new Error('Error en sincronización');
-    }
+    return createSecureResponse({
+      success: true,
+      reservation,
+      message: `Reserva creada para ${clientName} el ${date} a las ${time}. Actualizado en todas las secciones automáticamente.`,
+      dashboardUpdated: true
+    });
 
   } catch (error) {
     logger.error('Error creating reservation via Retell', { 
@@ -97,7 +95,7 @@ const securePOST = createSecureAPIMiddleware()(async function POST(request: Next
 // Exportar la función protegida
 export { securePOST as POST };
 
-// GET - Obtener reservas para Retell
+// GET - Obtener reservas para Retell usando nuestra DB
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -108,47 +106,52 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Restaurant ID required' }, { status: 400 });
     }
 
-    // Mock data - en producción vendría de Firebase
-    const reservations = [
-      {
-        id: 'res_001',
-        clientName: 'Juan Pérez',
-        phone: '+34 600 123 456',
-        date: date,
-        time: '20:00',
-        people: 4,
-        tableId: 'M5',
-        status: 'confirmada'
-      },
-      {
-        id: 'res_002',
-        clientName: 'María García',
-        phone: '+34 601 234 567',
-        date: date,
-        time: '19:30',
-        people: 2,
-        tableId: 'M3',
-        status: 'pendiente'
-      }
-    ];
+    // Obtener reservas del día desde nuestra DB
+    const reservations = await db.getReservations(restaurantId, {
+      date: date,
+      limit: 50
+    });
 
-    // Información de mesas disponibles
-    const availableTables = [
-      { id: 'M1', name: 'Mesa 1', capacity: 2, location: 'Terraza', status: 'libre' },
-      { id: 'M2', name: 'Mesa 2', capacity: 4, location: 'Salón Principal', status: 'libre' },
-      { id: 'M4', name: 'Mesa 4', capacity: 2, location: 'Terraza', status: 'libre' },
-      { id: 'M6', name: 'Mesa 6', capacity: 6, location: 'Terraza', status: 'libre' }
-    ];
+    // Obtener mesas disponibles
+    const allTables = await db.getTables(restaurantId);
+    const availableTables = allTables.filter(table => 
+      table.status === 'available' || table.status === 'reserved'
+    );
+
+    // Formatear reservas para Retell
+    const formattedReservations = reservations.map(res => ({
+      id: res.id.toString(),
+      clientName: res.client_name,
+      phone: res.client_phone || '',
+      email: res.client_email || '',
+      date: res.reservation_date.toISOString().split('T')[0],
+      time: res.reservation_time,
+      people: res.party_size,
+      tableId: res.table_id?.toString() || '',
+      status: res.status,
+      notes: res.notes || '',
+      source: res.source
+    }));
+
+    // Formatear mesas para Retell
+    const formattedTables = availableTables.map(table => ({
+      id: table.id.toString(),
+      number: table.number,
+      name: table.name || `Mesa ${table.number}`,
+      capacity: table.capacity,
+      location: table.location || 'Principal',
+      status: table.status === 'available' ? 'libre' : 'reservada'
+    }));
 
     return NextResponse.json({
       success: true,
       data: {
-        reservations,
-        availableTables,
+        reservations: formattedReservations,
+        availableTables: formattedTables,
         date,
         restaurantId,
-        totalReservations: reservations.length,
-        availableTablesCount: availableTables.length
+        totalReservations: formattedReservations.length,
+        availableTablesCount: formattedTables.filter(t => t.status === 'libre').length
       }
     });
 

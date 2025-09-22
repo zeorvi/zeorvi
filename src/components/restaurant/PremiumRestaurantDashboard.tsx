@@ -13,6 +13,7 @@ import { ReservationLoading, TableLoading, AILoading } from '@/components/ui/opt
 const OpenAIChat = lazy(() => import('@/components/ai/OpenAIChat'));
 const ReservationCalendar = lazy(() => import('./ReservationCalendar'));
 const TablePlan = lazy(() => import('./TablePlanNew'));
+const TranscriptViewer = lazy(() => import('./TranscriptViewer'));
 
 interface PremiumRestaurantDashboardProps {
   restaurantId: string;
@@ -202,6 +203,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                 { id: 'reservations', label: 'Gestión de Reservas', color: 'violet' },
                 { id: 'tables', label: 'Control de Mesas', color: 'orange' },
                 { id: 'clients', label: 'Base de Clientes', color: 'red' },
+                ...(restaurantId === 'rest_003' ? [{ id: 'transcripts', label: 'Transcripts IA', color: 'green' }] : []),
                 { id: 'ai_chat', label: 'Chat con IA', color: 'purple' },
                 { id: 'settings', label: 'Configuración', color: 'slate' }
               ].map(item => (
@@ -409,6 +411,21 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
               </Card>
 
             </div>
+          )}
+
+          {activeSection === 'transcripts' && restaurantId === 'rest_003' && (
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            }>
+              <div className="p-6">
+                <TranscriptViewer 
+                  restaurantId={restaurantId}
+                  restaurantName={restaurantName}
+                />
+              </div>
+            </Suspense>
           )}
 
 

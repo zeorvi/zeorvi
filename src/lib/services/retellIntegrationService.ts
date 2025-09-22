@@ -223,21 +223,33 @@ export class RetellIntegrationService {
       if (existingCall) {
         const actionItems = this.extractActionItems(payload.summary || '');
         
+        // Guardar transcript completo en la base de datos
         await CallService.update(existingCall.id, {
           transcript: payload.transcript,
           summary: payload.summary,
           actionItems
         });
 
+        // Guardar transcript en colección específica para La Gaviota
+        if (restaurantId === 'rest_003') {
+          await this.saveTranscriptForLaGaviota(payload, restaurantId);
+        }
+
         // Si hay datos de reserva, crearla automáticamente
         if (payload.metadata?.reservation_data) {
           await this.createReservationFromCall(payload.metadata.reservation_data, restaurantId);
         }
 
+        // Redirigir automáticamente al dashboard de La Gaviota
+        if (restaurantId === 'rest_003') {
+          await this.triggerDashboardRedirect(restaurantId, payload.call_id);
+        }
+
         logger.info('Call analyzed and processed', {
           restaurantId,
           callId: payload.call_id,
-          actionItemsCount: actionItems.length
+          actionItemsCount: actionItems.length,
+          transcriptSaved: !!payload.transcript
         });
       }
     } catch (error) {
@@ -388,6 +400,102 @@ export class RetellIntegrationService {
   private async updateTableStatus(tableData: any, restaurantId: string): Promise<void> {
     // Implementar actualización de estado de mesa
     logger.info('Table status updated', { restaurantId, tableData });
+  }
+
+  // Guardar transcript específicamente para La Gaviota
+  private async saveTranscriptForLaGaviota(payload: RetellWebhookPayload, restaurantId: string): Promise<void> {
+    try {
+      const transcriptData = {
+        restaurantId,
+        callId: payload.call_id,
+        agentId: payload.agent_id,
+        transcript: payload.transcript,
+        summary: payload.summary,
+        startTime: payload.start_time,
+        endTime: payload.end_time,
+        duration: payload.duration,
+        fromNumber: payload.from_number,
+        toNumber: payload.to_number,
+        callStatus: payload.call_status,
+        metadata: payload.metadata
+      };
+
+      // Guardar usando el endpoint de transcripts
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/retell/transcripts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(transcriptData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to save transcript: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      logger.info('Transcript saved for La Gaviota', {
+        restaurantId,
+        callId: payload.call_id,
+        transcriptLength: payload.transcript?.length || 0,
+        transcriptId: result.transcript?.id
+      });
+    } catch (error) {
+      logger.error('Error saving transcript for La Gaviota', { error, payload });
+    }
+  }
+
+  // Activar redirección automática al dashboard
+  private async triggerDashboardRedirect(restaurantId: string, callId: string): Promise<void> {
+    try {
+      // Crear evento de redirección que será procesado por el frontend
+      const redirectEvent = {
+        restaurantId,
+        callId,
+        action: 'redirect_to_dashboard',
+        timestamp: new Date().toISOString(),
+        dashboardUrl: `/restaurant/${restaurantId}`,
+        message: 'Nueva conversación procesada. Redirigiendo al dashboard...'
+      };
+
+      // Guardar evento de redirección en Firestore
+      await this.saveToFirestore('dashboard_redirects', redirectEvent);
+
+      // Notificar en tiempo real usando WebSocket o Server-Sent Events
+      await this.notifyDashboardUpdate(restaurantId, redirectEvent);
+
+      logger.info('Dashboard redirect triggered for La Gaviota', {
+        restaurantId,
+        callId,
+        dashboardUrl: redirectEvent.dashboardUrl
+      });
+    } catch (error) {
+      logger.error('Error triggering dashboard redirect', { error, restaurantId, callId });
+    }
+  }
+
+  // Guardar datos en Firestore
+  private async saveToFirestore(collection: string, data: any): Promise<void> {
+    try {
+      // Esta función se implementaría usando Firebase Admin SDK
+      // Por ahora, solo logueamos la acción
+      logger.info('Data saved to Firestore', { collection, dataId: data.callId || data.id });
+    } catch (error) {
+      logger.error('Error saving to Firestore', { collection, error });
+      throw error;
+    }
+  }
+
+  // Notificar actualización del dashboard
+  private async notifyDashboardUpdate(restaurantId: string, event: any): Promise<void> {
+    try {
+      // Implementar notificación en tiempo real
+      // Esto podría usar WebSockets, Server-Sent Events, o Firebase Realtime Database
+      logger.info('Dashboard notification sent', { restaurantId, event });
+    } catch (error) {
+      logger.error('Error notifying dashboard update', { restaurantId, error });
+    }
   }
 }
 

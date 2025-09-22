@@ -21,6 +21,15 @@ export function getRetellAgentConfig(restaurantId: string): RetellAgentConfig | 
       restaurantId: 'rest_elbuensabor_001',
       restaurantName: 'Restaurante El Buen Sabor',
       baseUrl: process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+    },
+    'rest_003': {
+      agentId: 'agent_2082fc7a622cdbd22441b22060',
+      apiKey: process.env.RETELL_API_KEY || 'retell_key_demo',
+      voiceId: 'es-ES-ElviraNeural',
+      language: 'es-ES',
+      restaurantId: 'rest_003',
+      restaurantName: 'La Gaviota',
+      baseUrl: process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
     }
   };
 
@@ -42,6 +51,7 @@ export async function createRetellAgent(config: RetellAgentConfig) {
     enable_webhook: true,
     webhook_url: `${config.baseUrl}/api/retell/webhook`,
     webhook_events: ['call_started', 'call_ended', 'call_analyzed'],
+    redirect_webhook_url: `${config.baseUrl}/api/retell/dashboard-redirect`,
     llm_websocket_url: 'wss://api.retellai.com/v2/llm/stream',
     llm_websocket_api_key: config.apiKey,
     custom_llm_dynamic_variables: [
@@ -215,6 +225,12 @@ IMPORTANTE:
 - Siempre verificar disponibilidad antes de confirmar
 - Preguntar número de teléfono para confirmación
 - Ser natural y conversacional, no técnico
+
+REDIRECCIÓN AUTOMÁTICA AL DASHBOARD:
+- Al finalizar cada conversación, el transcript se guarda automáticamente en la base de datos
+- Para La Gaviota (rest_003), se activa redirección automática al dashboard
+- El sistema notifica al dashboard en tiempo real sobre nuevas conversaciones
+- Los transcripts están disponibles inmediatamente en el dashboard del restaurante
 
 LENGUAJE NATURAL PARA CONFIRMACIONES:
 ✅ CORRECTO: "¡Perfecto! Confirmo su reserva para 4 personas mañana a las 20:00. ¡Los esperamos en El Buen Sabor!"

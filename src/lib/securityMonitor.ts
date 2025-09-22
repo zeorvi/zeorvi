@@ -341,3 +341,4 @@ export function logInvalidAccess(ip: string, endpoint: string, reason: string): 
     metadata: { reason }
   });
 }
+

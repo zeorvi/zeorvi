@@ -74,6 +74,28 @@ const userMappings: UserMapping[] = [
       phoneNumber: '+1234567891',
       whatsappNumber: '+1234567891'
     }
+  },
+  {
+    username: 'lagaviota',
+    email: 'admin@lagaviota.com',
+    role: 'restaurant',
+    restaurantId: 'rest_003',
+    restaurantName: 'La Gaviota',
+    restaurantType: 'Marisquería',
+    airtableBaseId: 'appLaGaviota789',
+    airtableUrl: 'https://airtable.com/embed/appLaGaviota789/tblReservas?backgroundColor=blue&view=viwReservasHoy',
+    retellConfig: {
+      agentId: 'agent_2082fc7a622cdbd22441b22060',
+      apiKey: 'retell_key_lagaviota_789',
+      voiceId: 'es-ES-ElviraNeural',
+      language: 'es-ES'
+    },
+    twilioConfig: {
+      accountSid: 'AC_lagaviota_789',
+      authToken: 'auth_lagaviota_012',
+      phoneNumber: '+1234567892',
+      whatsappNumber: '+1234567892'
+    }
   }
 ];
 

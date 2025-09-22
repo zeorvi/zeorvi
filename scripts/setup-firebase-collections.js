@@ -65,6 +65,28 @@ async function setupFirebaseCollections() {
           phoneNumber: '+34666555444',
           whatsappNumber: '+34666555444'
         }
+      },
+      {
+        id: 'rest_003',
+        name: 'La Gaviota',
+        email: 'admin@lagaviota.com',
+        phone: '+34987654321',
+        address: 'Paseo Marítimo 789, Valencia',
+        type: 'Marisquería',
+        status: 'active',
+        createdAt: new Date(),
+        retellConfig: {
+          agentId: 'agent_2082fc7a622cdbd22441b22060',
+          apiKey: 'retell_key_lagaviota_789',
+          voiceId: 'es-ES-ElviraNeural',
+          language: 'es-ES'
+        },
+        twilioConfig: {
+          accountSid: 'AC_lagaviota_789',
+          authToken: 'auth_lagaviota_012',
+          phoneNumber: '+34987654321',
+          whatsappNumber: '+34987654321'
+        }
       }
     ];
 

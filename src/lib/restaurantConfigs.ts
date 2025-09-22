@@ -53,11 +53,39 @@ export const otroRestauranteConfig: RestaurantLayout = {
   ]
 };
 
+// Configuración para La Gaviota (Marisquería)
+export const laGaviotaConfig: RestaurantLayout = {
+  restaurantId: 'rest_003',
+  restaurantName: 'La Gaviota',
+  locations: ['Salón Principal', 'Terraza', 'Barra'],
+  tables: [
+    // SALÓN PRINCIPAL
+    { id: 'S1', name: 'S1', capacity: 2, location: 'Salón Principal', position: { x: 1, y: 1 }, notes: 'Mesa romántica con vista al mar' },
+    { id: 'S2', name: 'S2', capacity: 4, location: 'Salón Principal', position: { x: 2, y: 1 }, notes: 'Mesa familiar interior' },
+    { id: 'S3', name: 'S3', capacity: 4, location: 'Salón Principal', position: { x: 3, y: 1 }, notes: 'Mesa familiar interior' },
+    { id: 'S4', name: 'S4', capacity: 6, location: 'Salón Principal', position: { x: 4, y: 1 }, notes: 'Mesa para grupos' },
+    { id: 'S5', name: 'S5', capacity: 8, location: 'Salón Principal', position: { x: 1, y: 2 }, notes: 'Mesa grande para celebraciones' },
+    
+    // TERRAZA
+    { id: 'T1', name: 'T1', capacity: 2, location: 'Terraza', position: { x: 1, y: 1 }, notes: 'Mesa romántica con vista al mar' },
+    { id: 'T2', name: 'T2', capacity: 4, location: 'Terraza', position: { x: 2, y: 1 }, notes: 'Mesa familiar con vista' },
+    { id: 'T3', name: 'T3', capacity: 4, location: 'Terraza', position: { x: 3, y: 1 }, notes: 'Mesa familiar con vista' },
+    { id: 'T4', name: 'T4', capacity: 6, location: 'Terraza', position: { x: 4, y: 1 }, notes: 'Mesa para grupos con vista' },
+    
+    // BARRA
+    { id: 'B1', name: 'B1', capacity: 1, location: 'Barra', position: { x: 1, y: 1 }, notes: 'Asiento individual en barra' },
+    { id: 'B2', name: 'B2', capacity: 1, location: 'Barra', position: { x: 2, y: 1 }, notes: 'Asiento individual en barra' },
+    { id: 'B3', name: 'B3', capacity: 1, location: 'Barra', position: { x: 3, y: 1 }, notes: 'Asiento individual en barra' },
+    { id: 'B4', name: 'B4', capacity: 1, location: 'Barra', position: { x: 4, y: 1 }, notes: 'Asiento individual en barra' }
+  ]
+};
+
 // Función para obtener la configuración de un restaurante
 export function getRestaurantConfig(restaurantId: string): RestaurantLayout | null {
   const configs = {
     'rest_elbuensabor_001': otroRestauranteConfig, // Fixed missing config
-    'rest_otro_002': otroRestauranteConfig
+    'rest_otro_002': otroRestauranteConfig,
+    'rest_003': laGaviotaConfig
   };
   
   return configs[restaurantId as keyof typeof configs] || null;
@@ -119,6 +147,18 @@ export const restaurantTypes = {
       today: 'viwReservasHoyCafe',
       week: 'viwReservasSemanaCafe',
       month: 'viwReservasMesCafe'
+    },
+    voiceSettings: {
+      voiceId: 'es-ES-ElviraNeural',
+      language: 'es-ES'
+    }
+  },
+  'Marisquería': {
+    description: 'Restaurante especializado en mariscos y pescados con terraza al mar',
+    airtableViews: {
+      today: 'viwReservasHoyMar',
+      week: 'viwReservasSemanaMar',
+      month: 'viwReservasMesMar'
     },
     voiceSettings: {
       voiceId: 'es-ES-ElviraNeural',
