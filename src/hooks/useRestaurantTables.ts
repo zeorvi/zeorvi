@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getRestaurantData, updateTableStateInFirebase, syncTableStates, type TableState } from '@/lib/restaurantService';
 import { toast } from 'sonner';
 
@@ -105,8 +105,8 @@ export function useRestaurantTables(restaurantId: string) {
     return tables.filter(table => table.status === status);
   }, [tables]);
 
-  // Obtener métricas de las mesas
-  const getMetrics = useCallback(() => {
+  // Obtener métricas de las mesas (memoizado para mejor rendimiento)
+  const metrics = useMemo(() => {
     const totalTables = tables.length;
     const occupiedTables = tables.filter(t => t.status === 'ocupada').length;
     const reservedTables = tables.filter(t => t.status === 'reservada').length;
@@ -169,7 +169,7 @@ export function useRestaurantTables(restaurantId: string) {
     lastUpdate,
     updateTableStatus,
     getTablesByStatus,
-    getMetrics,
+    getMetrics: () => metrics, // Función que retorna las métricas memoizadas
     refreshTables: loadTables
   };
 }

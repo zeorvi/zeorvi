@@ -249,7 +249,7 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
               
               <div className={`text-xs mt-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                 <Clock className="h-3 w-3 inline mr-1" />
-                Actualizada: {table.lastUpdated.toLocaleTimeString()}
+                Actualizada: {new Date(table.lastUpdated).toLocaleTimeString()}
               </div>
             </CardContent>
           </Card>

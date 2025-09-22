@@ -1,15 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, lazy, memo } from 'react';
 import { getRestaurantData, type RestaurantData } from '@/lib/restaurantService';
 import { useRestaurantTables } from '@/hooks/useRestaurantTables';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import OpenAIChat from '@/components/ai/OpenAIChat';
-import ReservationCalendar from './ReservationCalendar';
-import TablePlan from './TablePlanNew';
 import { Sun, Moon, RefreshCw } from 'lucide-react';
+import { ReservationLoading, TableLoading, AILoading } from '@/components/ui/optimized-loading';
+
+// Lazy loading de componentes pesados
+const OpenAIChat = lazy(() => import('@/components/ai/OpenAIChat'));
+const ReservationCalendar = lazy(() => import('./ReservationCalendar'));
+const TablePlan = lazy(() => import('./TablePlanNew'));
 
 interface PremiumRestaurantDashboardProps {
   restaurantId: string;
@@ -28,7 +31,8 @@ interface Reservation {
   phone?: string;
 }
 
-export default function PremiumRestaurantDashboard({ 
+// Memoizar el componente principal para evitar re-renders innecesarios
+const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({ 
   restaurantId, 
   restaurantName, 
   restaurantType 
@@ -352,22 +356,34 @@ export default function PremiumRestaurantDashboard({
 
           {/* Vista de Agenda completa */}
 
-          {/* Otras secciones */}
+          {/* Otras secciones con Suspense para lazy loading */}
           {activeSection === 'reservations' && (
-            <ReservationCalendar 
-              key={`reservations-${restaurantId}-${restaurantData?.name}`}
-              restaurantId={restaurantId} 
-              isDarkMode={isDarkMode} 
-              restaurantTables={restaurantData?.tables}
-            />
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-64">
+                <ReservationLoading />
+              </div>
+            }>
+              <ReservationCalendar 
+                key={`reservations-${restaurantId}-${restaurantData?.name}`}
+                restaurantId={restaurantId} 
+                isDarkMode={isDarkMode} 
+                restaurantTables={restaurantData?.tables}
+              />
+            </Suspense>
           )}
 
           {activeSection === 'tables' && (
-            <TablePlan 
-              key={`tables-${restaurantId}-${restaurantData?.name}`}
-              restaurantId={restaurantId} 
-              isDarkMode={isDarkMode} 
-            />
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-64">
+                <TableLoading />
+              </div>
+            }>
+              <TablePlan 
+                key={`tables-${restaurantId}-${restaurantData?.name}`}
+                restaurantId={restaurantId} 
+                isDarkMode={isDarkMode} 
+              />
+            </Suspense>
           )}
 
           {activeSection === 'clients' && (
@@ -398,15 +414,21 @@ export default function PremiumRestaurantDashboard({
 
 
           {activeSection === 'ai_chat' && (
-            <div className="w-full max-w-full">
-            <OpenAIChat 
-              restaurantId={restaurantId}
-              restaurantName={restaurantName}
-              restaurantType={restaurantType}
-              currentUserName="Gerente"
-              isDarkMode={isDarkMode}
-            />
-            </div>
+            <Suspense fallback={
+              <div className="flex items-center justify-center h-64">
+                <AILoading />
+              </div>
+            }>
+              <div className="w-full max-w-full">
+                <OpenAIChat 
+                  restaurantId={restaurantId}
+                  restaurantName={restaurantName}
+                  restaurantType={restaurantType}
+                  currentUserName="Gerente"
+                  isDarkMode={isDarkMode}
+                />
+              </div>
+            </Suspense>
           )}
 
 
@@ -454,4 +476,7 @@ export default function PremiumRestaurantDashboard({
       </div>
     </div>
   );
-}
+});
+
+// Exportar el componente memoizado
+export default PremiumRestaurantDashboard;

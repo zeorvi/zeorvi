@@ -2,19 +2,42 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyRetellWebhook } from '@/lib/webhookValidator';
 import { logger } from '@/lib/logger';
 import { realtimeSync } from '@/lib/realtimeSync';
+import { createSecureAPIMiddleware, validateAndSanitize, reservationSchema, createSecureResponse, getClientIP } from '@/lib/apiSecurity';
 
-// POST - Crear nueva reserva desde Retell
-export async function POST(request: NextRequest) {
+// POST - Crear nueva reserva desde Retell (PROTEGIDO CON SEGURIDAD ANTI-HACKEO)
+const securePOST = createSecureAPIMiddleware()(async function POST(request: NextRequest) {
+  const clientIP = getClientIP(request);
+  
   try {
     const body = await request.json();
     
-    // Validar webhook de Retell
+    // 🛡️ VALIDACIÓN DE SEGURIDAD ANTI-HACKEO
+    
+    // 1. Validar webhook de Retell
     const signature = request.headers.get('x-retell-signature') || '';
     const validation = verifyRetellWebhook(signature, JSON.stringify(body));
     if (!validation.valid) {
-      return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+      logger.warn('Invalid Retell webhook signature', { ip: clientIP, signature: signature.substring(0, 20) });
+      return createSecureResponse({ error: 'Invalid webhook signature' }, 401);
     }
 
+    // 2. Validar y sanitizar datos de entrada
+    const dataValidation = validateAndSanitize(reservationSchema, {
+      clientName: body.clientName,
+      phone: body.phone,
+      email: body.email,
+      date: body.date,
+      time: body.time,
+      people: parseInt(body.people),
+      tableId: body.tablePreference
+    }, clientIP);
+
+    if (!dataValidation.success) {
+      logger.warn('Invalid reservation data', { ip: clientIP, error: dataValidation.error });
+      return createSecureResponse({ error: dataValidation.error }, 400);
+    }
+
+    const validatedData = dataValidation.data;
     const { 
       clientName, 
       phone, 
@@ -22,21 +45,21 @@ export async function POST(request: NextRequest) {
       date, 
       time, 
       people, 
-      tablePreference,
+      tableId,
       notes,
       restaurantId 
-    } = body;
+    } = { ...validatedData, notes: body.notes, restaurantId: body.restaurantId };
 
-    // Usar el sistema de sincronización para actualizar TODO el dashboard
+    // 3. Procesar reserva con datos validados
     const result = await realtimeSync.handleRetellReservation({
       clientName,
       phone,
       email,
       date,
       time,
-      people: parseInt(people),
-      tableId: tablePreference,
-      location: tablePreference,
+      people,
+      tableId,
+      location: tableId,
       status: 'confirmada', // Las reservas de Retell se confirman automáticamente
       notes: notes || '',
       source: 'retell'
@@ -46,10 +69,11 @@ export async function POST(request: NextRequest) {
       logger.info('Reservation created and synced via Retell', { 
         reservationId: result.reservation?.id,
         clientName,
-        restaurantId 
+        restaurantId,
+        ip: clientIP
       });
 
-      return NextResponse.json({
+      return createSecureResponse({
         success: true,
         reservation: result.reservation,
         message: `Reserva creada para ${clientName} el ${date} a las ${time}. Actualizado en agenda diaria, gestión de reservas, salón y todas las secciones automáticamente.`,
@@ -60,12 +84,18 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
-    logger.error('Error creating reservation via Retell', { error });
-    return NextResponse.json({ 
+    logger.error('Error creating reservation via Retell', { 
+      error: (error as Error).message,
+      ip: clientIP 
+    });
+    return createSecureResponse({ 
       error: 'Error al crear la reserva' 
-    }, { status: 500 });
+    }, 500);
   }
-}
+});
+
+// Exportar la función protegida
+export { securePOST as POST };
 
 // GET - Obtener reservas para Retell
 export async function GET(request: NextRequest) {

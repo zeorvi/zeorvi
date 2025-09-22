@@ -2,6 +2,7 @@ import { doc, updateDoc, getDoc, collection, getDocs, query, orderBy, setDoc, de
 import { updatePassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { db, auth } from './firebase';
 import { toast } from 'sonner';
+import { restaurantCache, reservationCache, tableCache } from './cache';
 
 export interface TableState {
   id: string;
@@ -116,13 +117,24 @@ export async function getRestaurantData(restaurantId: string): Promise<Restauran
   try {
     console.log('🔍 Fetching restaurant data for:', restaurantId);
     
+    // Intentar obtener del cache primero
+    const cachedData = restaurantCache.get<RestaurantData>(restaurantId);
+    if (cachedData) {
+      console.log('✅ Restaurant data retrieved from cache:', cachedData.name);
+      return cachedData;
+    }
+    
     const restaurantRef = doc(db, 'restaurants', restaurantId);
     const restaurantSnap = await getDoc(restaurantRef);
     
     if (restaurantSnap.exists()) {
       const data = restaurantSnap.data() as RestaurantData;
-      console.log('📊 Restaurant data retrieved:', data);
+      console.log('📊 Restaurant data retrieved from Firebase:', data);
       console.log('🪑 Tables found:', data.tables ? data.tables.length : 0, data.tables);
+      
+      // Guardar en cache
+      restaurantCache.set(restaurantId, data);
+      
       return data;
     } else {
       console.log('❌ Restaurant not found:', restaurantId);
