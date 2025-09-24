@@ -1,17 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { useClientAuth } from '@/hooks/useClientAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { LogOut, Users, Plus, Settings, RefreshCw, Trash2, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { getAllRestaurants, deleteRestaurant, updateRestaurantStatus, type RestaurantData } from '@/lib/restaurantService';
+import { getAllRestaurants, deleteRestaurant, updateRestaurantStatus, type RestaurantData } from '@/lib/restaurantServicePostgres';
 
 export default function SimpleAdminDashboard() {
   const router = useRouter();
+  const { logout } = useClientAuth();
   const [restaurants, setRestaurants] = useState<RestaurantData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -60,12 +60,7 @@ export default function SimpleAdminDashboard() {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
-      
-      // Limpiar tokens JWT
-      document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      localStorage.removeItem('auth-token');
-      
+      await logout();
       toast.success('Sesión cerrada exitosamente');
       router.push('/login');
     } catch (error) {
@@ -300,7 +295,7 @@ export default function SimpleAdminDashboard() {
                     restaurants.map((restaurant) => (
                       <tr key={restaurant.id} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
                         <td className="py-4 px-4 text-white font-medium">{restaurant.name}</td>
-                        <td className="py-4 px-4 text-gray-300">{restaurant.email}</td>
+                        <td className="py-4 px-4 text-gray-300">{restaurant.owner_email}</td>
                         <td className="py-4 px-4 text-center">
                           <Button
                             onClick={() => handleToggleStatus(restaurant.id, restaurant.status, restaurant.name)}

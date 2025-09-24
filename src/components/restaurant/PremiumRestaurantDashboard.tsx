@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, Suspense, lazy, memo } from 'react';
-import { getRestaurantData, type RestaurantData } from '@/lib/restaurantService';
-import { useRestaurantTables } from '@/hooks/useRestaurantTables';
+import { getRestaurantById, type RestaurantData } from '@/lib/restaurantServicePostgres';
+// import { useRestaurantTables } from '@/hooks/useRestaurantTables';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -44,17 +44,17 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [restaurantData, setRestaurantData] = useState<RestaurantData | null>(null);
   
-  // Hook para gestión global de mesas
-  const { 
-    updateTableStatus
-  } = useRestaurantTables(restaurantId);
+  // Hook para gestión global de mesas - temporalmente deshabilitado
+  // const { 
+  //   updateTableStatus
+  // } = useRestaurantTables(restaurantId);
 
   useEffect(() => {
 
     // Cargar datos del restaurante
     const loadRestaurantData = async () => {
       try {
-        const data = await getRestaurantData(restaurantId);
+        const data = await getRestaurantById(restaurantId);
         setRestaurantData(data);
         console.log('🏪 Restaurant data loaded for dashboard:', data);
         

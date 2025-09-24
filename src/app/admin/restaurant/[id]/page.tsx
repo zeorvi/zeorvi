@@ -28,7 +28,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { updateRestaurantCredentials, updateRestaurantOwnerInfo, getRestaurantData } from '@/lib/restaurantService';
+import { getRestaurantById, updateRestaurantCredentials, updateRestaurantOwnerInfo } from '@/lib/restaurantServicePostgres';
 
 
 export default function RestaurantDetailPage() {
@@ -56,7 +56,7 @@ export default function RestaurantDetailPage() {
         console.log('🔍 Loading restaurant with ID:', id);
         
         try {
-          const data = await getRestaurantData(id);
+          const data = await getRestaurantById(id);
           console.log('📊 Restaurant data:', data);
           
           if (!data) {
@@ -64,17 +64,17 @@ export default function RestaurantDetailPage() {
             toast.error(`Restaurante no encontrado: ${id}`);
           } else {
             // Inicializar datos del propietario
-            setOwnerData(data.ownerInfo || {
-              ownerName: '',
-              personalPhone: '',
-              position: '',
-              notes: ''
+            setOwnerData({
+              ownerName: data.owner_name || '',
+              personalPhone: data.phone || '',
+              position: data.config?.owner_position || 'Propietario',
+              notes: data.config?.owner_notes || ''
             });
             
-            // Inicializar datos de credenciales
-            setCredentialsData(data.credentials || {
-              username: '',
-              password: ''
+            // Inicializar datos de credenciales (usar email como username)
+            setCredentialsData({
+              username: data.owner_email,
+              password: 'restaurante123' // Contraseña por defecto
             });
           }
           
@@ -107,14 +107,20 @@ export default function RestaurantDetailPage() {
     try {
       console.log('💾 Saving owner info:', ownerData);
       
-      // Actualizar en Firebase
+      // Actualizar en PostgreSQL
       const success = await updateRestaurantOwnerInfo(restaurantData.id, ownerData);
       
       if (success) {
         // Actualizar datos locales
         setRestaurantData({
           ...restaurantData,
-          ownerInfo: ownerData
+          owner_name: ownerData.ownerName,
+          phone: ownerData.personalPhone,
+          config: {
+            ...restaurantData.config,
+            owner_position: ownerData.position,
+            owner_notes: ownerData.notes
+          }
         });
         
         setIsEditingOwner(false);
@@ -128,11 +134,11 @@ export default function RestaurantDetailPage() {
 
   const handleCancelEdit = () => {
     // Restaurar datos originales
-    setOwnerData(restaurantData.ownerInfo || {
-      ownerName: '',
-      personalPhone: '',
-      position: '',
-      notes: ''
+    setOwnerData({
+      ownerName: restaurantData.owner_name || '',
+      personalPhone: restaurantData.phone || '',
+      position: restaurantData.config?.owner_position || 'Propietario',
+      notes: restaurantData.config?.owner_notes || ''
     });
     setIsEditingOwner(false);
   };
@@ -143,22 +149,29 @@ export default function RestaurantDetailPage() {
       return;
     }
 
+    // Validar que el username tenga al menos 3 caracteres
+    if (credentialsData.username.length < 3) {
+      toast.error('❌ El username debe tener al menos 3 caracteres');
+      return;
+    }
+
+    // Validar que la contraseña no esté vacía
+    if (!credentialsData.password || credentialsData.password.trim() === '') {
+      toast.error('❌ La contraseña no puede estar vacía');
+      return;
+    }
+
     try {
       console.log('💾 Saving credentials:', credentialsData);
       
-      // Actualizar en Firebase
+      // Actualizar en PostgreSQL
       const success = await updateRestaurantCredentials(restaurantData.id, credentialsData);
       
       if (success) {
         // Actualizar datos locales
         setRestaurantData({
           ...restaurantData,
-          credentials: {
-            ...restaurantData.credentials,
-            username: credentialsData.username,
-            password: credentialsData.password,
-            lastLogin: new Date().toISOString()
-          }
+          owner_email: credentialsData.username
         });
         
         setIsEditingCredentials(false);
@@ -166,15 +179,24 @@ export default function RestaurantDetailPage() {
       }
     } catch (error) {
       console.error('❌ Error saving credentials:', error);
-      toast.error('Error al guardar las credenciales');
+      
+      // Mostrar mensaje de error más específico
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('caracteres')) {
+        toast.error('❌ El username debe tener al menos 3 caracteres');
+      } else if (errorMessage.includes('requeridos')) {
+        toast.error('❌ Username y contraseña son requeridos');
+      } else {
+        toast.error('❌ Error al guardar las credenciales: ' + errorMessage);
+      }
     }
   };
 
   const handleCancelCredentialsEdit = () => {
     // Restaurar datos originales
-    setCredentialsData(restaurantData.credentials || {
-      username: '',
-      password: ''
+    setCredentialsData({
+      username: restaurantData.owner_email,
+      password: 'restaurante123'
     });
     setIsEditingCredentials(false);
   };
@@ -228,8 +250,8 @@ export default function RestaurantDetailPage() {
                 </h1>
                 <p className="text-gray-300 mt-2">Detalles administrativos y estadísticas</p>
               </div>
-              <Badge className={`${restaurantData.status === 'Activo' ? 'bg-green-500' : 'bg-red-500'} text-white`}>
-                {restaurantData.status}
+              <Badge className={`${restaurantData.status === 'active' ? 'bg-green-500' : 'bg-red-500'} text-white`}>
+                {restaurantData.status === 'active' ? 'Activo' : 'Inactivo'}
               </Badge>
             </div>
           </div>
@@ -252,7 +274,7 @@ export default function RestaurantDetailPage() {
                     <div className="flex items-center space-x-3">
                       <Mail className="h-4 w-4 text-blue-400" />
                       <span className="text-gray-300">Email:</span>
-                      <span className="text-white font-medium">{restaurantData.email}</span>
+                      <span className="text-white font-medium">{restaurantData.owner_email}</span>
                     </div>
                     <div className="flex items-center space-x-3">
                       <Phone className="h-4 w-4 text-blue-400" />
@@ -267,7 +289,7 @@ export default function RestaurantDetailPage() {
                     <div className="flex items-center space-x-3">
                       <Calendar className="h-4 w-4 text-blue-400" />
                       <span className="text-gray-300">Creado:</span>
-                      <span className="text-white font-medium">{restaurantData.createdAt}</span>
+                      <span className="text-white font-medium">{new Date(restaurantData.created_at).toLocaleDateString('es-ES')}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -314,11 +336,21 @@ export default function RestaurantDetailPage() {
                       <div>
                         <Label className="text-purple-300 font-medium">Usuario</Label>
                         <Input
+                          type="text"
                           value={credentialsData.username}
                           onChange={(e) => setCredentialsData({...credentialsData, username: e.target.value})}
-                          placeholder="Nombre de usuario"
-                          className="bg-slate-700/50 border-purple-400/30 text-white placeholder-gray-400 focus:border-purple-400 focus:ring-purple-400/20 mt-1"
+                          placeholder="nombre_usuario"
+                          className={`bg-slate-700/50 border-purple-400/30 text-white placeholder-gray-400 focus:border-purple-400 focus:ring-purple-400/20 mt-1 ${
+                            credentialsData.username && credentialsData.username.length < 3
+                              ? 'border-red-400 focus:border-red-400'
+                              : ''
+                          }`}
                         />
+                        {credentialsData.username && credentialsData.username.length < 3 && (
+                          <p className="text-red-400 text-sm mt-1">
+                            ⚠️ El username debe tener al menos 3 caracteres
+                          </p>
+                        )}
                       </div>
                       <div>
                         <Label className="text-purple-300 font-medium">Contraseña</Label>
@@ -333,7 +365,8 @@ export default function RestaurantDetailPage() {
                       <div className="flex space-x-3">
                         <Button
                           onClick={handleSaveCredentials}
-                          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold"
+                          disabled={!credentialsData.username || !credentialsData.password || credentialsData.username.length < 3}
+                          className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Save className="h-4 w-4 mr-2" />
                           Guardar Cambios
@@ -355,14 +388,14 @@ export default function RestaurantDetailPage() {
                         <label className="text-sm text-purple-300 font-medium">Usuario</label>
                         <div className="flex items-center space-x-2 mt-1">
                           <div className="flex-1 px-3 py-2 bg-slate-700/50 border border-purple-400/30 rounded text-white font-mono">
-                            {restaurantData.credentials?.username || 'No configurado'}
+                            {credentialsData.username || 'No configurado'}
                           </div>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => copyToClipboard(restaurantData.credentials?.username || '', 'Usuario')}
+                            onClick={() => copyToClipboard(credentialsData.username || '', 'Usuario')}
                             className="bg-transparent border-purple-400/50 text-purple-300 hover:bg-purple-400/20"
-                            disabled={!restaurantData.credentials?.username}
+                            disabled={!credentialsData.username}
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
@@ -373,8 +406,8 @@ export default function RestaurantDetailPage() {
                         <label className="text-sm text-purple-300 font-medium">Contraseña</label>
                         <div className="flex items-center space-x-2 mt-1">
                           <div className="flex-1 px-3 py-2 bg-slate-700/50 border border-purple-400/30 rounded text-white font-mono">
-                            {restaurantData.credentials?.password 
-                              ? (showPassword ? restaurantData.credentials.password : '••••••••••')
+                            {credentialsData.password 
+                              ? (showPassword ? credentialsData.password : '••••••••••')
                               : 'No configurado'
                             }
                           </div>
@@ -383,16 +416,16 @@ export default function RestaurantDetailPage() {
                             size="sm"
                             onClick={() => setShowPassword(!showPassword)}
                             className="bg-transparent border-purple-400/50 text-purple-300 hover:bg-purple-400/20"
-                            disabled={!restaurantData.credentials?.password}
+                            disabled={!credentialsData.password}
                           >
                             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => copyToClipboard(restaurantData.credentials?.password || '', 'Contraseña')}
+                            onClick={() => copyToClipboard(credentialsData.password || '', 'Contraseña')}
                             className="bg-transparent border-purple-400/50 text-purple-300 hover:bg-purple-400/20"
-                            disabled={!restaurantData.credentials?.password}
+                            disabled={!credentialsData.password}
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
@@ -404,7 +437,7 @@ export default function RestaurantDetailPage() {
                           <Clock className="h-4 w-4 text-purple-400" />
                           <span className="text-gray-300">Último acceso:</span>
                           <span className="text-white font-medium">
-                            {restaurantData.credentials?.lastLogin || 'Nunca'}
+                            Nunca
                           </span>
                         </div>
                       </div>
@@ -517,23 +550,23 @@ export default function RestaurantDetailPage() {
                         <div className="flex items-center space-x-3">
                           <User className="h-4 w-4 text-yellow-400" />
                           <span className="text-gray-300">Propietario:</span>
-                          <span className="text-white font-medium">{restaurantData.ownerInfo?.ownerName || 'No especificado'}</span>
+                          <span className="text-white font-medium">{ownerData.ownerName || 'No especificado'}</span>
                         </div>
                         <div className="flex items-center space-x-3">
                           <Phone className="h-4 w-4 text-yellow-400" />
                           <span className="text-gray-300">Teléfono personal:</span>
-                          <span className="text-white font-medium">{restaurantData.ownerInfo?.personalPhone || 'No especificado'}</span>
+                          <span className="text-white font-medium">{ownerData.personalPhone || 'No especificado'}</span>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">
                         <UserCheck className="h-4 w-4 text-yellow-400" />
                         <span className="text-gray-300">Cargo:</span>
-                        <span className="text-white font-medium">{restaurantData.ownerInfo?.position || 'No especificado'}</span>
+                        <span className="text-white font-medium">{ownerData.position || 'No especificado'}</span>
                       </div>
-                      {restaurantData.ownerInfo?.notes && (
+                      {ownerData.notes && (
                         <div className="p-3 bg-slate-700/30 rounded-lg border border-yellow-400/20">
                           <span className="text-yellow-300 font-medium text-sm">Notas:</span>
-                          <p className="text-gray-300 mt-1">{restaurantData.ownerInfo.notes}</p>
+                          <p className="text-gray-300 mt-1">{ownerData.notes}</p>
                         </div>
                       )}
                     </div>

@@ -1,3 +1,5 @@
+import VoiceAgentCapabilities from './VoiceAgentCapabilities';
+
 export default function HowItWorksSection() {
-  return null;
+  return <VoiceAgentCapabilities />;
 }

@@ -1,58 +1,96 @@
 /**
- * API de Login - Reemplaza Firebase Auth
+ * API de Login - Sistema Personalizado
+ * Reemplaza Firebase Authentication
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authService } from '@/lib/auth';
-import { z } from 'zod';
-
-const loginSchema = z.object({
-  email: z.string().email('Email inválido'),
-  password: z.string().min(6, 'Contraseña debe tener al menos 6 caracteres'),
-  restaurantSlug: z.string().optional()
-});
+import { customAuth } from '@/lib/auth/customAuth';
+import { logger } from '@/lib/logger';
+import { rateLimiters } from '@/lib/rateLimiter';
 
 export async function POST(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+  
   try {
+    // Rate limiting
+    const rateLimitResult = await rateLimiters.auth.checkLimit(request);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'Demasiados intentos de login. Intenta más tarde.' },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
-    
+    const { email, password } = body;
+
     // Validar datos de entrada
-    const validatedData = loginSchema.parse(body);
-    
+    if (!email || !password) {
+      return NextResponse.json(
+        { success: false, error: 'Usuario y contraseña son requeridos' },
+        { status: 400 }
+      );
+    }
+
+    // Validar que el campo no esté vacío (acepta tanto emails como usernames)
+    if (email.trim().length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'El campo usuario no puede estar vacío' },
+        { status: 400 }
+      );
+    }
+    logger.info('Login attempt', { username: email, ip });
+
     // Intentar login
-    const { user, token } = await authService.login(validatedData);
-    
-    // Crear respuesta con cookie segura
+    const authResult = await customAuth.login({ email, password });
+
+    if (!authResult.success) {
+      logger.warn('Login failed', { username: email, error: authResult.error, ip });
+      return NextResponse.json(
+        { success: false, error: authResult.error },
+        { status: 401 }
+      );
+    }
+
+    logger.info('Login successful', { 
+      userId: authResult.user?.id, 
+      username: email, 
+      role: authResult.user?.role,
+      ip 
+    });
+
+    // Crear respuesta con token
     const response = NextResponse.json({
       success: true,
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        restaurantId: user.restaurantId,
-        restaurantName: user.restaurantName,
-        permissions: user.permissions
-      }
+        id: authResult.user?.id,
+        email: authResult.user?.email,
+        name: authResult.user?.name,
+        role: authResult.user?.role,
+        restaurantId: authResult.user?.restaurantId,
+        restaurantName: authResult.user?.restaurantName,
+        permissions: authResult.user?.permissions,
+        lastLogin: authResult.user?.lastLogin
+      },
+      token: authResult.token
     });
 
-    // Establecer cookie HTTP-only para el token
-    response.cookies.set('auth-token', token, {
-      httpOnly: true,
+    // Configurar cookie segura (no httpOnly para permitir acceso desde JavaScript)
+    response.cookies.set('auth-token', authResult.token!, {
+      httpOnly: false, // Permitir acceso desde JavaScript
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 // 7 días
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60, // 24 horas
+      path: '/'
     });
 
     return response;
 
   } catch (error) {
-    console.error('Error en login:', error);
-    
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Error en el login'
-    }, { status: 400 });
+    logger.error('Login API error', { error, ip });
+    return NextResponse.json(
+      { success: false, error: 'Error interno del servidor' },
+      { status: 500 }
+    );
   }
 }
-

@@ -66,7 +66,7 @@ export default function RestaurantTable({
   const [isLoading, setIsLoading] = useState(true);
   const [activeView, setActiveView] = useState<'tables' | 'reservations'>('tables');
 
-  // Mock data - en producción vendría de Firebase
+  // Mock data - en producción vendría de la base de datos
   useEffect(() => {
     const loadRestaurantData = () => {
       setIsLoading(true);

@@ -1,11 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
-import { getUserByEmail } from '@/lib/userMapping';
-import { createJWTToken } from '@/lib/auth';
-import { getRestaurantData, validateRestaurantCredentials } from '@/lib/restaurantService';
+import { clientAuth } from '@/lib/auth/clientAuth';
+import { useClientAuth } from '@/hooks/useClientAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,194 +11,74 @@ import { toast } from 'sonner';
 import { LogOut, Users, Settings, BarChart3, Phone } from 'lucide-react';
 import RestaurantDashboard from '@/components/restaurant/RestaurantDashboard';
 
-// Mapeo de usuarios a emails para Firebase Auth
+// Mapeo de usuarios para compatibilidad con el sistema anterior
 const userEmailMap: { [key: string]: string } = {
   'admin': 'admin@restauranteia.com',
-  'elbuensabor': 'admin@elbuensabor.com'
+  'elbuensabor': 'admin@elbuensabor.com',
+  'lagaviota': 'admin@lagaviota.com',
+  // Usuarios adicionales del sistema SQLite
+  'administrador': 'admin@restauranteia.com',
+  'restaurante': 'admin@elbuensabor.com',
+  'maria': 'admin@elbuensabor.com'
 };
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [userMapping, setUserMapping] = useState<any>(null);
-  // Eliminadas las variables de vista antigua
+  const { user, isAuthenticated, login, logout } = useClientAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      // Primero intentar con credenciales dinámicas de restaurante
-      console.log('🔍 Checking dynamic restaurant credentials...');
-      const restaurantAuth = await validateRestaurantCredentials(username, password);
+      console.log('🔍 Attempting login with custom auth system...');
       
-      if (restaurantAuth === null) {
-        toast.error('Error al validar credenciales');
+      // Determinar el email a usar
+      let email = username;
+      
+      // Si es un username conocido, usar el mapeo
+      if (userEmailMap[username.toLowerCase()]) {
+        email = userEmailMap[username.toLowerCase()];
+        console.log(`🔄 Username '${username}' mapeado a email: ${email}`);
+      } else if (username.includes('@')) {
+        // Si ya es un email, usarlo directamente
+        email = username;
+        console.log(`📧 Usando email directamente: ${email}`);
+      } else {
+        console.log(`❓ Username '${username}' no encontrado en el mapeo`);
+      }
+      
+      // Intentar login con el hook
+      const result = await login(email, password);
+      
+      if (!result.success) {
+        toast.error(result.error || 'Credenciales inválidas');
         setIsLoading(false);
         return;
       }
 
-      if (restaurantAuth.valid && restaurantAuth.restaurantData && restaurantAuth.email) {
-        console.log('✅ Valid restaurant credentials found');
-        
-        // Autenticar con Firebase usando el email del restaurante
-        try {
-          const userCredential = await signInWithEmailAndPassword(auth, restaurantAuth.email, password);
-          
-          // Crear JWT token para el middleware
-          const jwtToken = await createJWTToken({
-            uid: userCredential.user.uid,
-            email: userCredential.user.email || '',
-            role: 'restaurant',
-            restaurantId: restaurantAuth.restaurantData.id
-          });
-
-          // Guardar token en cookie para el middleware
-          document.cookie = `auth-token=${jwtToken}; path=/; max-age=${24 * 60 * 60}`; // 24 horas
-          
-          // También guardar en localStorage como respaldo
-          localStorage.setItem('auth-token', jwtToken);
-          
-          setUser(userCredential.user);
-          setUserMapping({
-            username: username,
-            email: restaurantAuth.email,
-            role: 'restaurant',
-            restaurantId: restaurantAuth.restaurantData.id,
-            restaurantName: restaurantAuth.restaurantData.name
-          });
-          
-          toast.success(`¡Bienvenido a ${restaurantAuth.restaurantData.name}!`);
-          
-          // Redirigir al dashboard del restaurante
-          window.location.href = `/restaurant/${restaurantAuth.restaurantData.id}`;
-          return;
-        } catch (authError: any) {
-          console.error('Firebase auth error:', authError);
-          
-          if (authError.code === 'auth/invalid-credential' || authError.code === 'auth/wrong-password') {
-            console.log('🔄 Firebase Auth password mismatch, but Firestore credentials are valid');
-            console.log('🔄 This likely means the password was changed from admin panel');
-            
-            // Las credenciales de Firestore son válidas, pero Firebase Auth tiene una contraseña diferente
-            // Intentamos crear un token JWT basado en los datos de Firestore
-            try {
-              // Crear un token JWT usando los datos del restaurante (sin Firebase Auth)
-              const jwtToken = await createJWTToken({
-                uid: restaurantAuth.restaurantData.id, // Usar el ID del restaurante como UID
-                email: restaurantAuth.email,
-                role: 'restaurant',
-                restaurantId: restaurantAuth.restaurantData.id
-              });
-
-              // Guardar token en cookie para el middleware
-              document.cookie = `auth-token=${jwtToken}; path=/; max-age=${24 * 60 * 60}`; // 24 horas
-              
-              // También guardar en localStorage como respaldo
-              localStorage.setItem('auth-token', jwtToken);
-              
-              // Simular un usuario autenticado
-              setUser({
-                uid: restaurantAuth.restaurantData.id,
-                email: restaurantAuth.email,
-                displayName: restaurantAuth.restaurantData.name
-              });
-              
-              setUserMapping({
-                username: username,
-                email: restaurantAuth.email,
-                role: 'restaurant',
-                restaurantId: restaurantAuth.restaurantData.id,
-                restaurantName: restaurantAuth.restaurantData.name
-              });
-              
-              toast.success(`¡Bienvenido a ${restaurantAuth.restaurantData.name}!`);
-              toast.info('🔄 Credenciales sincronizadas exitosamente');
-              
-              // Redirigir al dashboard del restaurante
-              window.location.href = `/restaurant/${restaurantAuth.restaurantData.id}`;
-              return;
-            } catch (jwtError) {
-              console.error('❌ Error creating JWT token:', jwtError);
-              toast.error('Error al crear la sesión');
-              setIsLoading(false);
-              return;
-            }
-          } else {
-            toast.error('Error de autenticación con Firebase');
-            setIsLoading(false);
-            return;
-          }
-        }
-      }
-
-      // Si no es un restaurante dinámico, intentar con usuarios estáticos (admin, etc.)
-      console.log('🔍 Checking static user credentials...');
-      const email = userEmailMap[username.toLowerCase()];
-      if (!email) {
-        toast.error('Usuario no válido. Verifica tu usuario y contraseña.');
+      if (!result.user) {
+        toast.error('Error al crear la sesión');
         setIsLoading(false);
         return;
       }
-
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const mapping = getUserByEmail(email);
       
-      if (!mapping) {
-        toast.error('Error: Usuario no encontrado en el sistema');
-        setIsLoading(false);
-        return;
-      }
-
-      // Si es un restaurante, verificar que esté activo
-      if (mapping.role === 'restaurant' && mapping.restaurantId) {
-        const restaurantData = await getRestaurantData(mapping.restaurantId);
-        if (!restaurantData) {
-          toast.error('Error: Restaurante no encontrado');
-          setIsLoading(false);
-          return;
-        }
-        
-        if (restaurantData.status === 'inactive') {
-          toast.error('🚫 Acceso denegado: El restaurante está desactivado. Contacta al administrador.');
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // Crear JWT token para el middleware
-      const jwtToken = await createJWTToken({
-        uid: userCredential.user.uid,
-        email: userCredential.user.email || '',
-        role: mapping.role as 'admin' | 'restaurant',
-        restaurantId: mapping.restaurantId
-      });
-
-      // Guardar token en cookie para el middleware
-      document.cookie = `auth-token=${jwtToken}; path=/; max-age=${24 * 60 * 60}`; // 24 horas
-      
-      // También guardar en localStorage como respaldo
-      localStorage.setItem('auth-token', jwtToken);
-      
-      setUser(userCredential.user);
-      setUserMapping(mapping);
-      
-      toast.success('¡Bienvenido!');
+      toast.success(`¡Bienvenido${result.user.restaurantName ? ` a ${result.user.restaurantName}` : ''}!`);
       
       // Redirigir según el rol
-      if (mapping.role === 'admin') {
-        // Redirigir inmediatamente sin delay
+      if (result.user.role === 'admin') {
         window.location.href = '/admin';
+      } else if (result.user.role === 'restaurant' && result.user.restaurantId) {
+        window.location.href = `/restaurant/${result.user.restaurantId}`;
+      } else {
+        toast.error('Error: Rol de usuario no válido');
       }
+      
     } catch (error: any) {
       console.error('Error de login:', error);
-      let errorMessage = 'Error al iniciar sesión';
-      if (error.code === 'auth/invalid-credential') {
-        errorMessage = 'Credenciales inválidas. Verifica tu usuario y contraseña.';
-      }
-      toast.error(errorMessage);
+      toast.error('Error interno del servidor. Intenta nuevamente.');
     } finally {
       setIsLoading(false);
     }
@@ -209,15 +86,9 @@ export default function LoginPage() {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
-      setUser(null);
-      setUserMapping(null);
-      
-      // Limpiar tokens
-      document.cookie = 'auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      localStorage.removeItem('auth-token');
-      
+      await logout();
       toast.success('Sesión cerrada');
+      window.location.href = '/login';
     } catch (error) {
       console.error('Error logout:', error);
     }
@@ -242,16 +113,16 @@ export default function LoginPage() {
   };
 
   // Si hay usuario logueado, redirigir directamente
-  if (user && userMapping) {
+  if (isAuthenticated && user) {
     // PANEL DE ADMINISTRADOR - Redirección directa
-    if (userMapping.role === 'admin') {
+    if (user.role === 'admin') {
       window.location.href = '/admin';
       return null;
     }
 
     // PANEL DE RESTAURANTE - Redirección directa
-    if (userMapping.role === 'restaurant') {
-      window.location.href = `/restaurant/${userMapping.restaurantId}`;
+    if (user.role === 'restaurant' && user.restaurantId) {
+      window.location.href = `/restaurant/${user.restaurantId}`;
       return null;
     }
   }
@@ -288,7 +159,7 @@ export default function LoginPage() {
                 <Input
                   id="username"
                   type="text"
-                  placeholder="admin o elbuensabor"
+                  placeholder="Usuario o email"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required

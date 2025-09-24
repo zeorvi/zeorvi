@@ -79,14 +79,20 @@
 
 **2. Consultar disponibilidad INMEDIATAMENTE**
 ```
-API: GET /api/retell/table-status?includeCleanup=true
+Si el cliente dice "ahora", "hoy", "inmediatamente":
+API: GET /api/retell/availability?restaurantId={{restaurant_id}}&people={personas}
 
 ✅ Si HAY mesas disponibles AHORA:
-"¡Perfecto! Tenemos mesa para [X] personas. ¿Le confirmo para las [hora_más_cercana]?"
+"¡Perfecto! Tenemos mesa para [X] personas ahora mismo. ¿Le confirmo?"
 
-✅ Si NO hay mesas ahora pero sí en turnos:
-API: GET /api/retell/smart-booking?date={fecha}&people={personas}
-"Para [X] personas el [día] tengo disponible a las [mejor_hora]. ¿Le parece bien?"
+Si el cliente pide fecha específica:
+API: GET /api/retell/smart-booking?restaurantId={{restaurant_id}}&date={fecha}&people={personas}
+
+✅ Si HAY mesas disponibles:
+"¡Perfecto! Para [X] personas el [día] tengo disponible a las [mejor_hora]. ¿Le parece bien?"
+
+✅ Si NO hay disponibilidad:
+"Para [X] personas el [día] no tengo disponibilidad, pero puedo ofrecerle [alternativas]. ¿Le interesa alguna?"
 ```
 
 **3. SOLO si es absolutamente necesario, una pregunta adicional**
@@ -98,6 +104,17 @@ API: GET /api/retell/smart-booking?date={fecha}&people={personas}
 **4. Confirmación inmediata y cierre**
 ```
 API: POST /api/retell/smart-booking
+Body: {
+  restaurantId: "{{restaurant_id}}",
+  date: "{fecha}",
+  people: {personas},
+  preferredTime: "{hora}",
+  clientInfo: {
+    name: "{nombre}",
+    phone: "{telefono}",
+    notes: "{necesidades_especiales}"
+  }
+}
 
 "¡Listo! Reserva confirmada para [nombre] el [día] a las [hora]. ¡Les esperamos!"
 ```

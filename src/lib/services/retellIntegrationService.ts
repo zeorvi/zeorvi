@@ -1,6 +1,7 @@
 import { logger } from '@/lib/logger';
 import { Restaurant, Call, Reservation } from '@/lib/types/restaurant';
-import { CallService, ReservationService, MetricsService } from '@/lib/firebase/collections';
+// Servicios de base de datos - implementar según necesidad
+// import { CallService, ReservationService, MetricsService } from '@/lib/database';
 
 interface RetellWebhookPayload {
   event: string;
@@ -217,6 +218,16 @@ export class RetellIntegrationService {
   // Manejar análisis de llamada
   private async handleCallAnalyzed(payload: RetellWebhookPayload, restaurantId: string): Promise<void> {
     try {
+      // Verificar que la llamada se completó exitosamente
+      if (payload.call_status !== 'completed') {
+        logger.info('Call not completed, skipping processing', {
+          restaurantId,
+          callId: payload.call_id,
+          callStatus: payload.call_status
+        });
+        return;
+      }
+
       const calls = await CallService.getByRestaurant(restaurantId, 10);
       const existingCall = calls.find(call => call.retellCallId === payload.call_id);
 
@@ -475,14 +486,14 @@ export class RetellIntegrationService {
     }
   }
 
-  // Guardar datos en Firestore
-  private async saveToFirestore(collection: string, data: any): Promise<void> {
+  // Guardar datos en la base de datos
+  private async saveToDatabase(collection: string, data: any): Promise<void> {
     try {
-      // Esta función se implementaría usando Firebase Admin SDK
+      // Esta función se implementaría usando nuestra base de datos
       // Por ahora, solo logueamos la acción
-      logger.info('Data saved to Firestore', { collection, dataId: data.callId || data.id });
+      logger.info('Data saved to database', { collection, dataId: data.callId || data.id });
     } catch (error) {
-      logger.error('Error saving to Firestore', { collection, error });
+      logger.error('Error saving to database', { collection, error });
       throw error;
     }
   }
@@ -491,7 +502,7 @@ export class RetellIntegrationService {
   private async notifyDashboardUpdate(restaurantId: string, event: any): Promise<void> {
     try {
       // Implementar notificación en tiempo real
-      // Esto podría usar WebSockets, Server-Sent Events, o Firebase Realtime Database
+      // Esto podría usar WebSockets, Server-Sent Events, o Redis Pub/Sub
       logger.info('Dashboard notification sent', { restaurantId, event });
     } catch (error) {
       logger.error('Error notifying dashboard update', { restaurantId, error });

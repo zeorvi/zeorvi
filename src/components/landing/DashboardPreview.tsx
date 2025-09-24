@@ -10,7 +10,7 @@ export default function DashboardPreview() {
             <span className="text-green-300 text-sm font-bold uppercase tracking-wide">Vista Exclusiva</span>
           </div>
           <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">
-            El Dashboard Que <span className="bg-gradient-to-r from-cyan-400 to-pink-400 bg-clip-text text-transparent">Cambió Todo</span>
+            Todo lo que necesitas <span className="bg-gradient-to-r from-cyan-400 to-pink-400 bg-clip-text text-transparent">en un solo lugar</span>
           </h2>
         </div>
 

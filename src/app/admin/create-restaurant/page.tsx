@@ -2,10 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { customAuth } from '@/lib/auth/customAuth';
 import { addUserMappingWithUsername } from '@/lib/userMapping';
-import { createRestaurant } from '@/lib/restaurantService';
+import { createRestaurant } from '@/lib/restaurantServicePostgres';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -353,19 +352,26 @@ IMPORTANTE:
         .substring(0, 20);
       const tempPassword = 'Temp' + Math.random().toString(36).substring(2, 8) + '!';
 
-      // 2. Crear usuario en Firebase
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        restaurantData.email,
-        tempPassword
-      );
+      // 2. Crear usuario en nuestro sistema
+      const registerResult = await customAuth.register({
+        email: restaurantData.email,
+        password: tempPassword,
+        name: restaurantData.name,
+        role: 'restaurant',
+        restaurantId: undefined, // Se asignará después de crear el restaurante
+        restaurantName: restaurantData.name
+      });
+
+      if (!registerResult.success || !registerResult.user) {
+        throw new Error(registerResult.error || 'Failed to create user');
+      }
 
       // 3. Agregar al mapeo de usuarios
       const newUserMapping = {
         username,
         email: restaurantData.email,
         role: 'restaurant' as const,
-        restaurantId: userCredential.user.uid,
+        restaurantId: registerResult.user.id,
         restaurantName: restaurantData.name,
         restaurantType: 'Restaurante Tradicional',
         airtableBaseId: `app${username}${Date.now()}`,
@@ -390,22 +396,16 @@ IMPORTANTE:
       const generatedTables = generateTables();
       console.log('🪑 Generated tables for restaurant:', generatedTables);
       
-      // 5. Guardar restaurante en Firestore
+      // 5. Guardar restaurante en la base de datos
       const restaurantSuccess = await createRestaurant({
-        id: userCredential.user.uid,
         name: restaurantData.name,
-        email: restaurantData.email,
+        slug: username,
+        owner_email: restaurantData.email,
+        owner_name: restaurantData.name,
         phone: restaurantData.phone,
         address: restaurantData.address,
-        twilioNumber: restaurantData.twilioNumber,
-        credentials: {
-          username,
-          password: tempPassword,
-          lastLogin: new Date().toISOString()
-        },
-        tables: generatedTables,
-        retellConfig: newUserMapping.retellConfig,
-        twilioConfig: newUserMapping.twilioConfig
+        retell_config: newUserMapping.retellConfig,
+        twilio_config: newUserMapping.twilioConfig
       });
 
       if (!restaurantSuccess) {

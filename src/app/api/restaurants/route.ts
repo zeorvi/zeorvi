@@ -1,111 +1,147 @@
 /**
- * API de Restaurantes - Reemplaza Firebase Firestore
+ * API para listar restaurantes
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authService } from '@/lib/auth';
-import { db } from '@/lib/database';
-import { z } from 'zod';
+// Usar SQLite en desarrollo, PostgreSQL en producción
+let db: any;
+if (process.env.NODE_ENV === 'development') {
+  try {
+    db = require('@/lib/database/sqlite').db;
+  } catch (error) {
+    console.error('Error loading SQLite database:', error);
+    // Fallback a PostgreSQL si SQLite falla
+    db = require('@/lib/database').db;
+  }
+} else {
+  db = require('@/lib/database').db;
+}
+import { logger } from '@/lib/logger';
+import { customAuth } from '@/lib/auth/customAuth';
 
-const createRestaurantSchema = z.object({
-  name: z.string().min(2, 'Nombre debe tener al menos 2 caracteres'),
-  slug: z.string().min(3, 'Slug debe tener al menos 3 caracteres'),
-  owner_email: z.string().email('Email inválido'),
-  owner_name: z.string().min(2, 'Nombre del propietario requerido'),
-  phone: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  country: z.string().default('España'),
-  config: z.record(z.any()).default({}),
-  plan: z.enum(['basic', 'premium', 'enterprise']).default('basic'),
-  retell_config: z.record(z.any()).default({}),
-  twilio_config: z.record(z.any()).default({})
-});
-
-// GET - Obtener restaurantes (solo admin)
 export async function GET(request: NextRequest) {
   try {
-    const user = await authService.authenticateRequest(request);
+    // Verificar autenticación - buscar token en cookies o header Authorization
+    let token = request.cookies.get('auth-token')?.value;
+    
+    // Si no hay token en cookies, buscar en header Authorization
+    if (!token) {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7); // Remover 'Bearer '
+        console.log('🔑 Token obtenido del header Authorization');
+      }
+    } else {
+      console.log('🍪 Token obtenido de las cookies');
+    }
+    
+    if (!token) {
+      console.log('❌ No se encontró token de autenticación');
+      return NextResponse.json(
+        { success: false, error: 'No autorizado' },
+        { status: 401 }
+      );
+    }
+
+    const user = await customAuth.verifyToken(token);
     if (!user) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+      return NextResponse.json(
+        { success: false, error: 'Token inválido' },
+        { status: 401 }
+      );
     }
 
-    // Solo admins pueden ver todos los restaurantes
+    // Solo los administradores pueden listar todos los restaurantes
     if (user.role !== 'admin') {
-      // Usuarios normales solo ven su restaurante
-      const restaurant = await db.getRestaurant(user.restaurantId);
-      return NextResponse.json({
-        success: true,
-        restaurants: restaurant ? [restaurant] : []
-      });
+      return NextResponse.json(
+        { success: false, error: 'No tienes permisos para listar restaurantes' },
+        { status: 403 }
+      );
     }
 
-    // Admin puede ver todos
-    const result = await db.pg.query(`
-      SELECT * FROM restaurants 
-      ORDER BY created_at DESC
-    `);
+    // Obtener todos los restaurantes
+    let restaurants;
+
+    if (process.env.NODE_ENV === 'development') {
+      // SQLite
+      restaurants = await db.getAllRestaurants();
+      
+      // Agregar user_count para cada restaurante
+      for (const restaurant of restaurants) {
+        const userCountStmt = db.db.prepare('SELECT COUNT(*) as count FROM restaurant_users WHERE restaurant_id = ? AND status = ?');
+        const userCountResult = userCountStmt.get(restaurant.id, 'active');
+        restaurant.user_count = userCountResult ? userCountResult.count : 0;
+      }
+    } else {
+      // PostgreSQL
+      const client = await db.pg.connect();
+      try {
+        const result = await client.query(`
+          SELECT 
+            r.id,
+            r.name,
+            r.slug,
+            r.owner_email,
+            r.owner_name,
+            r.phone,
+            r.address,
+            r.city,
+            r.country,
+            r.config,
+            r.plan,
+            r.status,
+            r.retell_config,
+            r.twilio_config,
+            r.created_at,
+            r.updated_at,
+            COUNT(ru.id) as user_count
+          FROM restaurants r
+          LEFT JOIN restaurant_users ru ON r.id = ru.restaurant_id AND ru.status = 'active'
+          GROUP BY r.id, r.name, r.slug, r.owner_email, r.owner_name, r.phone, 
+                   r.address, r.city, r.country, r.config, r.plan, r.status, 
+                   r.retell_config, r.twilio_config, r.created_at, r.updated_at
+          ORDER BY r.created_at DESC
+        `);
+
+        restaurants = result.rows.map((row: any) => ({
+          id: row.id,
+          name: row.name,
+          slug: row.slug,
+          owner_email: row.owner_email,
+          owner_name: row.owner_name,
+          phone: row.phone,
+          address: row.address,
+          city: row.city,
+          country: row.country,
+          config: row.config,
+          plan: row.plan,
+          status: row.status,
+          retell_config: row.retell_config,
+          twilio_config: row.twilio_config,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          user_count: parseInt(row.user_count)
+        }));
+      } finally {
+        client.release();
+      }
+    }
+
+    logger.info('Restaurants listed', { 
+      count: restaurants.length, 
+      userId: user.id 
+    });
 
     return NextResponse.json({
       success: true,
-      restaurants: result.rows
+      restaurants
     });
 
   } catch (error) {
-    console.error('Error obteniendo restaurantes:', error);
-    return NextResponse.json({
-      error: 'Error interno del servidor'
-    }, { status: 500 });
+    logger.error('Restaurants list API error', { error });
+    return NextResponse.json(
+      { success: false, error: 'Error interno del servidor' },
+      { status: 500 }
+    );
   }
 }
-
-// POST - Crear restaurante
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    
-    // Validar datos
-    const validatedData = createRestaurantSchema.parse(body);
-    
-    // Verificar que el slug no esté en uso
-    const existingRestaurant = await db.getRestaurantBySlug(validatedData.slug);
-    if (existingRestaurant) {
-      return NextResponse.json({
-        error: 'El slug ya está en uso'
-      }, { status: 400 });
-    }
-
-    // Crear restaurante
-    const restaurant = await db.createRestaurant(validatedData);
-
-    // Crear usuario administrador para el restaurante
-    await authService.register({
-      email: validatedData.owner_email,
-      password: 'temp123456', // Contraseña temporal
-      name: validatedData.owner_name,
-      restaurantId: restaurant.id,
-      role: 'admin'
-    });
-
-    return NextResponse.json({
-      success: true,
-      restaurant,
-      message: 'Restaurante creado exitosamente'
-    });
-
-  } catch (error) {
-    console.error('Error creando restaurante:', error);
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({
-        error: 'Datos inválidos',
-        details: error.errors
-      }, { status: 400 });
-    }
-
-    return NextResponse.json({
-      error: error instanceof Error ? error.message : 'Error creando restaurante'
-    }, { status: 500 });
-  }
-}
-

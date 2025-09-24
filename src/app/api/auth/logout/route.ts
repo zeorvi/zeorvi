@@ -1,47 +1,46 @@
 /**
- * API de Logout - Reemplaza Firebase Auth
+ * API de Logout - Sistema Personalizado
+ * Reemplaza Firebase Authentication
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authService } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
+  const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+  
   try {
-    // Obtener token de la cookie
+    // Obtener token de la cookie para logging
     const token = request.cookies.get('auth-token')?.value;
     
     if (token) {
-      // Verificar token para obtener user ID
-      const user = await authService.verifyToken(token);
-      if (user) {
-        // Invalidar sesión
-        await authService.logout(user.id);
-      }
+      // Aquí podrías invalidar el token en una blacklist si quisieras
+      // Por ahora simplemente lo removemos de las cookies
+      logger.info('User logout', { ip });
     }
-    
-    // Crear respuesta y eliminar cookie
+
+    // Crear respuesta
     const response = NextResponse.json({
       success: true,
-      message: 'Logout exitoso'
+      message: 'Sesión cerrada exitosamente'
     });
 
-    // Eliminar cookie de autenticación
-    response.cookies.delete('auth-token');
+    // Limpiar cookie
+    response.cookies.set('auth-token', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 0, // Expirar inmediatamente
+      path: '/'
+    });
 
     return response;
 
   } catch (error) {
-    console.error('Error en logout:', error);
-    
-    const response = NextResponse.json({
-      success: false,
-      error: 'Error en el logout'
-    }, { status: 500 });
-
-    // Eliminar cookie de todas formas
-    response.cookies.delete('auth-token');
-
-    return response;
+    logger.error('Logout API error', { error });
+    return NextResponse.json(
+      { success: false, error: 'Error interno del servidor' },
+      { status: 500 }
+    );
   }
 }
-

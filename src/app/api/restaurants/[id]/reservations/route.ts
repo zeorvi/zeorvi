@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authService } from '@/lib/auth';
+import { authService } from '@/lib/auth/index';
 import { db } from '@/lib/database';
 import { z } from 'zod';
 
@@ -150,7 +150,8 @@ export async function POST(
     const reservation = await db.createReservation(resolvedParams.id, {
       ...validatedData,
       client_id: clientId,
-      status: 'confirmed'
+      status: 'confirmed',
+      reservation_date: new Date(validatedData.reservation_date)
     });
 
     return NextResponse.json({

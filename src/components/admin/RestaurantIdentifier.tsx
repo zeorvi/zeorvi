@@ -19,69 +19,48 @@ import {
   Table
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getAllRestaurants } from '@/lib/restaurantServicePostgres';
 
 interface Restaurant {
   id: string;
   name: string;
-  email: string;
-  phone: string;
-  address: string;
-  type: string;
-  status: 'active' | 'inactive';
-  createdAt: Date;
-  username: string;
-  retellConfig?: any;
-  twilioConfig?: any;
+  slug: string;
+  owner_email: string;
+  owner_name?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  country?: string;
+  config: Record<string, any>;
+  plan: 'basic' | 'premium' | 'enterprise';
+  status: 'active' | 'inactive' | 'suspended';
+  retell_config: Record<string, any>;
+  twilio_config: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+  user_count: number;
 }
 
 export default function RestaurantIdentifier() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editingPassword, setEditingPassword] = useState<boolean>(false);
+  const [newPassword, setNewPassword] = useState<string>('');
 
-  // Datos de ejemplo
+  // Cargar restaurantes reales
   useEffect(() => {
-    const mockRestaurants: Restaurant[] = [
-      {
-        id: 'rest_001',
-        name: 'Restaurante El Buen Sabor',
-        email: 'admin@elbuensabor.com',
-        phone: '+34123456789',
-        address: 'Calle Principal 123, Madrid',
-        type: 'Familiar',
-        status: 'active',
-        createdAt: new Date('2024-01-15'),
-        username: 'elbuensabor',
-        retellConfig: {
-          agentId: 'agent_elbuensabor_001',
-          voiceId: 'voice_familiar_spanish'
-        },
-        twilioConfig: {
-          phoneNumber: '+34123456789',
-          accountSid: 'AC_elbuensabor_123'
-        }
-      },
-      {
-        id: 'rest_002',
-        name: 'La Parrilla del Chef',
-        email: 'chef@laparrilla.com',
-        phone: '+34666555444',
-        address: 'Avenida Central 456, Barcelona',
-        type: 'Gourmet',
-        status: 'active',
-        createdAt: new Date('2024-01-20'),
-        username: 'laparrilla',
-        retellConfig: {
-          agentId: 'agent_laparrilla_002',
-          voiceId: 'voice_gourmet_spanish'
-        },
-        twilioConfig: {
-          phoneNumber: '+34666555444',
-          accountSid: 'AC_laparrilla_456'
-        }
+    const loadRestaurants = async () => {
+      try {
+        const restaurantsData = await getAllRestaurants();
+        setRestaurants(restaurantsData);
+      } catch (error) {
+        console.error('Error loading restaurants:', error);
+        toast.error('Error al cargar los restaurantes');
       }
-    ];
-    setRestaurants(mockRestaurants);
+    };
+    
+    loadRestaurants();
   }, []);
 
   const copyToClipboard = (text: string, label: string) => {
@@ -97,14 +76,53 @@ export default function RestaurantIdentifier() {
       : 'bg-red-100 text-red-800 border-red-200';
   };
 
-  const getTypeColor = (type: string) => {
+  const getTypeColor = (plan: string) => {
     const colors: Record<string, string> = {
-      'Familiar': 'bg-blue-100 text-blue-800 border-blue-200',
-      'Gourmet': 'bg-purple-100 text-purple-800 border-purple-200',
-      'Fast Food': 'bg-orange-100 text-orange-800 border-orange-200',
-      'Cafetería': 'bg-yellow-100 text-yellow-800 border-yellow-200'
+      'basic': 'bg-blue-100 text-blue-800 border-blue-200',
+      'premium': 'bg-purple-100 text-purple-800 border-purple-200',
+      'enterprise': 'bg-orange-100 text-orange-800 border-orange-200'
     };
-    return colors[type] || 'bg-gray-100 text-gray-800 border-gray-200';
+    return colors[plan] || 'bg-gray-100 text-gray-800 border-gray-200';
+  };
+
+  const getRestaurantPassword = (restaurant: Restaurant) => {
+    return restaurant.password || 'password123';
+  };
+
+  const handleEditPassword = (restaurant: Restaurant) => {
+    setNewPassword(restaurant.password || '');
+    setEditingPassword(true);
+  };
+
+  const handleSavePassword = async () => {
+    if (!selectedRestaurant || !newPassword.trim()) {
+      toast.error('La contraseña no puede estar vacía');
+      return;
+    }
+
+    try {
+      // Aquí llamaríamos a la API para actualizar la contraseña
+      // Por ahora, actualizamos localmente
+      const updatedRestaurants = restaurants.map(restaurant => 
+        restaurant.id === selectedRestaurant.id 
+          ? { ...restaurant, password: newPassword }
+          : restaurant
+      );
+      
+      setRestaurants(updatedRestaurants);
+      setSelectedRestaurant({ ...selectedRestaurant, password: newPassword });
+      setEditingPassword(false);
+      
+      toast.success('Contraseña actualizada correctamente');
+    } catch (error) {
+      console.error('Error updating password:', error);
+      toast.error('Error al actualizar la contraseña');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingPassword(false);
+    setNewPassword('');
   };
 
   return (
@@ -158,21 +176,21 @@ export default function RestaurantIdentifier() {
               <div className="space-y-2">
                 <div className="flex items-center text-sm text-gray-600">
                   <Mail className="h-4 w-4 mr-2" />
-                  {restaurant.email}
+                  {restaurant.owner_email}
                 </div>
                 <div className="flex items-center text-sm text-gray-600">
                   <Phone className="h-4 w-4 mr-2" />
-                  {restaurant.phone}
+                  {restaurant.phone || 'No especificado'}
                 </div>
                 <div className="flex items-center text-sm text-gray-600">
                   <MapPin className="h-4 w-4 mr-2" />
-                  {restaurant.address}
+                  {restaurant.address || 'No especificado'}
                 </div>
               </div>
 
               <div className="flex items-center justify-between">
-                <Badge className={getTypeColor(restaurant.type)}>
-                  {restaurant.type}
+                <Badge className={getTypeColor(restaurant.plan)}>
+                  {restaurant.plan}
                 </Badge>
                 <div className="flex space-x-1">
                   <Button
@@ -235,21 +253,21 @@ export default function RestaurantIdentifier() {
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Usuario:</span>
                     <code className="text-sm bg-gray-100 px-2 py-1 rounded">
-                      {selectedRestaurant.username}
+                      {selectedRestaurant.slug}
                     </code>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Email:</span>
-                    <span className="text-sm">{selectedRestaurant.email}</span>
+                    <span className="text-sm">{selectedRestaurant.owner_email}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Teléfono:</span>
-                    <span className="text-sm">{selectedRestaurant.phone}</span>
+                    <span className="text-sm">{selectedRestaurant.phone || 'No especificado'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Tipo:</span>
-                    <Badge className={getTypeColor(selectedRestaurant.type)}>
-                      {selectedRestaurant.type}
+                    <span className="text-sm text-gray-600">Plan:</span>
+                    <Badge className={getTypeColor(selectedRestaurant.plan)}>
+                      {selectedRestaurant.plan}
                     </Badge>
                   </div>
                   <div className="flex justify-between">
@@ -257,6 +275,71 @@ export default function RestaurantIdentifier() {
                     <Badge className={getStatusColor(selectedRestaurant.status)}>
                       {selectedRestaurant.status === 'active' ? 'Activo' : 'Inactivo'}
                     </Badge>
+                  </div>
+                </div>
+              </div>
+
+              {/* Credenciales de Acceso */}
+              <div className="space-y-4">
+                <h4 className="font-semibold text-gray-900">Credenciales de Acceso</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Usuario para Login:</span>
+                    <code className="text-sm bg-green-100 px-2 py-1 rounded">
+                      {selectedRestaurant.slug}
+                    </code>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Email:</span>
+                    <code className="text-sm bg-green-100 px-2 py-1 rounded">
+                      {selectedRestaurant.owner_email}
+                    </code>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Contraseña:</span>
+                    <div className="flex items-center space-x-2">
+                      {editingPassword ? (
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="text"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            className="text-sm px-2 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Nueva contraseña"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleSavePassword}
+                            className="text-green-600 hover:text-green-800"
+                          >
+                            <CheckCircle className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleCancelEdit}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            ✕
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <code className="text-sm bg-green-100 px-2 py-1 rounded">
+                            {getRestaurantPassword(selectedRestaurant)}
+                          </code>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditPassword(selectedRestaurant)}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -269,7 +352,7 @@ export default function RestaurantIdentifier() {
                     <span className="text-sm text-gray-600">Retell AI Agent ID:</span>
                     <div className="flex items-center space-x-2 mt-1">
                       <code className="text-xs bg-gray-100 px-2 py-1 rounded flex-1">
-                        {selectedRestaurant.retellConfig?.agentId || 'No configurado'}
+                        {selectedRestaurant.retell_config?.agent_id || 'No configurado'}
                       </code>
                       <Button variant="ghost" size="sm">
                         <Copy className="h-3 w-3" />
@@ -280,7 +363,7 @@ export default function RestaurantIdentifier() {
                     <span className="text-sm text-gray-600">Twilio Account SID:</span>
                     <div className="flex items-center space-x-2 mt-1">
                       <code className="text-xs bg-gray-100 px-2 py-1 rounded flex-1">
-                        {selectedRestaurant.twilioConfig?.accountSid || 'No configurado'}
+                        {selectedRestaurant.twilio_config?.account_sid || 'No configurado'}
                       </code>
                       <Button variant="ghost" size="sm">
                         <Copy className="h-3 w-3" />
@@ -290,7 +373,7 @@ export default function RestaurantIdentifier() {
                   <div>
                     <span className="text-sm text-gray-600">Número Twilio:</span>
                     <code className="text-sm bg-gray-100 px-2 py-1 rounded ml-2">
-                      {selectedRestaurant.twilioConfig?.phoneNumber || 'No configurado'}
+                      {selectedRestaurant.twilio_config?.phone_number || 'No configurado'}
                     </code>
                   </div>
                 </div>

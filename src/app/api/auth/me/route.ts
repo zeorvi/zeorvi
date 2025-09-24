@@ -1,10 +1,11 @@
 /**
- * API para verificar estado de autenticación
- * Reemplaza Firebase Auth state
+ * API para obtener información del usuario actual
+ * Reemplaza Firebase Authentication
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authService } from '@/lib/auth';
+import { customAuth } from '@/lib/auth/customAuth';
+import { logger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,28 +13,26 @@ export async function GET(request: NextRequest) {
     const token = request.cookies.get('auth-token')?.value;
     
     if (!token) {
-      return NextResponse.json({ 
-        authenticated: false,
-        user: null 
-      }, { status: 401 });
+      return NextResponse.json(
+        { success: false, error: 'No autorizado' },
+        { status: 401 }
+      );
     }
 
     // Verificar token
-    const user = await authService.verifyToken(token);
+    const user = await customAuth.verifyToken(token);
     
     if (!user) {
-      // Token inválido, eliminar cookie
-      const response = NextResponse.json({ 
-        authenticated: false,
-        user: null 
-      }, { status: 401 });
-      
-      response.cookies.delete('auth-token');
-      return response;
+      return NextResponse.json(
+        { success: false, error: 'Token inválido' },
+        { status: 401 }
+      );
     }
 
+    logger.info('User info requested', { userId: user.id, email: user.email });
+
     return NextResponse.json({
-      authenticated: true,
+      success: true,
       user: {
         id: user.id,
         email: user.email,
@@ -41,21 +40,16 @@ export async function GET(request: NextRequest) {
         role: user.role,
         restaurantId: user.restaurantId,
         restaurantName: user.restaurantName,
-        permissions: user.permissions
+        permissions: user.permissions,
+        lastLogin: user.lastLogin
       }
     });
 
   } catch (error) {
-    console.error('Error verificando autenticación:', error);
-    
-    const response = NextResponse.json({
-      authenticated: false,
-      user: null,
-      error: 'Error verificando autenticación'
-    }, { status: 500 });
-    
-    response.cookies.delete('auth-token');
-    return response;
+    logger.error('User info API error', { error });
+    return NextResponse.json(
+      { success: false, error: 'Error interno del servidor' },
+      { status: 500 }
+    );
   }
 }
-

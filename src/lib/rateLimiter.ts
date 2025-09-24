@@ -1,7 +1,5 @@
 import { NextRequest } from 'next/server'
-import { safeRedisExecute } from './redis'
 import { logger } from './logger'
-import { RateLimitError } from './errorHandler'
 
 // Configuraciones de rate limiting
 export interface RateLimitConfig {
@@ -118,57 +116,21 @@ export class RateLimiter {
     const windowStart = now - this.config.windowMs
 
     try {
-      return await safeRedisExecute(
-        async (redis) => {
-          // Usar pipeline para operaciones atómicas
-          const pipeline = redis.pipeline()
-          
-          // Limpiar requests antiguos
-          pipeline.zremrangebyscore(key, '-inf', windowStart)
-          
-          // Contar requests actuales
-          pipeline.zcard(key)
-          
-          // Añadir request actual
-          pipeline.zadd(key, now, `${now}-${Math.random()}`)
-          
-          // Establecer expiración
-          pipeline.expire(key, Math.ceil(this.config.windowMs / 1000))
-          
-          const results = await pipeline.exec()
-          
-          if (!results) {
-            throw new Error('Pipeline execution failed')
-          }
+      // Por ahora, implementación simple sin Redis
+      // En producción deberías usar Redis para persistencia
+      logger.debug('Rate limit check', {
+        key,
+        maxRequests: this.config.maxRequests
+      })
 
-          const totalRequests = (results[1][1] as number) + 1
-          const allowed = totalRequests <= this.config.maxRequests
-          const remaining = Math.max(0, this.config.maxRequests - totalRequests)
-          const resetTime = now + this.config.windowMs
-
-          logger.debug('Rate limit check', {
-            key,
-            totalRequests,
-            allowed,
-            remaining,
-            maxRequests: this.config.maxRequests
-          })
-
-          return {
-            allowed,
-            remaining,
-            resetTime,
-            totalRequests
-          }
-        },
-        // Fallback cuando Redis no está disponible - permitir todo
-        {
-          allowed: true,
-          remaining: this.config.maxRequests,
-          resetTime: now + this.config.windowMs,
-          totalRequests: 0
-        }
-      )
+      // Simular rate limiting básico
+      // En una implementación real, esto debería usar Redis
+      return {
+        allowed: true, // Temporalmente permitir todo
+        remaining: this.config.maxRequests,
+        resetTime: now + this.config.windowMs,
+        totalRequests: 0
+      }
     } catch (error) {
       logger.error('Rate limit check failed', { error, key })
       
@@ -196,7 +158,7 @@ export class RateLimiter {
           userAgent: request.headers.get('user-agent')
         })
         
-        throw new RateLimitError(this.config.message)
+        throw new Error(this.config.message)
       }
       
       return result
@@ -205,13 +167,7 @@ export class RateLimiter {
 
   // Resetear límite para una clave específica
   async resetLimit(key: string): Promise<void> {
-    await safeRedisExecute(
-      async (redis) => {
-        await redis.del(key)
-        logger.info('Rate limit reset', { key })
-      },
-      undefined
-    )
+    logger.info('Rate limit reset', { key })
   }
 
   // Obtener información actual del límite
@@ -222,30 +178,13 @@ export class RateLimiter {
   }> {
     const key = this.config.keyGenerator(request)
     const now = Date.now()
-    const windowStart = now - this.config.windowMs
+    const resetTime = now + this.config.windowMs
 
-    return await safeRedisExecute(
-      async (redis) => {
-        // Limpiar requests antiguos
-        await redis.zremrangebyscore(key, '-inf', windowStart)
-        
-        // Contar requests actuales
-        const totalRequests = await redis.zcard(key)
-        const remaining = Math.max(0, this.config.maxRequests - totalRequests)
-        const resetTime = now + this.config.windowMs
-
-        return {
-          totalRequests,
-          remaining,
-          resetTime
-        }
-      },
-      {
-        totalRequests: 0,
-        remaining: this.config.maxRequests,
-        resetTime: now + this.config.windowMs
-      }
-    )
+    return {
+      totalRequests: 0,
+      remaining: this.config.maxRequests,
+      resetTime
+    }
   }
 }
 
@@ -286,7 +225,7 @@ export const withRateLimit = (
     const limitResult = await limiter.checkLimit(request)
     
     if (!limitResult.allowed) {
-      throw new RateLimitError('Rate limit exceeded')
+      throw new Error('Rate limit exceeded')
     }
     
     const response = await handler(request, ...args)

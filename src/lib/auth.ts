@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
 import { jwtVerify, SignJWT } from 'jose';
-// import { auth } from './firebase'; // Comentado - no usado actualmente
 import { logger, logAuth } from './logger';
 import { AuthenticationError, AuthorizationError } from './errorHandler';
 
@@ -80,20 +79,6 @@ export const extractTokenFromRequest = (request: NextRequest): string | null => 
   return token;
 };
 
-// Verificar autenticación desde Firebase token
-export const verifyFirebaseToken = async (_firebaseToken: string): Promise<JWTPayload> => {
-  try {
-    // En un entorno real, verificarías el token de Firebase aquí
-    // const decodedToken = await admin.auth().verifyIdToken(firebaseToken);
-    
-    // Por ahora, simulamos la verificación
-    // En producción, reemplaza esto con la verificación real de Firebase
-    throw new Error('Firebase token verification not implemented');
-  } catch (error) {
-    logger.error('Firebase token verification failed', { error });
-    throw new AuthenticationError('Token de Firebase inválido');
-  }
-};
 
 // Middleware de autenticación
 export const requireAuth = (handler: (request: NextRequest, context?: unknown) => Promise<Response>) => {

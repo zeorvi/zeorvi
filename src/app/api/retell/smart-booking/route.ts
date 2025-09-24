@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyRetellWebhook } from '@/lib/webhookValidator';
 import { logger } from '@/lib/logger';
+import { db } from '@/lib/database';
 
 // GET - Obtener opciones de reserva inteligente
 export async function GET(request: NextRequest) {
@@ -16,55 +17,78 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Restaurant ID required' }, { status: 400 });
     }
 
-    // Mock data de opciones de reserva
+    // Obtener datos reales de la base de datos
+    const requestedDate = date || new Date().toISOString().split('T')[0];
+    const peopleCount = parseInt(people || '2');
+
+    // Obtener todas las mesas del restaurante
+    const allTables = await db.getTables(restaurantId);
+    
+    // Obtener reservas existentes para la fecha solicitada
+    const existingReservations = await db.getReservations(restaurantId, {
+      date: requestedDate,
+      limit: 100
+    });
+
+    // Calcular disponibilidad por turno
+    const turnos = [
+      { hora: '13:00', nombre: 'Primer turno almuerzo', horario: '13:00 - 15:00' },
+      { hora: '14:00', nombre: 'Segundo turno almuerzo', horario: '14:00 - 16:00' },
+      { hora: '20:00', nombre: 'Primer turno cena', horario: '20:00 - 22:00' },
+      { hora: '22:00', nombre: 'Segundo turno cena', horario: '22:00 - 23:30' }
+    ];
+
+    const disponibilidad = turnos.map(turno => {
+      // Contar reservas existentes en este turno
+      const reservasEnTurno = existingReservations.filter(res => 
+        res.reservation_time === turno.hora
+      );
+
+      // Contar mesas disponibles para el número de personas
+      const mesasDisponibles = allTables.filter(table => 
+        table.status === 'available' && table.capacity >= peopleCount
+      ).length;
+
+      // Verificar si puede acomodar el grupo
+      const puedeAcomodar = mesasDisponibles > 0;
+
+      return {
+        hora: turno.hora,
+        nombre: turno.nombre,
+        horario_completo: turno.horario,
+        reservas_actuales: reservasEnTurno.length,
+        mesas_disponibles: mesasDisponibles,
+        puede_acomodar_grupo: puedeAcomodar,
+        disponible: puedeAcomodar
+      };
+    });
+
+    // Encontrar la mejor opción
+    const mejoresOpciones = disponibilidad
+      .filter(t => t.disponible)
+      .sort((a, b) => a.mesas_disponibles - b.mesas_disponibles);
+
+    const mejorOpcion = mejoresOpciones[0];
+    const totalMesasDisponibles = disponibilidad.reduce((sum, t) => sum + t.mesas_disponibles, 0);
+
     const options = {
-      fecha: date || new Date().toISOString().split('T')[0],
+      fecha: requestedDate,
       restaurante_id: restaurantId,
-      personas_solicitadas: parseInt(people || '2'),
+      personas_solicitadas: peopleCount,
       comida: {
-        primer_turno_13: {
-          hora: '13:00',
-          nombre: 'Primer turno almuerzo',
-          horario_completo: '13:00 - 15:00',
-          reservas_actuales: 5,
-          mesas_disponibles: 3,
-          puede_acomodar_grupo: true,
-          disponible: true
-        },
-        segundo_turno_14: {
-          hora: '14:00',
-          nombre: 'Segundo turno almuerzo',
-          horario_completo: '14:00 - 16:00',
-          reservas_actuales: 2,
-          mesas_disponibles: 8,
-          puede_acomodar_grupo: true,
-          disponible: true
-        }
+        primer_turno_13: disponibilidad.find(t => t.hora === '13:00'),
+        segundo_turno_14: disponibilidad.find(t => t.hora === '14:00')
       },
       cena: {
-        primer_turno_20: {
-          hora: '20:00',
-          nombre: 'Primer turno cena',
-          horario_completo: '20:00 - 22:00',
-          reservas_actuales: 3,
-          mesas_disponibles: 5,
-          puede_acomodar_grupo: true,
-          disponible: true
-        },
-        segundo_turno_21: {
-          hora: '21:00',
-          nombre: 'Segundo turno cena',
-          horario_completo: '21:00 - 23:00',
-          reservas_actuales: 1,
-          mesas_disponibles: 7,
-          puede_acomodar_grupo: true,
-          disponible: true
-        }
+        primer_turno_20: disponibilidad.find(t => t.hora === '20:00'),
+        segundo_turno_22: disponibilidad.find(t => t.hora === '22:00')
       },
       resumen: {
-        total_mesas_disponibles: 23,
-        mejor_opcion: 'segundo_turno_14',
-        recomendacion: 'Recomendamos el segundo turno de almuerzo a las 14:00'
+        total_mesas_disponibles: totalMesasDisponibles,
+        mejor_opcion: mejorOpcion ? `${mejorOpcion.hora}` : null,
+        recomendacion: mejorOpcion 
+          ? `Recomendamos ${mejorOpcion.nombre} a las ${mejorOpcion.hora}`
+          : 'No hay disponibilidad para la fecha solicitada'
       }
     };
 
@@ -108,17 +132,34 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Simular procesamiento de reserva inteligente
+    // Crear reserva real en la base de datos
+    const reservationData = {
+      client_name: clientInfo?.name || 'Cliente Retell',
+      client_phone: clientInfo?.phone || '',
+      client_email: clientInfo?.email || '',
+      reservation_date: new Date(date),
+      reservation_time: preferredTime || '14:00',
+      party_size: parseInt(people),
+      duration_minutes: 120,
+      status: 'confirmed',
+      notes: clientInfo?.notes || '',
+      special_requests: clientInfo?.specialRequests || '',
+      source: 'retell',
+      source_data: { retell_call_id: body.call_id || '', confidence: body.confidence || 0 }
+    };
+
+    const reservation = await db.createReservation(restaurantId, reservationData);
+
     const bookingResult = {
-      reservationId: `RES-${Date.now()}`,
+      reservationId: reservation.id,
       restaurantId,
       date,
       people: parseInt(people),
       time: preferredTime || '14:00',
       status: 'confirmada',
       clientInfo,
-      assignedTable: 'Mesa 5',
-      createdAt: new Date().toISOString()
+      assignedTable: reservation.table_id || 'Por asignar',
+      createdAt: reservation.createdAt?.toISOString() || new Date().toISOString()
     };
 
     logger.info('Smart booking processed via Retell', {
@@ -145,6 +186,7 @@ export async function POST(request: NextRequest) {
     }, { status: 500 });
   }
 }
+
 
 
 

@@ -18,13 +18,13 @@ export default function AIChatSection() {
         <div className="text-center mb-16">
           <div className="inline-flex items-center space-x-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 px-4 py-2 rounded-full border border-purple-400/30 mb-6 shadow-lg shadow-purple-500/10">
             <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
-            <span className="text-purple-300 text-sm font-bold uppercase tracking-wide">Asistente Integral IA</span>
+            <span className="text-purple-300 text-sm font-bold uppercase tracking-wide">Chef IA Especializado</span>
           </div>
           <h2 className="text-4xl md:text-6xl font-black text-white mb-6 leading-tight">
-            Tu <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">Asistente IA</span>
+            Tu <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">Chef IA</span>
           </h2>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-            Pregúntale cualquier cosa: gestión, cocina, marketing, finanzas, personal y más
+            Pregúntale sobre recetas, técnicas culinarias, ingredientes, alergias y consejos de cocina profesional
           </p>
         </div>
 
@@ -38,8 +38,8 @@ export default function AIChatSection() {
                     <Bot className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-white font-semibold">Asistente IA Gerencial</h3>
-                    <p className="text-purple-300 text-sm">En línea • Listo para ayudarte</p>
+                    <h3 className="text-white font-semibold">Chef IA Especializado</h3>
+                    <p className="text-purple-300 text-sm">En línea • Experto en cocina</p>
                   </div>
                 </div>
                 

@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import { User } from 'firebase/auth'
 import { logger, logAuth } from '@/lib/logger'
 
 interface UserMapping {
@@ -22,18 +21,16 @@ interface UserMapping {
 
 interface AuthState {
   // Estado
-  user: User | null
-  userMapping: UserMapping | null
+  user: UserMapping | null
   isAuthenticated: boolean
   loading: boolean
   token: string | null
   
   // Acciones
-  setUser: (user: User | null) => void
-  setUserMapping: (mapping: UserMapping | null) => void
+  setUser: (user: UserMapping | null) => void
   setLoading: (loading: boolean) => void
   setToken: (token: string | null) => void
-  login: (user: User, mapping: UserMapping, token: string) => void
+  login: (user: UserMapping, token: string) => void
   logout: () => void
   updateProfile: (profile: Partial<UserMapping['profile']>) => void
   
@@ -49,27 +46,26 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       // Estado inicial
       user: null,
-      userMapping: null,
       isAuthenticated: false,
       loading: true,
       token: null,
 
       // Getters computados
       get isAdmin() {
-        return get().userMapping?.role === 'admin'
+        return get().user?.role === 'admin'
       },
       get isRestaurant() {
-        return get().userMapping?.role === 'restaurant'
+        return get().user?.role === 'restaurant'
       },
       get displayName() {
-        const mapping = get().userMapping
-        if (mapping?.profile?.firstName && mapping?.profile?.lastName) {
-          return `${mapping.profile.firstName} ${mapping.profile.lastName}`
+        const user = get().user
+        if (user?.profile?.firstName && user?.profile?.lastName) {
+          return `${user.profile.firstName} ${user.profile.lastName}`
         }
-        return mapping?.restaurantName || mapping?.username || 'Usuario'
+        return user?.restaurantName || user?.username || 'Usuario'
       },
       get needsPasswordChange() {
-        return get().userMapping?.mustChangePassword || false
+        return get().user?.mustChangePassword || false
       },
 
       // Acciones
@@ -77,18 +73,7 @@ export const useAuthStore = create<AuthState>()(
         set({ user, isAuthenticated: !!user })
         
         if (user) {
-          logAuth('user_set', user.uid, { email: user.email })
-        }
-      },
-
-      setUserMapping: (mapping) => {
-        set({ userMapping: mapping })
-        
-        if (mapping) {
-          logAuth('user_mapping_set', mapping.id, { 
-            role: mapping.role, 
-            restaurantId: mapping.restaurantId 
-          })
+          logAuth('user_set', user.id, { email: user.email })
         }
       },
 
@@ -112,10 +97,9 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      login: (user, mapping, token) => {
+      login: (user, token) => {
         set({
           user,
-          userMapping: mapping,
           isAuthenticated: true,
           loading: false,
           token
@@ -124,16 +108,16 @@ export const useAuthStore = create<AuthState>()(
         // Guardar token
         get().setToken(token)
 
-        logAuth('login_success', user.uid, {
+        logAuth('login_success', user.id, {
           email: user.email,
-          role: mapping.role,
-          restaurantId: mapping.restaurantId
+          role: user.role,
+          restaurantId: user.restaurantId
         })
 
         logger.info('User logged in successfully', {
-          userId: user.uid,
-          role: mapping.role,
-          restaurantId: mapping.restaurantId
+          userId: user.id,
+          role: user.role,
+          restaurantId: user.restaurantId
         })
       },
 
@@ -142,7 +126,6 @@ export const useAuthStore = create<AuthState>()(
         
         set({
           user: null,
-          userMapping: null,
           isAuthenticated: false,
           loading: false,
           token: null
@@ -152,23 +135,23 @@ export const useAuthStore = create<AuthState>()(
         get().setToken(null)
 
         if (currentUser) {
-          logAuth('logout', currentUser.uid)
-          logger.info('User logged out', { userId: currentUser.uid })
+          logAuth('logout', currentUser.id)
+          logger.info('User logged out', { userId: currentUser.id })
         }
       },
 
       updateProfile: (profile) => {
-        const currentMapping = get().userMapping
-        if (currentMapping) {
-          const updatedMapping = {
-            ...currentMapping,
-            profile: { ...currentMapping.profile, ...profile }
+        const currentUser = get().user
+        if (currentUser) {
+          const updatedUser = {
+            ...currentUser,
+            profile: { ...currentUser.profile, ...profile }
           }
           
-          set({ userMapping: updatedMapping })
+          set({ user: updatedUser })
           
           logger.info('User profile updated', {
-            userId: currentMapping.id,
+            userId: currentUser.id,
             updatedFields: Object.keys(profile || {})
           })
         }
@@ -179,7 +162,7 @@ export const useAuthStore = create<AuthState>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         // Solo persistir datos seguros (no tokens sensibles)
-        userMapping: state.userMapping,
+        user: state.user,
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {

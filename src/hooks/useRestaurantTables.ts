@@ -1,8 +1,17 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getRestaurantData, updateTableStateInFirebase, syncTableStates, type TableState } from '@/lib/restaurantService';
+import { getRestaurantById } from '@/lib/restaurantServicePostgres';
 import { toast } from 'sonner';
 
-// Usar el tipo TableState del servicio
+// Definir el tipo TableState localmente
+export interface TableState {
+  id: string;
+  name: string;
+  capacity: number;
+  status: 'available' | 'occupied' | 'reserved' | 'maintenance';
+  location?: string;
+  specialFeatures?: string[];
+}
+
 export type TableStatus = TableState;
 
 export function useRestaurantTables(restaurantId: string) {
@@ -17,7 +26,7 @@ export function useRestaurantTables(restaurantId: string) {
     setIsLoading(true);
     try {
       console.log('🔍 Loading tables for restaurant:', restaurantId);
-      const restaurantData = await getRestaurantData(restaurantId);
+      const restaurantData = await getRestaurantById(restaurantId);
       
       if (restaurantData?.tables) {
         console.log('✅ Tables found:', restaurantData.tables);
@@ -33,9 +42,9 @@ export function useRestaurantTables(restaurantId: string) {
           updatedBy: 'system'
         }));
         
-        // Sincronizar con Firebase para obtener estados actuales
-        const syncedTables = await syncTableStates(restaurantId, tablesWithStatus);
-        setTables(syncedTables);
+        // TODO: Implementar sincronización con Firebase cuando esté disponible
+        // const syncedTables = await syncTableStates(restaurantId, tablesWithStatus);
+        setTables(tablesWithStatus);
         setLastUpdate(new Date());
       } else {
         console.log('⚠️ No tables found for restaurant');
@@ -77,18 +86,18 @@ export function useRestaurantTables(restaurantId: string) {
     
     setLastUpdate(new Date());
     
-    // Guardar en Firebase para sincronización con Retell AI
-    try {
-      await updateTableStateInFirebase(restaurantId, tableId, {
-        status: newStatus,
-        client: newStatus === 'libre' ? undefined : client,
-        lastUpdated: now,
-        updatedBy: 'gerente'
-      });
-    } catch (error) {
-      console.error('❌ Error saving to Firebase:', error);
-      toast.error('Error al sincronizar con el sistema');
-    }
+    // TODO: Implementar sincronización con Firebase cuando esté disponible
+    // try {
+    //   await updateTableStateInFirebase(restaurantId, tableId, {
+    //     status: newStatus,
+    //     client: newStatus === 'libre' ? undefined : client,
+    //     lastUpdated: now,
+    //     updatedBy: 'gerente'
+    //   });
+    // } catch (error) {
+    //   console.error('❌ Error saving to Firebase:', error);
+    //   toast.error('Error al sincronizar con el sistema');
+    // }
     
     // Mostrar toast de confirmación
     const tableName = tables.find(t => t.id === tableId)?.name || tableId;
@@ -121,25 +130,12 @@ export function useRestaurantTables(restaurantId: string) {
     };
   }, [tables]);
 
-  // Función para sincronizar con Firebase (cambios de Retell AI)
+  // TODO: Implementar sincronización con Firebase cuando esté disponible
   const syncWithFirebase = useCallback(async () => {
     if (tables.length === 0) return;
     
-    try {
-      console.log('🔄 Auto-syncing table states with Firebase...');
-      const syncedTables = await syncTableStates(restaurantId, tables);
-      
-      // Solo actualizar si hay cambios
-      const hasChanges = JSON.stringify(syncedTables) !== JSON.stringify(tables);
-      if (hasChanges) {
-        console.log('📊 Table states updated from Firebase (Retell AI changes)');
-        setTables(syncedTables);
-        setLastUpdate(new Date());
-        toast.info('🔄 Estados de mesas sincronizados con Retell AI');
-      }
-    } catch (error) {
-      console.error('❌ Error during auto-sync:', error);
-    }
+    // TODO: Implementar cuando las funciones estén disponibles
+    console.log('🔄 Auto-sync disabled - functions not available');
   }, [restaurantId, tables]);
 
   // Cargar mesas al montar el componente

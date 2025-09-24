@@ -571,7 +571,7 @@ export class AIAgentService {
 
   // Métodos auxiliares (mock implementations)
   private async getRestaurant(restaurantId: string): Promise<Restaurant> {
-    // Mock implementation - en producción consultaría Firebase
+    // Mock implementation - en producción consultaría la base de datos
     return {
       id: restaurantId,
       name: 'Restaurante Demo',
@@ -617,7 +617,7 @@ export class AIAgentService {
   }
 
   private async logCall(call: Call): Promise<void> {
-    // Mock implementation - en producción guardaría en Firebase
+    // Mock implementation - en producción guardaría en la base de datos
     logger.info('Call logged', { callId: call.id });
   }
 
