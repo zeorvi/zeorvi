@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
           results.details.push({
             restaurant: restaurantData.name,
             action: 'error',
-            error: error.message
+            error: error instanceof Error ? error.message : 'Unknown error'
           });
           console.error(`Error creating restaurant ${restaurantData.name}:`, error);
         }
