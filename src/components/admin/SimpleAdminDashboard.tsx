@@ -5,7 +5,7 @@ import { useClientAuth } from '@/hooks/useClientAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { LogOut, Users, Plus, Settings, RefreshCw, Trash2, AlertTriangle, Phone, Bot } from 'lucide-react';
+import { LogOut, Users, Plus, Settings, RefreshCw, Trash2, AlertTriangle, Phone, Bot, Database } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getAllRestaurants, deleteRestaurant, updateRestaurantStatus, type RestaurantData } from '@/lib/restaurantServicePostgres';
 
@@ -131,6 +131,47 @@ export default function SimpleAdminDashboard() {
     }
   };
 
+  const handleSyncRestaurants = async () => {
+    const confirmed = window.confirm(
+      `🔄 ¿Sincronizar restaurantes con la base de datos?\n\n` +
+      `Esta acción insertará los restaurantes de ejemplo:\n` +
+      `• El Buen Sabor\n` +
+      `• La Gaviota\n\n` +
+      `Solo se crearán si no existen.\n\n` +
+      `¿Continuar?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setIsLoading(true);
+      toast.info('🔄 Sincronizando restaurantes...');
+
+      const response = await fetch('/api/admin/sync-restaurants', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success(`✅ ${data.message}`);
+        // Recargar la lista
+        loadRestaurants();
+      } else {
+        toast.error(`❌ ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error syncing restaurants:', error);
+      toast.error('Error al sincronizar restaurantes');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
       {/* Animated Background Elements */}
@@ -226,6 +267,15 @@ export default function SimpleAdminDashboard() {
                 >
                   <Bot className="h-4 w-4 mr-2" />
                   Agentes Retell AI
+                </Button>
+                <Button 
+                  onClick={handleSyncRestaurants}
+                  disabled={isLoading}
+                  variant="outline" 
+                  className="w-full bg-transparent border-green-400/50 text-green-300 hover:bg-green-400/20 hover:border-green-400 disabled:opacity-50"
+                >
+                  <Database className="h-4 w-4 mr-2" />
+                  {isLoading ? 'Sincronizando...' : 'Sincronizar Restaurantes'}
                 </Button>
               </div>
             </div>
