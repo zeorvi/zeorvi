@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { AuthUser } from '@/lib/auth';
+import { AuthUser } from '@/lib/auth/index';
 
 export function useAuth() {
   const [user, setUser] = useState<AuthUser | null>(null);

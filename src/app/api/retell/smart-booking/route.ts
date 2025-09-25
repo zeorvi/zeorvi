@@ -141,10 +141,10 @@ export async function POST(request: NextRequest) {
       reservation_time: preferredTime || '14:00',
       party_size: parseInt(people),
       duration_minutes: 120,
-      status: 'confirmed',
+      status: 'confirmed' as const,
       notes: clientInfo?.notes || '',
       special_requests: clientInfo?.specialRequests || '',
-      source: 'retell',
+      source: 'retell' as const,
       source_data: { retell_call_id: body.call_id || '', confidence: body.confidence || 0 }
     };
 
@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
       status: 'confirmada',
       clientInfo,
       assignedTable: reservation.table_id || 'Por asignar',
-      createdAt: reservation.createdAt?.toISOString() || new Date().toISOString()
+      createdAt: reservation.created_at?.toISOString() || new Date().toISOString()
     };
 
     logger.info('Smart booking processed via Retell', {

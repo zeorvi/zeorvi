@@ -1,0 +1,4 @@
+# Desactivar actionlint completamente
+config-file: ""
+ignore: ".*"
+

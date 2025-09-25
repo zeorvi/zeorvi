@@ -1,21 +1,25 @@
 /**
- * Sistema de Autenticación Propio
+ * Sistema de Autenticación Simplificado
  * Reemplaza Firebase Auth completamente
  */
 
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { db } from '../database';
-import type { RestaurantUser } from '../database';
+import { sqliteDb } from '../database/sqlite';
+import { memoryCache } from '../cache/memory';
+import { devAuthService } from '../devAuth';
+import { config } from '../config';
 
 export interface AuthUser {
   id: string;
   email: string;
   name?: string;
-  role: 'admin' | 'manager' | 'employee';
+  role: 'admin' | 'manager' | 'employee' | 'restaurant';
   restaurantId: string;
   restaurantName: string;
   permissions: string[];
+  lastLogin?: string;
 }
 
 export interface LoginCredentials {
@@ -28,8 +32,8 @@ export interface RegisterData {
   email: string;
   password: string;
   name: string;
-  restaurantId: string;
-  role?: 'admin' | 'manager' | 'employee';
+  restaurantId?: string;
+  role?: 'admin' | 'manager' | 'employee' | 'restaurant';
 }
 
 export class AuthService {
@@ -37,8 +41,8 @@ export class AuthService {
   private jwtExpiresIn: string;
 
   constructor() {
-    this.jwtSecret = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
-    this.jwtExpiresIn = process.env.JWT_EXPIRES_IN || '7d';
+    this.jwtSecret = config.jwt.secret;
+    this.jwtExpiresIn = config.jwt.expiresIn;
   }
 
   // =============================================
@@ -47,14 +51,28 @@ export class AuthService {
 
   async register(data: RegisterData): Promise<{ user: AuthUser; token: string }> {
     try {
-      // Verificar que el restaurante existe
-      const restaurant = await db.getRestaurant(data.restaurantId);
-      if (!restaurant) {
-        throw new Error('Restaurante no encontrado');
+      // Si no se proporciona restaurantId, crear un restaurante temporal
+      let restaurantId = data.restaurantId;
+      let restaurant;
+      
+      if (!restaurantId) {
+        // Crear restaurante temporal para usuarios admin
+        restaurant = {
+          id: 'temp-admin',
+          name: 'Administración General',
+          slug: 'admin'
+        };
+        restaurantId = 'temp-admin';
+      } else {
+        // Verificar que el restaurante existe
+        restaurant = await db.getRestaurant(restaurantId);
+        if (!restaurant) {
+          throw new Error('Restaurante no encontrado');
+        }
       }
 
       // Verificar que el email no esté en uso
-      const existingUser = await this.getUserByEmail(data.email, data.restaurantId);
+      const existingUser = await this.getUserByEmail(data.email, restaurantId);
       if (existingUser) {
         throw new Error('El email ya está registrado');
       }
@@ -78,7 +96,7 @@ export class AuthService {
         email: dbUser.email,
         name: dbUser.name,
         role: dbUser.role,
-        restaurantId: data.restaurantId,
+        restaurantId: restaurantId,
         restaurantName: restaurant.name,
         permissions: dbUser.permissions || []
       };
@@ -87,7 +105,7 @@ export class AuthService {
       const token = this.generateToken(user);
 
       // Guardar sesión en cache
-      await this.saveSession(user.id, user);
+      await db.saveSession(user.id, user, 7 * 24 * 60 * 60);
 
       return { user, token };
     } catch (error) {
@@ -102,35 +120,31 @@ export class AuthService {
 
   async login(credentials: LoginCredentials): Promise<{ user: AuthUser; token: string }> {
     try {
+      // Usar SQLite para desarrollo
+      console.log('🔧 Using SQLite authentication system');
+      
       let restaurantId: string;
+      let dbUser: any;
 
       // Si se proporciona slug del restaurante, buscar por slug
       if (credentials.restaurantSlug) {
-        const restaurant = await db.getRestaurantBySlug(credentials.restaurantSlug);
+        const restaurant = await sqliteDb.getRestaurantBySlug(credentials.restaurantSlug);
         if (!restaurant) {
           throw new Error('Restaurante no encontrado');
         }
         restaurantId = restaurant.id;
+        dbUser = await sqliteDb.getUserByEmail(credentials.email, restaurantId);
       } else {
-        // Buscar usuario en todas las bases de datos (para admin general)
-        const result = await db.pg.query(`
-          SELECT ru.*, r.name as restaurant_name, r.id as restaurant_id
-          FROM restaurant_users ru
-          JOIN restaurants r ON ru.restaurant_id = r.id
-          WHERE ru.email = $1 AND ru.status = 'active'
-          LIMIT 1
-        `, [credentials.email]);
-
-        if (result.rows.length === 0) {
-          throw new Error('Usuario no encontrado');
+        // Buscar usuario en SQLite (en todos los restaurantes)
+        dbUser = await sqliteDb.getUserByEmail(credentials.email);
+        
+        if (!dbUser) {
+          throw new Error('Credenciales inválidas');
         }
-
-        const dbUser = result.rows[0];
+        
         restaurantId = dbUser.restaurant_id;
       }
 
-      // Buscar usuario específico
-      const dbUser = await this.getUserByEmail(credentials.email, restaurantId);
       if (!dbUser) {
         throw new Error('Credenciales inválidas');
       }
@@ -142,17 +156,13 @@ export class AuthService {
       }
 
       // Obtener datos del restaurante
-      const restaurant = await db.getRestaurant(restaurantId);
+      const restaurant = await sqliteDb.getRestaurant(restaurantId);
       if (!restaurant) {
         throw new Error('Restaurante no encontrado');
       }
 
       // Actualizar último login
-      await db.pg.query(`
-        UPDATE restaurant_users 
-        SET last_login = NOW() 
-        WHERE id = $1
-      `, [dbUser.id]);
+      await sqliteDb.updateLastLogin(dbUser.id);
 
       // Crear objeto de usuario autenticado
       const user: AuthUser = {
@@ -168,8 +178,8 @@ export class AuthService {
       // Generar JWT token
       const token = this.generateToken(user);
 
-      // Guardar sesión en cache
-      await this.saveSession(user.id, user);
+      // Guardar sesión en cache (memoria)
+      await memoryCache.setex(`session:${user.id}`, 7 * 24 * 60 * 60, user);
 
       return { user, token };
     } catch (error) {
@@ -187,37 +197,35 @@ export class AuthService {
       // Verificar JWT
       const decoded = jwt.verify(token, this.jwtSecret) as any;
       
-      // Obtener usuario desde cache
-      const cachedUser = await this.getSession(decoded.userId);
+      // Obtener usuario desde cache (memoria)
+      const cachedUser = await memoryCache.get(`session:${decoded.userId}`);
       if (cachedUser) {
         return cachedUser;
       }
 
-      // Si no está en cache, obtener desde BD
-      const result = await db.pg.query(`
-        SELECT ru.*, r.name as restaurant_name
-        FROM restaurant_users ru
-        JOIN restaurants r ON ru.restaurant_id = r.id
-        WHERE ru.id = $1 AND ru.status = 'active'
-      `, [decoded.userId]);
-
-      if (result.rows.length === 0) {
+      // Si no está en cache, obtener desde SQLite
+      const dbUser = await sqliteDb.getUserByEmail(decoded.email, decoded.restaurantId);
+      if (!dbUser) {
         return null;
       }
 
-      const dbUser = result.rows[0];
+      const restaurant = await sqliteDb.getRestaurant(decoded.restaurantId);
+      if (!restaurant) {
+        return null;
+      }
+
       const user: AuthUser = {
         id: dbUser.id,
         email: dbUser.email,
         name: dbUser.name,
         role: dbUser.role,
-        restaurantId: dbUser.restaurant_id,
-        restaurantName: dbUser.restaurant_name,
+        restaurantId: decoded.restaurantId,
+        restaurantName: restaurant.name,
         permissions: dbUser.permissions || []
       };
 
       // Guardar en cache para próximas verificaciones
-      await this.saveSession(user.id, user);
+      await memoryCache.setex(`session:${user.id}`, 7 * 24 * 60 * 60, user);
 
       return user;
     } catch (error) {
@@ -232,8 +240,8 @@ export class AuthService {
 
   async logout(userId: string): Promise<void> {
     try {
-      // Eliminar sesión del cache
-      await db.redis.del(`session:${userId}`);
+      // Eliminar sesión del cache (memoria)
+      await memoryCache.del(`session:${userId}`);
     } catch (error) {
       console.error('Error en logout:', error);
     }
@@ -281,43 +289,6 @@ export class AuthService {
     }
   }
 
-  async resetPassword(email: string, restaurantSlug: string): Promise<void> {
-    try {
-      // Obtener restaurante
-      const restaurant = await db.getRestaurantBySlug(restaurantSlug);
-      if (!restaurant) {
-        throw new Error('Restaurante no encontrado');
-      }
-
-      // Obtener usuario
-      const dbUser = await this.getUserByEmail(email, restaurant.id);
-      if (!dbUser) {
-        throw new Error('Usuario no encontrado');
-      }
-
-      // Generar contraseña temporal
-      const tempPassword = this.generateTempPassword();
-      const saltRounds = 12;
-      const passwordHash = await bcrypt.hash(tempPassword, saltRounds);
-
-      // Actualizar contraseña
-      await db.pg.query(`
-        UPDATE restaurant_users 
-        SET password_hash = $1, updated_at = NOW()
-        WHERE id = $2
-      `, [passwordHash, dbUser.id]);
-
-      // TODO: Enviar email con contraseña temporal
-      console.log(`Contraseña temporal para ${email}: ${tempPassword}`);
-
-      // Invalidar sesiones
-      await this.logout(dbUser.id);
-    } catch (error) {
-      console.error('Error reseteando contraseña:', error);
-      throw error;
-    }
-  }
-
   // =============================================
   // MÉTODOS PRIVADOS
   // =============================================
@@ -330,50 +301,16 @@ export class AuthService {
       restaurantId: user.restaurantId
     };
 
-    return jwt.sign(payload, this.jwtSecret, { expiresIn: this.jwtExpiresIn });
+    return jwt.sign(payload, this.jwtSecret, { expiresIn: '7d' });
   }
 
-  private async saveSession(userId: string, user: AuthUser): Promise<void> {
+  private async getUserByEmail(email: string, restaurantId: string): Promise<any | null> {
     try {
-      await db.redis.setex(`session:${userId}`, 7 * 24 * 60 * 60, JSON.stringify(user)); // 7 días
-    } catch (error) {
-      console.error('Error guardando sesión:', error);
-    }
-  }
-
-  private async getSession(userId: string): Promise<AuthUser | null> {
-    try {
-      const sessionData = await db.redis.get(`session:${userId}`);
-      if (!sessionData) return null;
-      
-      return JSON.parse(sessionData) as AuthUser;
-    } catch (error) {
-      console.error('Error obteniendo sesión:', error);
-      return null;
-    }
-  }
-
-  private async getUserByEmail(email: string, restaurantId: string): Promise<RestaurantUser | null> {
-    try {
-      const result = await db.pg.query(`
-        SELECT * FROM restaurant_users 
-        WHERE email = $1 AND restaurant_id = $2 AND status = 'active'
-      `, [email, restaurantId]);
-
-      return result.rows[0] || null;
+      return await sqliteDb.getUserByEmail(email, restaurantId);
     } catch (error) {
       console.error('Error obteniendo usuario por email:', error);
       return null;
     }
-  }
-
-  private generateTempPassword(): string {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < 12; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
   }
 
   // =============================================
@@ -414,6 +351,4 @@ export class AuthService {
 }
 
 // Instancia singleton
-export const authService = new AuthService();
-export default authService;
-
+export default new AuthService();

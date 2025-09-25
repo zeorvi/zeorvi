@@ -5,7 +5,7 @@ import { useClientAuth } from '@/hooks/useClientAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { LogOut, Users, Plus, Settings, RefreshCw, Trash2, AlertTriangle } from 'lucide-react';
+import { LogOut, Users, Plus, Settings, RefreshCw, Trash2, AlertTriangle, Phone, Bot } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getAllRestaurants, deleteRestaurant, updateRestaurantStatus, type RestaurantData } from '@/lib/restaurantServicePostgres';
 
@@ -34,27 +34,27 @@ export default function SimpleAdminDashboard() {
   };
 
   useEffect(() => {
-    // Carga inicial
+    // Solo carga inicial - sin actualización automática
     loadRestaurants();
 
-    // Actualización automática cada 2 minutos
-    const interval = setInterval(() => {
-      console.log('🔄 Auto-updating restaurant list...');
-      loadRestaurants();
-    }, 2 * 60 * 1000); // 2 minutos
+    // Actualización automática deshabilitada - solo manual
+    // const interval = setInterval(() => {
+    //   console.log('🔄 Auto-updating restaurant list...');
+    //   loadRestaurants();
+    // }, 2 * 60 * 1000); // 2 minutos
 
-    // Actualizar cuando se enfoca la ventana
-    const handleFocus = () => {
-      console.log('🔍 Window focused - updating restaurant list...');
-      loadRestaurants();
-    };
+    // Actualización al enfocar ventana deshabilitada
+    // const handleFocus = () => {
+    //   console.log('🔍 Window focused - updating restaurant list...');
+    //   loadRestaurants();
+    // };
 
-    window.addEventListener('focus', handleFocus);
+    // window.addEventListener('focus', handleFocus);
 
     // Cleanup
     return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', handleFocus);
+      // clearInterval(interval);
+      // window.removeEventListener('focus', handleFocus);
     };
   }, []);
 
@@ -210,6 +210,22 @@ export default function SimpleAdminDashboard() {
                 >
                   <Settings className="h-4 w-4 mr-2" />
                   Configuración
+                </Button>
+                <Button 
+                  onClick={() => router.push('/admin/agent-test')}
+                  variant="outline" 
+                  className="w-full bg-transparent border-purple-400/50 text-purple-300 hover:bg-purple-400/20 hover:border-purple-400"
+                >
+                  <Phone className="h-4 w-4 mr-2" />
+                  Prueba Agentes IA
+                </Button>
+                <Button 
+                  onClick={() => router.push('/admin/retell-agents')}
+                  variant="outline" 
+                  className="w-full bg-transparent border-blue-400/50 text-blue-300 hover:bg-blue-400/20 hover:border-blue-400"
+                >
+                  <Bot className="h-4 w-4 mr-2" />
+                  Agentes Retell AI
                 </Button>
               </div>
             </div>

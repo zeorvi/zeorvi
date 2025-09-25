@@ -1,107 +1,188 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyRetellWebhook } from '@/lib/webhookValidator';
-import { logger } from '@/lib/logger';
 
-// POST - Endpoint para manejar redirección automática al dashboard
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    
-    // Verificar la firma del webhook de Retell
-    const signature = request.headers.get('x-retell-signature') || '';
-    const validation = verifyRetellWebhook(signature, JSON.stringify(body));
-    
-    if (!validation.valid) {
-      logger.warn('Invalid Retell webhook signature for dashboard redirect', { signature, body });
-      return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+    console.log('🔗 Dashboard Redirect recibido:', JSON.stringify(body, null, 2));
+
+    const { call_id, agent_id, restaurant_id, action, data } = body;
+
+    // Validar parámetros requeridos
+    if (!call_id || !agent_id) {
+      return NextResponse.json({
+        success: false,
+        error: 'call_id y agent_id son requeridos'
+      }, { status: 400 });
     }
 
-    const { restaurantId, callId, transcript, summary } = body;
-
-    // Validar que sea para La Gaviota
-    if (restaurantId !== 'rest_003') {
-      return NextResponse.json({ 
-        message: 'Dashboard redirect only configured for La Gaviota',
-        restaurantId 
-      });
+    // Determinar el restaurante
+    const restaurantId = restaurant_id || extractRestaurantIdFromAgentId(agent_id);
+    
+    if (!restaurantId) {
+      return NextResponse.json({
+        success: false,
+        error: 'No se pudo determinar el restaurante'
+      }, { status: 400 });
     }
 
-    logger.info('Dashboard redirect request received', { 
-      restaurantId, 
-      callId,
-      transcriptLength: transcript?.length || 0
-    });
+    console.log(`🏪 Procesando acción para restaurante: ${restaurantId}`);
 
-    // Crear respuesta con información de redirección
-    const redirectResponse = {
+    // Procesar diferentes tipos de acciones
+    let result;
+    switch (action) {
+      case 'check_availability':
+        result = await handleCheckAvailability(restaurantId, data);
+        break;
+      
+      case 'create_reservation':
+        result = await handleCreateReservation(restaurantId, data);
+        break;
+      
+      case 'update_table_status':
+        result = await handleUpdateTableStatus(restaurantId, data);
+        break;
+      
+      case 'get_client_info':
+        result = await handleGetClientInfo(restaurantId, data);
+        break;
+      
+      case 'get_agenda':
+        result = await handleGetAgenda(restaurantId, data);
+        break;
+      
+      default:
+        result = {
+          success: false,
+          error: `Acción no reconocida: ${action}`
+        };
+    }
+
+    // Registrar la acción en logs
+    console.log(`📊 Acción ${action} procesada para restaurante ${restaurantId}:`, result);
+
+    return NextResponse.json({
       success: true,
-      action: 'redirect_to_dashboard',
-      restaurantId,
-      callId,
-      dashboardUrl: `/restaurant/${restaurantId}`,
-      restaurantName: 'La Gaviota',
-      message: 'Conversación procesada. Redirigiendo al dashboard...',
-      transcript: {
-        summary,
-        processed: true,
-        timestamp: new Date().toISOString()
-      },
-      redirectData: {
-        url: `/restaurant/${restaurantId}`,
-        title: 'La Gaviota - Dashboard',
-        description: 'Nueva conversación procesada por el agente de IA'
-      }
-    };
-
-    // Log para seguimiento
-    logger.info('Dashboard redirect processed', {
-      restaurantId,
-      callId,
-      dashboardUrl: redirectResponse.dashboardUrl,
-      transcriptProcessed: !!transcript
+      call_id,
+      agent_id,
+      restaurant_id: restaurantId,
+      action,
+      result,
+      timestamp: new Date().toISOString()
     });
-
-    return NextResponse.json(redirectResponse);
 
   } catch (error) {
-    logger.error('Error processing dashboard redirect', { 
-      error: (error as Error).message,
-      stack: (error as Error).stack
-    });
-    
-    return NextResponse.json({ 
-      error: 'Error processing dashboard redirect' 
+    console.error('❌ Error en dashboard redirect:', error);
+    return NextResponse.json({
+      success: false,
+      error: 'Error interno del servidor'
     }, { status: 500 });
   }
 }
 
-// GET - Endpoint para verificar estado de redirección
-export async function GET(request: NextRequest) {
+async function handleCheckAvailability(restaurantId: string, data: any) {
   try {
-    const { searchParams } = new URL(request.url);
-    const restaurantId = searchParams.get('restaurantId');
-    const callId = searchParams.get('callId');
-
-    if (!restaurantId || !callId) {
-      return NextResponse.json({ 
-        error: 'Missing restaurantId or callId parameters' 
-      }, { status: 400 });
-    }
-
-    // Verificar si hay redirecciones pendientes para este restaurante
-    const redirectStatus = {
-      restaurantId,
-      callId,
-      status: 'processed',
-      dashboardUrl: `/restaurant/${restaurantId}`,
-      lastChecked: new Date().toISOString(),
-      message: 'Dashboard redirect is active for La Gaviota'
-    };
-
-    return NextResponse.json(redirectStatus);
-
+    const { people, date, time } = data;
+    
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/retell/check-availability?restaurantId=${restaurantId}&people=${people}&date=${date}&time=${time}`);
+    const result = await response.json();
+    
+    return result;
   } catch (error) {
-    logger.error('Error checking redirect status', { error: (error as Error).message });
-    return NextResponse.json({ error: 'Error checking redirect status' }, { status: 500 });
+    console.error('Error checking availability:', error);
+    return { success: false, error: 'Error al consultar disponibilidad' };
   }
+}
+
+async function handleCreateReservation(restaurantId: string, data: any) {
+  try {
+    const { customerName, phone, email, people, date, time, specialRequests } = data;
+    
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/retell/reservations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        restaurantId,
+        customerName,
+        phone,
+        email,
+        people,
+        date,
+        time,
+        specialRequests
+      }),
+    });
+    
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error creating reservation:', error);
+    return { success: false, error: 'Error al crear reserva' };
+  }
+}
+
+async function handleUpdateTableStatus(restaurantId: string, data: any) {
+  try {
+    const { tableId, status, reservationId, customerName, people } = data;
+    
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/retell/tables`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        restaurantId,
+        tableId,
+        status,
+        reservationId,
+        customerName,
+        people
+      }),
+    });
+    
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('Error updating table status:', error);
+    return { success: false, error: 'Error al actualizar estado de mesa' };
+  }
+}
+
+async function handleGetClientInfo(restaurantId: string, data: any) {
+  try {
+    const { phone, name } = data;
+    
+    let url = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/retell/clients?restaurantId=${restaurantId}`;
+    if (phone) url += `&phone=${phone}`;
+    if (name) url += `&name=${name}`;
+    
+    const response = await fetch(url);
+    const result = await response.json();
+    
+    return result;
+  } catch (error) {
+    console.error('Error getting client info:', error);
+    return { success: false, error: 'Error al consultar información del cliente' };
+  }
+}
+
+async function handleGetAgenda(restaurantId: string, data: any) {
+  try {
+    const { date } = data;
+    
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/retell/agenda?restaurantId=${restaurantId}&date=${date}`);
+    const result = await response.json();
+    
+    return result;
+  } catch (error) {
+    console.error('Error getting agenda:', error);
+    return { success: false, error: 'Error al consultar agenda' };
+  }
+}
+
+function extractRestaurantIdFromAgentId(agentId: string): string | null {
+  // Extraer restaurant_id del agent_id
+  const match = agentId.match(/rest_(\d+)/);
+  return match ? `rest_${match[1]}` : null;
 }

@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authService } from '@/lib/auth/index';
+import authService from '@/lib/auth';
 import { db } from '@/lib/database';
 import { z } from 'zod';
 

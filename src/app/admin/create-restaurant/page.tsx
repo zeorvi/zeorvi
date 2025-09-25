@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { customAuth } from '@/lib/auth/customAuth';
+import authService from '@/lib/auth';
 import { addUserMappingWithUsername } from '@/lib/userMapping';
 import { createRestaurant } from '@/lib/restaurantServicePostgres';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -353,17 +353,16 @@ IMPORTANTE:
       const tempPassword = 'Temp' + Math.random().toString(36).substring(2, 8) + '!';
 
       // 2. Crear usuario en nuestro sistema
-      const registerResult = await customAuth.register({
+      const registerResult = await authService.register({
         email: restaurantData.email,
         password: tempPassword,
         name: restaurantData.name,
         role: 'restaurant',
-        restaurantId: undefined, // Se asignará después de crear el restaurante
-        restaurantName: restaurantData.name
+        restaurantId: undefined // Se asignará después de crear el restaurante      
       });
 
-      if (!registerResult.success || !registerResult.user) {
-        throw new Error(registerResult.error || 'Failed to create user');
+      if (!registerResult.user) {
+        throw new Error('Failed to create user');
       }
 
       // 3. Agregar al mapeo de usuarios

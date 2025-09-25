@@ -58,5 +58,6 @@
   
   // Configuraciones adicionales de TypeScript
   "typescript.preferences.includePackageJsonAutoImports": "off",
-  "typescript.suggest.autoImports": false
+  "typescript.suggest.autoImports": false,
+  "git.ignoreLimitWarning": true
 }

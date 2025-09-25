@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getRestaurantData } from '@/lib/restaurantServicePostgres';
+import { getRestaurantById } from '@/lib/restaurantServicePostgres';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,7 +65,7 @@ export default function ConfigurationManagement({
       
       try {
         console.log('🔍 Loading restaurant config for:', restaurantId);
-        const restaurantData = await getRestaurantData(restaurantId);
+        const restaurantData = await getRestaurantById(restaurantId);
         
         if (restaurantData) {
           console.log('✅ Restaurant data loaded for config:', restaurantData);
@@ -76,7 +76,7 @@ export default function ConfigurationManagement({
               phone: restaurantData.phone || '+34 000 000 000',
               email: restaurantData.email,
               address: restaurantData.address || 'Dirección no especificada',
-              description: `Restaurante ${restaurantData.type || 'tradicional'} - ${restaurantData.name}`
+              description: `Restaurante tradicional - ${restaurantData.name}`
             },
             operatingHours: {
               monday: { open: '12:00', close: '23:00', closed: false },

@@ -130,10 +130,10 @@ async function createReservation(restaurantId: string, params: any) {
       reservation_time: time,
       party_size: parseInt(people),
       duration_minutes: 120,
-      status: 'confirmed',
+      status: 'confirmed' as const,
       notes: notes || '',
       special_requests: '',
-      source: 'retell',
+      source: 'retell' as const,
       source_data: { retell_call_id: params.call_id || '', confidence: params.confidence || 0 }
     };
 
@@ -161,14 +161,29 @@ async function createReservation(restaurantId: string, params: any) {
 // 3. Buscar reserva
 async function findReservation(restaurantId: string, params: any) {
   const { clientName, phone } = params;
+  const schemaName = `restaurant_${restaurantId.replace(/-/g, '_')}`;
+  const client = await db.pg.connect();
   
   try {
-    // Buscar por nombre y/o teléfono
-    const reservations = await db.getReservations(restaurantId, {
-      clientName,
-      clientPhone: phone,
-      limit: 10
-    });
+    // Buscar por nombre y/o teléfono usando consulta SQL directa
+    
+    let query = `SELECT * FROM ${schemaName}.reservations WHERE 1=1`;
+    const params: any[] = [];
+    
+    if (clientName) {
+      query += ` AND client_name ILIKE $${params.length + 1}`;
+      params.push(`%${clientName}%`);
+    }
+    
+    if (phone) {
+      query += ` AND client_phone ILIKE $${params.length + 1}`;
+      params.push(`%${phone}%`);
+    }
+    
+    query += ` ORDER BY reservation_date DESC LIMIT 10`;
+    
+    const result = await client.query(query, params);
+    const reservations = result.rows;
 
     if (reservations.length === 0) {
       return NextResponse.json({
@@ -193,20 +208,24 @@ async function findReservation(restaurantId: string, params: any) {
   } catch (error) {
     logger.error('Error finding reservation', { error, restaurantId, params });
     return NextResponse.json({ error: 'Error al buscar la reserva' }, { status: 500 });
+  } finally {
+    client.release();
   }
 }
 
 // 4. Cancelar reserva
 async function cancelReservation(restaurantId: string, params: any) {
   const { reservationId, reason } = params;
+  const schemaName = `restaurant_${restaurantId.replace(/-/g, '_')}`;
+  const client = await db.pg.connect();
   
   try {
-    // Actualizar estado de la reserva
-    await db.updateReservation(restaurantId, reservationId, {
-      status: 'cancelled',
-      notes: `Cancelada por: ${reason || 'Cliente'}`,
-      updatedAt: new Date()
-    });
+    // Actualizar estado de la reserva usando consulta SQL directa
+    await client.query(`
+      UPDATE ${schemaName}.reservations 
+      SET status = $1, notes = $2, updated_at = $3
+      WHERE id = $4
+    `, ['cancelled', `Cancelada por: ${reason || 'Cliente'}`, new Date(), reservationId]);
 
     return NextResponse.json({
       success: true,
@@ -216,6 +235,8 @@ async function cancelReservation(restaurantId: string, params: any) {
   } catch (error) {
     logger.error('Error cancelling reservation', { error, restaurantId, params });
     return NextResponse.json({ error: 'Error al cancelar la reserva' }, { status: 500 });
+  } finally {
+    client.release();
   }
 }
 

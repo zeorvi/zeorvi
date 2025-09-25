@@ -1,77 +1,134 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyRetellWebhook } from '@/lib/webhookValidator';
-import { logger } from '@/lib/logger';
-import { retellIntegrationService } from '@/lib/services/retellIntegrationService';
 
-// POST - Webhook principal de Retell para procesar todos los eventos
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    
-    // Verificar la firma del webhook de Retell
-    const signature = request.headers.get('x-retell-signature') || '';
-    const validation = verifyRetellWebhook(signature, JSON.stringify(body));
-    
-    if (!validation.valid) {
-      logger.warn('Invalid Retell webhook signature', { signature, body });
-      return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+    console.log('🔔 Retell Webhook recibido:', JSON.stringify(body, null, 2));
+
+    const { event, call_id, agent_id, data } = body;
+
+    switch (event) {
+      case 'call_started':
+        await handleCallStarted(call_id, agent_id, data);
+        break;
+      
+      case 'call_ended':
+        await handleCallEnded(call_id, agent_id, data);
+        break;
+      
+      case 'call_analyzed':
+        await handleCallAnalyzed(call_id, agent_id, data);
+        break;
+      
+      case 'llm_request':
+        await handleLLMRequest(call_id, agent_id, data);
+        break;
+      
+      case 'llm_response':
+        await handleLLMResponse(call_id, agent_id, data);
+        break;
+      
+      default:
+        console.log(`⚠️ Evento no manejado: ${event}`);
     }
 
-    logger.info('Retell webhook received', { 
-      event: body.event, 
-      callId: body.call_id,
-      agentId: body.agent_id 
-    });
-
-    // Procesar el webhook automáticamente
-    await retellIntegrationService.processWebhook(body);
-
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Webhook processed successfully',
-      event: body.event,
-      callId: body.call_id
-    });
+    return NextResponse.json({ success: true });
 
   } catch (error) {
-    logger.error('Error processing Retell webhook', { 
-      error: (error as Error).message,
-      stack: (error as Error).stack
-    });
-    
+    console.error('❌ Error en webhook de Retell:', error);
     return NextResponse.json({ 
-      error: 'Error processing webhook' 
+      success: false, 
+      error: 'Error interno del servidor' 
     }, { status: 500 });
   }
 }
 
-// GET - Endpoint para verificar el estado del webhook
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const challenge = searchParams.get('challenge');
+async function handleCallStarted(callId: string, agentId: string, data: any) {
+  console.log(`📞 Llamada iniciada - Call ID: ${callId}, Agent ID: ${agentId}`);
+  
+  // Extraer información del restaurante del agent_id
+  const restaurantId = extractRestaurantIdFromAgentId(agentId);
+  
+  if (restaurantId) {
+    console.log(`🏪 Restaurante identificado: ${restaurantId}`);
     
-    // Si es una verificación de webhook, responder con el challenge
-    if (challenge) {
-      return NextResponse.json({ challenge });
-    }
-
-    // Información del webhook
-    return NextResponse.json({
-      status: 'active',
-      webhook_url: `${process.env.NEXT_PUBLIC_BASE_URL}/api/retell/webhook`,
-      supported_events: [
-        'call_started',
-        'call_ended', 
-        'call_analyzed',
-        'agent_response',
-        'function_called'
-      ],
-      last_check: new Date().toISOString()
-    });
-
-  } catch (error) {
-    logger.error('Error in webhook GET endpoint', { error: (error as Error).message });
-    return NextResponse.json({ error: 'Webhook error' }, { status: 500 });
+    // Registrar inicio de llamada en logs
+    // En producción aquí guardarías en la base de datos
+    console.log(`📊 Llamada iniciada para restaurante ${restaurantId} a las ${new Date().toISOString()}`);
   }
+}
+
+async function handleCallEnded(callId: string, agentId: string, data: any) {
+  console.log(`📞 Llamada finalizada - Call ID: ${callId}, Agent ID: ${agentId}`);
+  
+  const restaurantId = extractRestaurantIdFromAgentId(agentId);
+  
+  if (restaurantId) {
+    console.log(`🏪 Llamada finalizada para restaurante ${restaurantId}`);
+    
+    // Registrar fin de llamada y estadísticas
+    const duration = data?.duration || 0;
+    const status = data?.status || 'unknown';
+    
+    console.log(`📊 Duración: ${duration}s, Estado: ${status}`);
+  }
+}
+
+async function handleCallAnalyzed(callId: string, agentId: string, data: any) {
+  console.log(`📞 Llamada analizada - Call ID: ${callId}, Agent ID: ${agentId}`);
+  
+  const restaurantId = extractRestaurantIdFromAgentId(agentId);
+  
+  if (restaurantId) {
+    console.log(`🏪 Análisis de llamada para restaurante ${restaurantId}`);
+    
+    // Procesar análisis de la llamada
+    const analysis = data?.analysis || {};
+    const summary = data?.summary || '';
+    const sentiment = data?.sentiment || 'neutral';
+    
+    console.log(`📊 Análisis: ${JSON.stringify(analysis)}`);
+    console.log(`📝 Resumen: ${summary}`);
+    console.log(`😊 Sentimiento: ${sentiment}`);
+  }
+}
+
+async function handleLLMRequest(callId: string, agentId: string, data: any) {
+  console.log(`🤖 LLM Request - Call ID: ${callId}, Agent ID: ${agentId}`);
+  
+  const restaurantId = extractRestaurantIdFromAgentId(agentId);
+  
+  if (restaurantId) {
+    console.log(`🏪 LLM Request para restaurante ${restaurantId}`);
+    
+    // Procesar request del LLM
+    const messages = data?.messages || [];
+    const lastMessage = messages[messages.length - 1];
+    
+    console.log(`💬 Último mensaje: ${lastMessage?.content || 'N/A'}`);
+  }
+}
+
+async function handleLLMResponse(callId: string, agentId: string, data: any) {
+  console.log(`🤖 LLM Response - Call ID: ${callId}, Agent ID: ${agentId}`);
+  
+  const restaurantId = extractRestaurantIdFromAgentId(agentId);
+  
+  if (restaurantId) {
+    console.log(`🏪 LLM Response para restaurante ${restaurantId}`);
+    
+    // Procesar respuesta del LLM
+    const response = data?.response || '';
+    const actions = data?.actions || [];
+    
+    console.log(`💬 Respuesta: ${response}`);
+    console.log(`⚡ Acciones: ${JSON.stringify(actions)}`);
+  }
+}
+
+function extractRestaurantIdFromAgentId(agentId: string): string | null {
+  // Extraer restaurant_id del agent_id
+  // Formato esperado: "restaurant_rest_003_agent" o similar
+  const match = agentId.match(/rest_(\d+)/);
+  return match ? `rest_${match[1]}` : null;
 }

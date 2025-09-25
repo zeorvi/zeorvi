@@ -6,6 +6,7 @@
 import { Pool, PoolClient } from 'pg';
 import Redis from 'ioredis';
 import { WebSocketServer } from 'ws';
+import { config } from '../config';
 
 // Tipos principales
 export interface Restaurant {
@@ -99,18 +100,37 @@ class RestaurantDatabase {
   constructor() {
     // Configuración PostgreSQL
     this.pg = new Pool({
-      connectionString: process.env.DATABASE_URL || 'postgresql://admin:secure_restaurant_2024@localhost:5432/restaurant_platform',
+      connectionString: config.database.url,
       max: 20,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: 5000, // Aumentar timeout
     });
 
-    // Configuración Redis
-    this.redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
-      retryDelayOnFailover: 100,
-      enableReadyCheck: false,
-      maxRetriesPerRequest: null,
+    // Manejar errores de conexión PostgreSQL
+    this.pg.on('error', (error) => {
+      console.warn('PostgreSQL connection error:', error.message);
     });
+
+    // Configuración Redis (opcional para desarrollo)
+    try {
+      this.redis = new Redis(config.redis.url, {
+        enableReadyCheck: false,
+        maxRetriesPerRequest: 3,
+        lazyConnect: true,
+      });
+      
+      this.redis.on('error', (error) => {
+        console.warn('Redis connection error (continuing without cache):', error.message);
+        this.redis = null as any; // Deshabilitar Redis si hay error
+      });
+      
+      this.redis.on('connect', () => {
+        console.log('Redis connected successfully');
+      });
+    } catch (error) {
+      console.warn('Redis initialization failed (continuing without cache):', error);
+      this.redis = null as any; // Deshabilitar Redis si hay error
+    }
 
     // Configurar WebSocket para real-time
     this.setupWebSocket();
@@ -168,16 +188,22 @@ class RestaurantDatabase {
   }
 
   async getRestaurant(id: string): Promise<Restaurant | null> {
-    // Intentar desde cache primero
-    const cached = await this.redis.hgetall(`restaurant:${id}`);
-    if (cached.name) {
-      return {
-        id,
-        name: cached.name,
-        slug: cached.slug,
-        config: JSON.parse(cached.config || '{}'),
-        // ... otros campos desde cache
-      } as Restaurant;
+    // Intentar desde cache primero (si Redis está disponible)
+    if (this.redis) {
+      try {
+        const cached = await this.redis.hgetall(`restaurant:${id}`);
+        if (cached.name) {
+          return {
+            id,
+            name: cached.name,
+            slug: cached.slug,
+            config: JSON.parse(cached.config || '{}'),
+            // ... otros campos desde cache
+          } as Restaurant;
+        }
+      } catch (error) {
+        console.warn('Redis cache error:', error);
+      }
     }
 
     // Si no está en cache, consultar DB
@@ -186,12 +212,18 @@ class RestaurantDatabase {
 
     const restaurant = result.rows[0];
     
-    // Guardar en cache
-    await this.redis.hset(`restaurant:${id}`, {
-      name: restaurant.name,
-      slug: restaurant.slug,
-      config: JSON.stringify(restaurant.config)
-    });
+    // Guardar en cache (si Redis está disponible)
+    if (this.redis) {
+      try {
+        await this.redis.hset(`restaurant:${id}`, {
+          name: restaurant.name,
+          slug: restaurant.slug,
+          config: JSON.stringify(restaurant.config)
+        });
+      } catch (error) {
+        console.warn('Redis cache save error:', error);
+      }
+    }
 
     return restaurant;
   }
@@ -369,7 +401,19 @@ class RestaurantDatabase {
   private setupWebSocket() {
     if (typeof window !== 'undefined') return; // Solo en servidor
 
-    this.wsServer = new WebSocketServer({ port: 8080 });
+    // Intentar usar puerto disponible
+    const port = config.websocket.port;
+    
+    try {
+      this.wsServer = new WebSocketServer({ port });
+      console.log(`WebSocket server started on port ${port}`);
+    } catch (error) {
+      console.warn(`Could not start WebSocket server on port ${port}:`, error);
+      // Continuar sin WebSocket si no se puede iniciar
+      return;
+    }
+
+    if (!this.wsServer) return;
 
     this.wsServer.on('connection', (ws, req) => {
       const url = new URL(req.url!, 'http://localhost');
@@ -448,11 +492,75 @@ class RestaurantDatabase {
   // UTILIDADES Y LIMPIEZA
   // =============================================
 
+  // =============================================
+  // GESTIÓN DE SESIONES (CACHE)
+  // =============================================
+
+  async deleteSession(userId: string): Promise<void> {
+    if (!this.redis) {
+      console.warn('Redis not available, session not deleted');
+      return;
+    }
+    
+    try {
+      await this.redis.del(`session:${userId}`);
+    } catch (error) {
+      console.error('Error eliminando sesión:', error);
+      // No lanzar error, continuar sin cache
+    }
+  }
+
+  async saveSession(userId: string, sessionData: any, ttlSeconds: number = 7 * 24 * 60 * 60): Promise<void> {
+    if (!this.redis) {
+      console.warn('Redis not available, session not cached');
+      return;
+    }
+    
+    try {
+      await this.redis.setex(`session:${userId}`, ttlSeconds, JSON.stringify(sessionData));
+    } catch (error) {
+      console.error('Error guardando sesión:', error);
+      // No lanzar error, continuar sin cache
+    }
+  }
+
+  async getSession(userId: string): Promise<any | null> {
+    if (!this.redis) {
+      console.warn('Redis not available, no session cache');
+      return null;
+    }
+    
+    try {
+      const sessionData = await this.redis.get(`session:${userId}`);
+      if (!sessionData) return null;
+      return JSON.parse(sessionData);
+    } catch (error) {
+      console.error('Error obteniendo sesión:', error);
+      return null;
+    }
+  }
+
   async closeConnections() {
-    await this.pg.end();
-    this.redis.disconnect();
+    try {
+      await this.pg.end();
+    } catch (error) {
+      console.warn('Error closing PostgreSQL connection:', error);
+    }
+    
+    if (this.redis) {
+      try {
+        this.redis.disconnect();
+      } catch (error) {
+        console.warn('Error closing Redis connection:', error);
+      }
+    }
+    
     if (this.wsServer) {
-      this.wsServer.close();
+      try {
+        this.wsServer.close();
+      } catch (error) {
+        console.warn('Error closing WebSocket server:', error);
+      }
     }
   }
 }

@@ -7,6 +7,50 @@ export interface RetellAgentConfig {
   restaurantId: string;
   restaurantName: string;
   baseUrl: string;
+  restaurantType?: string;
+  restaurantSpecialty?: string;
+  restaurantAmbiance?: string;
+  locations?: string[];
+  phone?: string;
+  email?: string;
+  address?: string;
+  city?: string;
+  country?: string;
+  schedule?: string;
+}
+
+// Función para obtener la configuración completa del restaurante
+export function getRestaurantConfig(restaurantId: string): any | null {
+  const configs: Record<string, any> = {
+    'rest_003': {
+      restaurantId: 'rest_003',
+      restaurantName: 'La Gaviota',
+      restaurantType: 'Restaurante de mariscos y pescados frescos',
+      restaurantSpecialty: 'Cocina mediterránea con especialidad en pescados y mariscos',
+      restaurantAmbiance: 'Elegante y sofisticado, perfecto para ocasiones especiales',
+      locations: ['Terraza del Mar', 'Salón Principal', 'Comedor Privado'],
+      phone: '+34 912 345 678',
+      email: 'info@lagaviota.com',
+      address: 'Paseo Marítimo, 123, Valencia',
+      schedule: '13:00-16:00 y 20:00-23:30',
+      // Configuración específica de mesas para La Gaviota
+      tables: [
+        { id: 'T1', name: 'Terraza 1', capacity: 2, location: 'Terraza del Mar' },
+        { id: 'T2', name: 'Terraza 2', capacity: 4, location: 'Terraza del Mar' },
+        { id: 'S1', name: 'Salón 1', capacity: 4, location: 'Salón Principal' },
+        { id: 'S2', name: 'Salón 2', capacity: 6, location: 'Salón Principal' },
+        { id: 'P1', name: 'Privado 1', capacity: 8, location: 'Comedor Privado' }
+      ],
+      // Horarios específicos de La Gaviota
+      availableTimes: ['13:00', '14:00', '20:00', '22:00'],
+      // Especialidades del restaurante
+      specialties: ['Pescados frescos', 'Mariscos', 'Paella valenciana', 'Arroces marineros'],
+      // Información adicional
+      description: 'La Gaviota es un restaurante especializado en pescados y mariscos frescos, ubicado en el Paseo Marítimo de Valencia. Ofrecemos una experiencia gastronómica única con vistas al mar.'
+    }
+  };
+
+  return configs[restaurantId] || null;
 }
 
 // Función para obtener la configuración del agente
@@ -25,11 +69,20 @@ export function getRetellAgentConfig(restaurantId: string): RetellAgentConfig | 
     'rest_003': {
       agentId: 'agent_2082fc7a622cdbd22441b22060',
       apiKey: process.env.RETELL_API_KEY || 'retell_key_demo',
-      voiceId: 'es-ES-ElviraNeural',
+      voiceId: 'custom_voice_ea3cc9358e443a34c254914abd', // Tu voz personalizada
       language: 'es-ES',
       restaurantId: 'rest_003',
       restaurantName: 'La Gaviota',
-      baseUrl: process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+      baseUrl: process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000',
+      // Configuración específica de La Gaviota
+      restaurantType: 'Restaurante de mariscos y pescados frescos',
+      restaurantSpecialty: 'Cocina mediterránea con especialidad en pescados y mariscos',
+      restaurantAmbiance: 'Elegante y sofisticado, perfecto para ocasiones especiales',
+      locations: ['Terraza del Mar', 'Salón Principal', 'Comedor Privado'],
+      phone: '+34 912 345 678',
+      email: 'info@lagaviota.com',
+      address: 'Paseo Marítimo, 123, Valencia',
+      schedule: '13:00-16:00 y 20:00-23:30'
     }
   };
 
@@ -78,7 +131,12 @@ export function generateAgentPrompt(
   restaurantType: string = "Restaurante familiar con ambiente acogedor",
   restaurantSpecialty: string = "Cocina mediterránea y platos tradicionales", 
   restaurantAmbiance: string = "Elegante pero familiar, perfecto para cualquier ocasión",
-  locations?: string[]
+  locations?: string[],
+  phone?: string,
+  email?: string,
+  address?: string,
+  schedule?: string,
+  availableTimes?: string[]
 ): string {
   const locationsText = locations && locations.length > 0 
     ? locations.map(loc => `- **${loc}:** ${getLocationDescription(loc)}`).join('\n')
@@ -95,6 +153,10 @@ INFORMACIÓN DEL RESTAURANTE:
 - Tipo: ${restaurantType}
 - Especialidad: ${restaurantSpecialty}
 - Ambiente: ${restaurantAmbiance}
+- Teléfono: ${phone || 'No disponible'}
+- Email: ${email || 'No disponible'}
+- Dirección: ${address || 'No disponible'}
+- Horarios: ${schedule || 'Consultar disponibilidad'}
 
 UBICACIONES DISPONIBLES:
 ${locationsText}
@@ -129,6 +191,31 @@ CAPACIDADES COMPLETAS DEL DASHBOARD:
    - Mesas disponibles por capacidad
    - Reportes de rendimiento
 
+6. ACCESO COMPLETO AL DASHBOARD - LECTURA Y MODIFICACIÓN:
+
+RESERVAS:
+   - GET /api/retell/reservations?restaurantId=${restaurantId}&date={fecha}&status={estado}
+   - POST /api/retell/reservations (crear nueva reserva)
+   - PUT /api/retell/reservations/{id} (modificar reserva)
+   - DELETE /api/retell/reservations/{id} (cancelar reserva)
+
+MESAS:
+   - GET /api/retell/tables?restaurantId=${restaurantId}&status={estado}&location={ubicacion}
+   - PUT /api/retell/tables (cambiar estado de mesa: available/occupied/reserved/maintenance)
+
+CLIENTES:
+   - GET /api/retell/clients?restaurantId=${restaurantId}&phone={telefono}&name={nombre}
+   - POST /api/retell/clients (crear/actualizar cliente)
+
+AGENDA DIARIA:
+   - GET /api/retell/agenda?restaurantId=${restaurantId}&date={fecha}
+
+DISPONIBILIDAD:
+   - GET /api/retell/check-availability?restaurantId=${restaurantId}&people={personas}&date={fecha}&time={hora}
+   - GET /api/retell/dashboard-info?restaurantId=${restaurantId}
+
+ESTAS APIs te dan acceso COMPLETO para leer y modificar todo el dashboard
+
 PROCESOS COMPLETOS PARA GESTIÓN DE RESERVAS:
 
 CREAR NUEVA RESERVA:
@@ -136,16 +223,40 @@ CREAR NUEVA RESERVA:
 2. Preguntar cuántas personas serán
 3. Preguntar fecha deseada (reconoce: "hoy", "mañana", "lunes", "el viernes", etc.)
 4. Preguntar hora preferida (reconoce: "8 de la noche", "20:00", "a las 8 pm", etc.)
-5. USAR GET /api/retell/smart-booking?restaurantId=${restaurantId}&date={fecha}&people={personas} para consultar disponibilidad REAL
+5. USAR GET /api/retell/check-availability?restaurantId=${restaurantId}&people={personas}&date={fecha}&time={hora} para consultar disponibilidad REAL del dashboard
 6. Si hay disponibilidad, PREGUNTAR NECESIDADES ESPECIALES:
    - "¿Hay alguna alergia alimentaria que deba saber?"
    - "¿Necesitan silla de bebé o alzador para niños?"
    - "¿Requieren acceso para silla de ruedas?"
    - "¿Es alguna celebración especial como cumpleaños o aniversario?"
-7. USAR POST /api/retell/smart-booking para crear la reserva REAL en la base de datos
+7. USAR POST /api/retell/reservations para crear la reserva REAL en la base de datos
 8. Si no hay disponibilidad, mostrar horarios alternativos sugeridos por la API
 9. Confirmar todos los detalles: nombre, teléfono, fecha, hora, personas, necesidades especiales
 10. TODAS las reservas se crean como "CONFIRMADAS" automáticamente
+
+GESTIONAR MESAS:
+1. Para liberar una mesa: PUT /api/retell/tables con {restaurantId, tableId, status: "available"}
+2. Para ocupar una mesa: PUT /api/retell/tables con {restaurantId, tableId, status: "occupied", reservationId, customerName, people}
+3. Para reservar una mesa: PUT /api/retell/tables con {restaurantId, tableId, status: "reserved", reservationId, customerName, people}
+4. Para poner en mantenimiento: PUT /api/retell/tables con {restaurantId, tableId, status: "maintenance"}
+
+CONSULTAR CLIENTES:
+1. Buscar por teléfono: GET /api/retell/clients?restaurantId=${restaurantId}&phone={telefono}
+2. Buscar por nombre: GET /api/retell/clients?restaurantId=${restaurantId}&name={nombre}
+3. Crear nuevo cliente: POST /api/retell/clients con datos del cliente
+
+VER AGENDA DIARIA:
+1. Consultar agenda: GET /api/retell/agenda?restaurantId=${restaurantId}&date={fecha}
+2. Ver reservas por hora y estado
+3. Ver estadísticas del día (total reservas, personas, ocupación)
+
+CONSULTAR ESTADO DEL DASHBOARD:
+- USAR GET /api/retell/dashboard-info?restaurantId=${restaurantId} para obtener información completa del dashboard
+- Esta API te da acceso a:
+  * Estado actual de todas las mesas
+  * Ocupación por ubicación
+  * Estadísticas en tiempo real
+  * Recomendaciones de horarios
 
 CANCELAR RESERVA EXISTENTE:
 1. Identificar que el cliente quiere cancelar
@@ -173,7 +284,9 @@ SISTEMA DE TURNOS:
 - HORARIOS EXACTOS DISPONIBLES: 13:00, 14:00, 20:00, 22:00
 - NO hay horarios intermedios (13:30, 20:30, etc.)
 
-IMPORTANTE SOBRE HORARIOS:
+IMPORTANTE SOBRE HORARIOS DE ${restaurantName}:
+- HORARIOS DISPONIBLES: ${schedule || '13:00-16:00 y 20:00-23:30'}
+- TURNOS EXACTOS: ${availableTimes ? availableTimes.join(', ') : '13:00, 14:00, 20:00, 22:00'}
 - Si el cliente pide 20:30 → Ofrecer 20:00 o 22:00
 - Si el cliente pide 21:00 → Ofrecer 20:00 o 22:00  
 - Si el cliente pide 19:30 → Ofrecer 20:00 (primer turno de cena)
@@ -343,4 +456,107 @@ function getLocationDescription(location: string): string {
   };
   
   return descriptions[location] || `Área ${location.toLowerCase()}`;
+}
+
+// Función para generar prompt específico por restaurante
+export function generateRestaurantSpecificPrompt(restaurantId: string): string {
+  const config = getRestaurantConfig(restaurantId);
+  
+  if (!config) {
+    return generateAgentPrompt('Restaurante', restaurantId);
+  }
+  
+  return generateAgentPrompt(
+    config.restaurantName,
+    config.restaurantId,
+    config.restaurantType,
+    config.restaurantSpecialty,
+    config.restaurantAmbiance,
+    config.locations,
+    config.phone,
+    config.email,
+    config.address,
+    config.schedule,
+    config.availableTimes
+  );
+}
+
+// Función para obtener configuración completa del agente con prompt específico
+export function getCompleteAgentConfig(restaurantId: string): any {
+  const agentConfig = getRetellAgentConfig(restaurantId);
+  const restaurantConfig = getRestaurantConfig(restaurantId);
+  
+  if (!agentConfig || !restaurantConfig) {
+    return null;
+  }
+  
+  return {
+    // Configuración del agente Retell
+    agent: {
+      agent_id: agentConfig.agentId,
+      agent_name: `${restaurantConfig.restaurantName} - Agente de Reservas`,
+      voice_id: agentConfig.voiceId,
+      language: agentConfig.language,
+      voice_speed: 1.0,
+      voice_temperature: 0.8,
+      interruption_threshold: 500,
+      enable_backchannel: true,
+      enable_webhook: true,
+      webhook_url: `${agentConfig.baseUrl}/api/retell/webhook`,
+      webhook_events: ['call_started', 'call_ended', 'call_analyzed'],
+      redirect_webhook_url: `${agentConfig.baseUrl}/api/retell/dashboard-redirect`,
+      llm_websocket_url: 'wss://api.retellai.com/v2/llm/stream',
+      llm_websocket_api_key: agentConfig.apiKey
+    },
+    
+    // Configuración del restaurante
+    restaurant: restaurantConfig,
+    
+    // Prompt específico del restaurante
+    prompt: generateRestaurantSpecificPrompt(restaurantId),
+    
+    // Variables dinámicas para el agente
+    dynamic_variables: [
+      {
+        name: 'restaurant_id',
+        description: 'ID del restaurante para consultas',
+        value: restaurantConfig.restaurantId
+      },
+      {
+        name: 'restaurant_name',
+        description: 'Nombre del restaurante',
+        value: restaurantConfig.restaurantName
+      },
+      {
+        name: 'restaurant_phone',
+        description: 'Teléfono del restaurante',
+        value: restaurantConfig.phone
+      },
+      {
+        name: 'restaurant_address',
+        description: 'Dirección del restaurante',
+        value: restaurantConfig.address
+      },
+      {
+        name: 'restaurant_schedule',
+        description: 'Horarios del restaurante',
+        value: restaurantConfig.schedule
+      },
+      {
+        name: 'available_times',
+        description: 'Horarios disponibles para reservas',
+        value: restaurantConfig.availableTimes?.join(', ') || '13:00, 14:00, 20:00, 22:00'
+      }
+    ],
+    
+    // APIs específicas del restaurante
+    apis: {
+      restaurant_specific: `${agentConfig.baseUrl}/api/retell/la-gaviota`,
+      reservations: `${agentConfig.baseUrl}/api/retell/reservations`,
+      tables: `${agentConfig.baseUrl}/api/retell/tables`,
+      clients: `${agentConfig.baseUrl}/api/retell/clients`,
+      availability: `${agentConfig.baseUrl}/api/retell/check-availability`,
+      dashboard: `${agentConfig.baseUrl}/api/retell/dashboard-info`
+    }
+  };
 }

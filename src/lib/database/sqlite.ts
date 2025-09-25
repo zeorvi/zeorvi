@@ -1,11 +1,11 @@
 /**
- * Sistema de Base de Datos SQLite para Desarrollo
- * Alternativa más simple que PostgreSQL para desarrollo local
+ * Sistema de Base de Datos SQLite
+ * Para desarrollo sin PostgreSQL
  */
 
-import Database from 'better-sqlite3';
+import sqlite3 from 'sqlite3';
+import { promisify } from 'util';
 import path from 'path';
-import fs from 'fs';
 
 export interface Restaurant {
   id: string;
@@ -23,18 +23,17 @@ export interface Restaurant {
   status: 'active' | 'inactive' | 'suspended';
   retell_config: Record<string, any>;
   twilio_config: Record<string, any>;
-  password?: string;
   created_at: Date;
   updated_at: Date;
 }
 
 export interface RestaurantUser {
   id: string;
-  restaurant_id?: string;
+  restaurant_id: string;
   email: string;
   password_hash: string;
   name?: string;
-  role: 'admin' | 'restaurant';
+  role: 'admin' | 'manager' | 'employee' | 'restaurant';
   permissions: string[];
   status: 'active' | 'inactive';
   last_login?: Date;
@@ -43,13 +42,13 @@ export interface RestaurantUser {
 }
 
 class SQLiteDatabase {
-  private db: Database.Database;
+  private db: sqlite3.Database;
   private static instance: SQLiteDatabase;
 
   constructor() {
     const dbPath = path.join(process.cwd(), 'restaurant_dev.db');
-    this.db = new Database(dbPath);
-    this.initializeTables();
+    this.db = new sqlite3.Database(dbPath);
+    this.initializeDatabase();
   }
 
   static getInstance(): SQLiteDatabase {
@@ -59,295 +58,230 @@ class SQLiteDatabase {
     return SQLiteDatabase.instance;
   }
 
-  private initializeTables() {
-    // Crear tabla de usuarios
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS restaurant_users (
-        id TEXT PRIMARY KEY,
-        restaurant_id TEXT,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        name TEXT,
-        role TEXT NOT NULL CHECK (role IN ('admin', 'restaurant')),
-        permissions TEXT NOT NULL DEFAULT '[]',
-        status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
-        last_login DATETIME,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  private async initializeDatabase() {
+    const run = promisify(this.db.run.bind(this.db));
+    
+    try {
+      // Crear tabla de restaurantes
+      await run(`
+        CREATE TABLE IF NOT EXISTS restaurants (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          slug TEXT UNIQUE NOT NULL,
+          owner_email TEXT NOT NULL,
+          owner_name TEXT,
+          phone TEXT,
+          address TEXT,
+          city TEXT,
+          country TEXT,
+          config TEXT DEFAULT '{}',
+          plan TEXT DEFAULT 'basic',
+          plan_expires_at TEXT,
+          status TEXT DEFAULT 'active',
+          retell_config TEXT DEFAULT '{}',
+          twilio_config TEXT DEFAULT '{}',
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
 
-    // Crear tabla de restaurantes
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS restaurants (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        slug TEXT UNIQUE NOT NULL,
-        owner_email TEXT NOT NULL,
-        owner_name TEXT,
-        phone TEXT,
-        address TEXT,
-        city TEXT,
-        country TEXT,
-        config TEXT NOT NULL DEFAULT '{}',
-        plan TEXT NOT NULL DEFAULT 'basic' CHECK (plan IN ('basic', 'premium', 'enterprise')),
-        plan_expires_at DATETIME,
-        status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'suspended')),
-        retell_config TEXT NOT NULL DEFAULT '{}',
-        twilio_config TEXT NOT NULL DEFAULT '{}',
-        password TEXT,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+      // Crear tabla de usuarios
+      await run(`
+        CREATE TABLE IF NOT EXISTS restaurant_users (
+          id TEXT PRIMARY KEY,
+          restaurant_id TEXT NOT NULL,
+          email TEXT NOT NULL,
+          password_hash TEXT NOT NULL,
+          name TEXT,
+          role TEXT DEFAULT 'employee',
+          permissions TEXT DEFAULT '[]',
+          status TEXT DEFAULT 'active',
+          last_login TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+        )
+      `);
 
-    // Crear índices
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_users_email ON restaurant_users(email);
-      CREATE INDEX IF NOT EXISTS idx_users_role ON restaurant_users(role);
-      CREATE INDEX IF NOT EXISTS idx_restaurants_slug ON restaurants(slug);
-      CREATE INDEX IF NOT EXISTS idx_restaurants_status ON restaurants(status);
-    `);
+      // Insertar datos de ejemplo
+      await this.insertSampleData();
 
-    console.log('✅ SQLite database initialized');
+      console.log('✅ SQLite database initialized successfully');
+    } catch (error) {
+      console.error('❌ Error initializing SQLite database:', error);
+    }
   }
 
-  // Métodos para usuarios
-  async createUser(userData: Omit<RestaurantUser, 'id' | 'created_at' | 'updated_at'>): Promise<RestaurantUser> {
-    const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const now = new Date().toISOString();
+  private async insertSampleData() {
+    const run = promisify(this.db.run.bind(this.db));
+    const get = promisify(this.db.get.bind(this.db));
     
-    const stmt = this.db.prepare(`
-      INSERT INTO restaurant_users (
-        id, restaurant_id, email, password_hash, name, role, permissions, status, last_login, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    
-    stmt.run(
-      id,
-      userData.restaurant_id,
-      userData.email,
-      userData.password_hash,
-      userData.name,
-      userData.role,
-      JSON.stringify(userData.permissions),
-      userData.status,
-      userData.last_login?.toISOString(),
-      now,
-      now
-    );
+    try {
+      // Verificar si ya hay datos en la base de datos
+      const restaurantCount = await get('SELECT COUNT(*) as count FROM restaurants') as { count: number };
+      const userCount = await get('SELECT COUNT(*) as count FROM restaurant_users') as { count: number };
+      
+      // Solo insertar datos si la base de datos está completamente vacía
+      if (restaurantCount.count === 0 && userCount.count === 0) {
+        console.log('📝 Database is empty, inserting sample data...');
+        
+        // Insertar restaurantes de ejemplo
+        await run(`
+          INSERT INTO restaurants (id, name, slug, owner_email, owner_name, phone, address, city, country) VALUES
+          ('admin', 'Administración General', 'admin', 'admin@restauranteia.com', 'Administrador', '+1-555-0000', 'Sistema', 'Ciudad', 'País'),
+          ('rest_001', 'El Buen Sabor', 'elbuensabor', 'admin@elbuensabor.com', 'María González', '+1-555-0101', '123 Main St', 'Ciudad', 'País'),
+          ('rest_003', 'La Gaviota', 'lagaviota', 'admin@lagaviota.com', 'Carlos Rodríguez', '+1-555-0103', '456 Ocean Ave', 'Ciudad', 'País')
+        `);
 
-    return {
-      id,
-      ...userData,
-      created_at: new Date(now),
-      updated_at: new Date(now)
-    };
+        // Insertar usuarios de ejemplo (contraseña: admin123)
+        const bcrypt = require('bcryptjs');
+        const passwordHash = await bcrypt.hash('admin123', 12);
+
+        await run(`
+          INSERT INTO restaurant_users (id, restaurant_id, email, password_hash, name, role) VALUES
+          ('user_admin', 'admin', 'admin@restauranteia.com', '${passwordHash}', 'Administrador', 'admin'),
+          ('user_001', 'rest_001', 'admin@elbuensabor.com', '${passwordHash}', 'María González', 'restaurant'),
+          ('user_003', 'rest_003', 'admin@lagaviota.com', '${passwordHash}', 'Carlos Rodríguez', 'restaurant')
+        `);
+
+        console.log('✅ Sample data inserted');
+      } else {
+        console.log('📊 Database already has data, skipping sample data insertion');
+        console.log(`   - Restaurants: ${restaurantCount.count}`);
+        console.log(`   - Users: ${userCount.count}`);
+      }
+    } catch (error) {
+      console.error('❌ Error inserting sample data:', error);
+    }
   }
 
-  async getUserByEmail(email: string): Promise<RestaurantUser | null> {
-    const stmt = this.db.prepare('SELECT * FROM restaurant_users WHERE email = ?');
-    const row = stmt.get(email) as any;
-    
-    if (!row) return null;
-    
-    return {
-      id: row.id,
-      restaurant_id: row.restaurant_id,
-      email: row.email,
-      password_hash: row.password_hash,
-      name: row.name,
-      role: row.role,
-      permissions: JSON.parse(row.permissions),
-      status: row.status,
-      last_login: row.last_login ? new Date(row.last_login) : undefined,
-      created_at: new Date(row.created_at),
-      updated_at: new Date(row.updated_at)
-    };
-  }
-
-  async getUserById(id: string): Promise<RestaurantUser | null> {
-    const stmt = this.db.prepare('SELECT * FROM restaurant_users WHERE id = ?');
-    const row = stmt.get(id) as any;
-    
-    if (!row) return null;
-    
-    return {
-      id: row.id,
-      restaurant_id: row.restaurant_id,
-      email: row.email,
-      password_hash: row.password_hash,
-      name: row.name,
-      role: row.role,
-      permissions: JSON.parse(row.permissions),
-      status: row.status,
-      last_login: row.last_login ? new Date(row.last_login) : undefined,
-      created_at: new Date(row.created_at),
-      updated_at: new Date(row.updated_at)
-    };
-  }
-
-  async updateUserLastLogin(id: string): Promise<void> {
-    const stmt = this.db.prepare(`
-      UPDATE restaurant_users 
-      SET last_login = ?, updated_at = ? 
-      WHERE id = ?
-    `);
-    
-    const now = new Date().toISOString();
-    stmt.run(now, now, id);
-  }
-
-  // Métodos para restaurantes
-  async createRestaurant(restaurantData: Omit<Restaurant, 'id' | 'created_at' | 'updated_at'>): Promise<Restaurant> {
-    const id = `rest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const now = new Date().toISOString();
-    
-    const stmt = this.db.prepare(`
-      INSERT INTO restaurants (
-        id, name, slug, owner_email, owner_name, phone, address, city, country,
-        config, plan, plan_expires_at, status, retell_config, twilio_config, password, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    
-    stmt.run(
-      id,
-      restaurantData.name,
-      restaurantData.slug,
-      restaurantData.owner_email,
-      restaurantData.owner_name,
-      restaurantData.phone,
-      restaurantData.address,
-      restaurantData.city,
-      restaurantData.country,
-      JSON.stringify(restaurantData.config),
-      restaurantData.plan,
-      restaurantData.plan_expires_at?.toISOString(),
-      restaurantData.status,
-      JSON.stringify(restaurantData.retell_config),
-      JSON.stringify(restaurantData.twilio_config),
-      restaurantData.password,
-      now,
-      now
-    );
-
-    return {
-      id,
-      ...restaurantData,
-      created_at: new Date(now),
-      updated_at: new Date(now)
-    };
-  }
-
+  // Métodos de consulta
   async getRestaurant(id: string): Promise<Restaurant | null> {
-    const stmt = this.db.prepare('SELECT * FROM restaurants WHERE id = ?');
-    const row = stmt.get(id) as any;
-    
-    if (!row) return null;
-    
-    return {
-      id: row.id,
-      name: row.name,
-      slug: row.slug,
-      owner_email: row.owner_email,
-      owner_name: row.owner_name,
-      phone: row.phone,
-      address: row.address,
-      city: row.city,
-      country: row.country,
-      config: JSON.parse(row.config),
-      plan: row.plan,
-      plan_expires_at: row.plan_expires_at ? new Date(row.plan_expires_at) : undefined,
-      status: row.status,
-      retell_config: JSON.parse(row.retell_config),
-      twilio_config: JSON.parse(row.twilio_config),
-      password: row.password,
-      created_at: new Date(row.created_at),
-      updated_at: new Date(row.updated_at)
-    };
+    const get = promisify(this.db.get.bind(this.db));
+    try {
+      const row = await get(`SELECT * FROM restaurants WHERE id = '${id}'`) as any;
+      if (!row) return null;
+      
+      return {
+        ...row,
+        config: JSON.parse(row.config),
+        retell_config: JSON.parse(row.retell_config),
+        twilio_config: JSON.parse(row.twilio_config),
+        created_at: new Date(row.created_at),
+        updated_at: new Date(row.updated_at),
+        plan_expires_at: row.plan_expires_at ? new Date(row.plan_expires_at) : undefined
+      };
+    } catch (error) {
+      console.error('Error getting restaurant:', error);
+      return null;
+    }
+  }
+
+  async getRestaurantBySlug(slug: string): Promise<Restaurant | null> {
+    const get = promisify(this.db.get.bind(this.db));
+    try {
+      const row = await get(`SELECT * FROM restaurants WHERE slug = '${slug}'`) as any;
+      if (!row) return null;
+      
+      return {
+        ...row,
+        config: JSON.parse(row.config),
+        retell_config: JSON.parse(row.retell_config),
+        twilio_config: JSON.parse(row.twilio_config),
+        created_at: new Date(row.created_at),
+        updated_at: new Date(row.updated_at),
+        plan_expires_at: row.plan_expires_at ? new Date(row.plan_expires_at) : undefined
+      };
+    } catch (error) {
+      console.error('Error getting restaurant by slug:', error);
+      return null;
+    }
+  }
+
+  async getUserByEmail(email: string, restaurantId?: string): Promise<RestaurantUser | null> {
+    const get = promisify(this.db.get.bind(this.db));
+    try {
+      let query;
+      
+      if (restaurantId) {
+        // Buscar en un restaurante específico
+        query = `SELECT * FROM restaurant_users WHERE email = '${email}' AND restaurant_id = '${restaurantId}' AND status = 'active'`;
+      } else {
+        // Buscar en todos los restaurantes
+        query = `SELECT * FROM restaurant_users WHERE email = '${email}' AND status = 'active'`;
+      }
+      
+      const row = await get(query) as any;
+      if (!row) return null;
+      
+      return {
+        ...row,
+        permissions: JSON.parse(row.permissions),
+        created_at: new Date(row.created_at),
+        updated_at: new Date(row.updated_at),
+        last_login: row.last_login ? new Date(row.last_login) : undefined
+      };
+    } catch (error) {
+      console.error('Error getting user by email:', error);
+      return null;
+    }
+  }
+
+  async updateLastLogin(userId: string): Promise<void> {
+    const run = promisify(this.db.run.bind(this.db));
+    try {
+      await run(
+        `UPDATE restaurant_users SET last_login = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = '${userId}'`
+      );
+    } catch (error) {
+      console.error('Error updating last login:', error);
+    }
+  }
+
+  async getUserCount(restaurantId: string): Promise<number> {
+    const get = promisify(this.db.get.bind(this.db));
+    try {
+      const result = await get(
+        `SELECT COUNT(*) as count FROM restaurant_users WHERE restaurant_id = '${restaurantId}' AND status = 'active'`
+      ) as any;
+      return result ? result.count : 0;
+    } catch (error) {
+      console.error('Error getting user count:', error);
+      return 0;
+    }
   }
 
   async getAllRestaurants(): Promise<Restaurant[]> {
-    const stmt = this.db.prepare('SELECT * FROM restaurants ORDER BY created_at DESC');
-    const rows = stmt.all() as any[];
-    
-    return rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      slug: row.slug,
-      owner_email: row.owner_email,
-      owner_name: row.owner_name,
-      phone: row.phone,
-      address: row.address,
-      city: row.city,
-      country: row.country,
-      config: JSON.parse(row.config),
-      plan: row.plan,
-      plan_expires_at: row.plan_expires_at ? new Date(row.plan_expires_at) : undefined,
-      status: row.status,
-      retell_config: JSON.parse(row.retell_config),
-      twilio_config: JSON.parse(row.twilio_config),
-      password: row.password,
-      created_at: new Date(row.created_at),
-      updated_at: new Date(row.updated_at)
-    }));
+    const all = promisify(this.db.all.bind(this.db));
+    try {
+      // Excluir el restaurante 'admin' de la lista
+      const rows = await all("SELECT * FROM restaurants WHERE id != 'admin' ORDER BY created_at DESC") as any[];
+      return rows.map(row => ({
+        ...row,
+        config: row.config ? JSON.parse(row.config) : {},
+        retell_config: row.retell_config ? JSON.parse(row.retell_config) : {},
+        twilio_config: row.twilio_config ? JSON.parse(row.twilio_config) : {},
+        created_at: new Date(row.created_at),
+        updated_at: new Date(row.updated_at)
+      }));
+    } catch (error) {
+      console.error('Error getting all restaurants:', error);
+      return [];
+    }
   }
 
-  async updateRestaurant(id: string, updateData: Partial<Restaurant>): Promise<Restaurant | null> {
-    const now = new Date().toISOString();
-    const fields = [];
-    const values = [];
-    
-    Object.entries(updateData).forEach(([key, value]) => {
-      if (key !== 'id' && key !== 'created_at' && value !== undefined) {
-        fields.push(`${key} = ?`);
-        if (typeof value === 'object') {
-          values.push(JSON.stringify(value));
-        } else if (value instanceof Date) {
-          values.push(value.toISOString());
+  async close(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.close((err) => {
+        if (err) {
+          reject(err);
         } else {
-          values.push(value);
+          resolve();
         }
-      }
+      });
     });
-    
-    if (fields.length === 0) return null;
-    
-    fields.push('updated_at = ?');
-    values.push(now, id);
-    
-    const stmt = this.db.prepare(`UPDATE restaurants SET ${fields.join(', ')} WHERE id = ?`);
-    stmt.run(...values);
-    
-    return this.getRestaurant(id);
-  }
-
-  // Simular conexión PostgreSQL para compatibilidad
-  get pg() {
-    return {
-      connect: () => Promise.resolve({
-        query: (sql: string, params: any[] = []) => {
-          const stmt = this.db.prepare(sql);
-          if (sql.trim().toUpperCase().startsWith('SELECT')) {
-            return Promise.resolve({ rows: stmt.all(...params) });
-          } else {
-            return Promise.resolve({ rows: [] });
-          }
-        },
-        release: () => Promise.resolve()
-      }),
-      query: (sql: string, params: any[] = []) => {
-        const stmt = this.db.prepare(sql);
-        if (sql.trim().toUpperCase().startsWith('SELECT')) {
-          return Promise.resolve({ rows: stmt.all(...params) });
-        } else {
-          return Promise.resolve({ rows: [] });
-        }
-      }
-    };
   }
 }
 
-// Instancia singleton
-export const db = SQLiteDatabase.getInstance();
-export default db;
+export const sqliteDb = SQLiteDatabase.getInstance();
+export default sqliteDb;

@@ -1,15 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { clientAuth } from '@/lib/auth/clientAuth';
 import { useClientAuth } from '@/hooks/useClientAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { LogOut, Users, Settings, BarChart3, Phone } from 'lucide-react';
-import RestaurantDashboard from '@/components/restaurant/RestaurantDashboard';
 
 // Mapeo de usuarios para compatibilidad con el sistema anterior
 const userEmailMap: { [key: string]: string } = {
@@ -69,11 +66,14 @@ export default function LoginPage() {
       
       // Redirigir según el rol
       if (result.user.role === 'admin') {
+        // Los usuarios admin van al dashboard principal
         window.location.href = '/admin';
       } else if (result.user.role === 'restaurant' && result.user.restaurantId) {
+        // Los usuarios de restaurante van a su restaurante específico
         window.location.href = `/restaurant/${result.user.restaurantId}`;
       } else {
-        toast.error('Error: Rol de usuario no válido');
+        // Para otros roles o casos especiales, ir al dashboard
+        window.location.href = '/dashboard';
       }
       
     } catch (error: any) {
@@ -82,28 +82,6 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      toast.success('Sesión cerrada');
-      window.location.href = '/login';
-    } catch (error) {
-      console.error('Error logout:', error);
-    }
-  };
-
-  const createRestaurant = () => {
-    console.log('Crear restaurante clicked');
-    toast.success('🎉 Funcionalidad de crear restaurante - En desarrollo');
-    toast.info('Próximamente podrás crear nuevos restaurantes aquí');
-  };
-
-  const openConfiguration = () => {
-    console.log('Configuración clicked');
-    toast.success('⚙️ Funcionalidad de configuración - En desarrollo');
-    toast.info('Próximamente podrás configurar el sistema aquí');
   };
 
   const viewRestaurant = (name: string) => {

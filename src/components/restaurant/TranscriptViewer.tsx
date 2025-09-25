@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -33,13 +33,7 @@ export default function TranscriptViewer({ restaurantId, restaurantName }: Trans
   const [loading, setLoading] = useState(true);
   const [selectedTranscript, setSelectedTranscript] = useState<Transcript | null>(null);
 
-  useEffect(() => {
-    if (restaurantId === 'rest_003') { // Solo para La Gaviota
-      fetchTranscripts();
-    }
-  }, [restaurantId]);
-
-  const fetchTranscripts = async () => {
+  const fetchTranscripts = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -82,7 +76,13 @@ export default function TranscriptViewer({ restaurantId, restaurantName }: Trans
     } finally {
       setLoading(false);
     }
-  };
+  }, [restaurantId]);
+
+  useEffect(() => {
+    if (restaurantId === 'rest_003') { // Solo para La Gaviota
+      fetchTranscripts();
+    }
+  }, [restaurantId, fetchTranscripts]);
 
   const formatDuration = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);

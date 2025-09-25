@@ -19,14 +19,16 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
 
 
 
-  const getStatusText = (status: 'libre' | 'ocupada' | 'reservada') => {
+  const getStatusText = (status: 'available' | 'occupied' | 'reserved' | 'maintenance') => {
     switch (status) {
-      case 'libre':
+      case 'available':
         return 'Libre';
-      case 'ocupada':
+      case 'occupied':
         return 'Ocupada';
-      case 'reservada':
+      case 'reserved':
         return 'Reservada';
+      case 'maintenance':
+        return 'Mantenimiento';
       default:
         return 'Desconocido';
     }
@@ -79,16 +81,12 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
             key={table.id} 
             className={`
               relative p-4 md:p-8 rounded-lg md:rounded-xl cursor-pointer transition-all duration-200 hover:shadow-lg min-h-[120px] md:min-h-[140px] flex flex-col items-center justify-center
-              ${table.status === 'libre' ? 'bg-green-500' : 
-                table.status === 'ocupada' ? 'bg-red-500' : 
+              ${table.status === 'available' ? 'bg-green-500' : 
+                table.status === 'occupied' ? 'bg-red-500' : 
                 'bg-yellow-400'}
             `}
             onClick={() => {
-              if (table.client) {
-                toast.info(`Mesa ${table.name} - ${table.client.name} (${table.client.phone})`);
-              } else {
-                toast.info(`Mesa ${table.name} - ${getStatusText(table.status)}`);
-              }
+              toast.info(`Mesa ${table.name} - ${getStatusText(table.status)}`);
             }}
           >
             {/* Nombre de la mesa */}
@@ -96,28 +94,11 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
               <div className="font-bold text-lg md:text-2xl text-white">{table.name}</div>
               </div>
 
-            {/* Información del cliente (si existe) */}
-              {table.client && (
-              <div className="space-y-2 text-center text-white">
-                <div className="font-bold text-sm md:text-base truncate" title={table.client.name}>
-                  {table.client.name}
-                </div>
-                <div className="font-bold text-sm md:text-base">
-                  {table.client.partySize} pers.
-                </div>
-                <div className="text-sm truncate" title={table.client.phone}>
-                  {table.client.phone}
-                </div>
-              </div>
-            )}
-
-            {/* Capacidad (solo si no hay cliente) */}
-            {!table.client && (
-              <div className="text-center text-sm text-white">
-                <div>{table.capacity} pers.</div>
-                <div className="mt-1">{table.location}</div>
-              </div>
-            )}
+            {/* Capacidad */}
+            <div className="text-center text-sm text-white">
+              <div>{table.capacity} pers.</div>
+              <div className="mt-1">{table.location}</div>
+            </div>
           </div>
         ))}
       </div>

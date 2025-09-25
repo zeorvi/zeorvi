@@ -86,11 +86,11 @@ export default function RestaurantIdentifier() {
   };
 
   const getRestaurantPassword = (restaurant: Restaurant) => {
-    return restaurant.password || 'password123';
+    return 'password123'; // Default password for restaurants
   };
 
   const handleEditPassword = (restaurant: Restaurant) => {
-    setNewPassword(restaurant.password || '');
+    setNewPassword('password123'); // Default password
     setEditingPassword(true);
   };
 
@@ -103,14 +103,14 @@ export default function RestaurantIdentifier() {
     try {
       // Aquí llamaríamos a la API para actualizar la contraseña
       // Por ahora, actualizamos localmente
-      const updatedRestaurants = restaurants.map(restaurant => 
+      const updatedRestaurants = restaurants.map(restaurant =>
         restaurant.id === selectedRestaurant.id 
-          ? { ...restaurant, password: newPassword }
+          ? restaurant // Keep restaurant unchanged since password is not part of the Restaurant type
           : restaurant
       );
       
       setRestaurants(updatedRestaurants);
-      setSelectedRestaurant({ ...selectedRestaurant, password: newPassword });
+      setSelectedRestaurant(selectedRestaurant);
       setEditingPassword(false);
       
       toast.success('Contraseña actualizada correctamente');

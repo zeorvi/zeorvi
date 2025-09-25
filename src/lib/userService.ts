@@ -1,15 +1,15 @@
-import { 
-  collection, 
-  doc, 
-  getDoc, 
-  getDocs, 
-  setDoc, 
-  updateDoc, 
-  query, 
-  where, 
-  orderBy 
-} from 'firebase/firestore';
-import { db } from './firebase';
+// import { 
+//   collection, 
+//   doc, 
+//   getDoc, 
+//   getDocs, 
+//   setDoc, 
+//   updateDoc, 
+//   query, 
+//   where, 
+//   orderBy 
+// } from 'firebase/firestore';
+// import { db } from './firebase';
 import { logger } from './logger';
 import { NotFoundError, ConflictError } from './errorHandler';
 
@@ -61,7 +61,7 @@ export interface UpdateUserData {
   };
 }
 
-const USERS_COLLECTION = 'users';
+// const USERS_COLLECTION = 'users'; // TODO: Implementar sin Firebase
 
 // Crear nuevo usuario
 export const createUser = async (userData: CreateUserData): Promise<User> => {
@@ -95,11 +95,11 @@ export const createUser = async (userData: CreateUserData): Promise<User> => {
       profile: userData.profile || {}
     };
 
-    await setDoc(doc(db, USERS_COLLECTION, userId), {
-      ...newUser,
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString()
-    });
+    // await setDoc(doc(db, USERS_COLLECTION, userId), {
+    //   ...newUser,
+    //   createdAt: now.toISOString(),
+    //   updatedAt: now.toISOString()
+    // }); // TODO: Implementar sin Firebase
 
     logger.info('User created successfully', { 
       userId, 
@@ -117,19 +117,22 @@ export const createUser = async (userData: CreateUserData): Promise<User> => {
 // Obtener usuario por ID
 export const getUserById = async (userId: string): Promise<User | null> => {
   try {
-    const userDoc = await getDoc(doc(db, USERS_COLLECTION, userId));
+    // const userDoc = // await getDoc(doc(db, USERS_COLLECTION, userId)) // TODO: Implementar sin Firebase;
+    // 
+    // if (!userDoc.exists()) {
+    //   return null;
+    // }
+    // 
+    // const userData = userDoc.data();
+    // return {
+    //   ...userData,
+    //   createdAt: new Date(userData.createdAt),
+    //   updatedAt: new Date(userData.updatedAt),
+    //   lastLogin: userData.lastLogin ? new Date(userData.lastLogin) : undefined
+    // } as User;
     
-    if (!userDoc.exists()) {
-      return null;
-    }
-
-    const userData = userDoc.data();
-    return {
-      ...userData,
-      createdAt: new Date(userData.createdAt),
-      updatedAt: new Date(userData.updatedAt),
-      lastLogin: userData.lastLogin ? new Date(userData.lastLogin) : undefined
-    } as User;
+    // TODO: Implementar sin Firebase
+    return null;
   } catch (error) {
     logger.error('Error getting user by ID', { error, userId });
     throw error;
@@ -139,27 +142,23 @@ export const getUserById = async (userId: string): Promise<User | null> => {
 // Obtener usuario por username
 export const getUserByUsername = async (username: string): Promise<User | null> => {
   try {
-    const usersQuery = query(
-      collection(db, USERS_COLLECTION),
-      where('username', '==', username),
-      where('isActive', '==', true)
-    );
+    // const usersQuery = query(
+    //   collection(db, USERS_COLLECTION),
+    //   where('username', '==', username),
+    //   where('isActive', '==', true)
+    // );
+    // 
+    // const querySnapshot = // await getDocs(usersQuery) // TODO: Implementar sin Firebase;
+    // 
+    // if (querySnapshot.empty) {
+    //   return null;
+    // }
+    // 
+    // const userDoc = querySnapshot.docs[0];
+    // const userData = userDoc.data();
     
-    const querySnapshot = await getDocs(usersQuery);
-    
-    if (querySnapshot.empty) {
-      return null;
-    }
-
-    const userDoc = querySnapshot.docs[0];
-    const userData = userDoc.data();
-    
-    return {
-      ...userData,
-      createdAt: new Date(userData.createdAt),
-      updatedAt: new Date(userData.updatedAt),
-      lastLogin: userData.lastLogin ? new Date(userData.lastLogin) : undefined
-    } as User;
+    // TODO: Implementar sin Firebase
+    return null;
   } catch (error) {
     logger.error('Error getting user by username', { error, username });
     throw error;
@@ -169,27 +168,23 @@ export const getUserByUsername = async (username: string): Promise<User | null> 
 // Obtener usuario por email
 export const getUserByEmail = async (email: string): Promise<User | null> => {
   try {
-    const usersQuery = query(
-      collection(db, USERS_COLLECTION),
-      where('email', '==', email),
-      where('isActive', '==', true)
-    );
+    // const usersQuery = query(
+    //   collection(db, USERS_COLLECTION),
+    //   where('email', '==', email),
+    //   where('isActive', '==', true)
+    // ); // TODO: Implementar sin Firebase
     
-    const querySnapshot = await getDocs(usersQuery);
+    // const querySnapshot = await getDocs(usersQuery); // TODO: Implementar sin Firebase
     
-    if (querySnapshot.empty) {
-      return null;
-    }
-
-    const userDoc = querySnapshot.docs[0];
-    const userData = userDoc.data();
+    // if (querySnapshot.empty) {
+    //   return null;
+    // }
+    // 
+    // const userDoc = querySnapshot.docs[0];
+    // const userData = userDoc.data();
     
-    return {
-      ...userData,
-      createdAt: new Date(userData.createdAt),
-      updatedAt: new Date(userData.updatedAt),
-      lastLogin: userData.lastLogin ? new Date(userData.lastLogin) : undefined
-    } as User;
+    // TODO: Implementar sin Firebase
+    return null;
   } catch (error) {
     logger.error('Error getting user by email', { error, email });
     throw error;
@@ -220,13 +215,13 @@ export const updateUser = async (userId: string, updateData: UpdateUserData): Pr
       }
     }
 
-    const now = new Date();
-    const updatedData = {
-      ...updateData,
-      updatedAt: now.toISOString()
-    };
+    // const now = new Date();
+    // const updatedData = {
+    //   ...updateData,
+    //   updatedAt: now.toISOString()
+    // };
 
-    await updateDoc(doc(db, USERS_COLLECTION, userId), updatedData);
+    // await updateDoc(doc(db, USERS_COLLECTION, userId) // TODO: Implementar sin Firebase, updatedData);
 
     const updatedUser = await getUserById(userId);
     if (!updatedUser) {
@@ -244,11 +239,11 @@ export const updateUser = async (userId: string, updateData: UpdateUserData): Pr
 // Actualizar último login
 export const updateLastLogin = async (userId: string): Promise<void> => {
   try {
-    const now = new Date();
-    await updateDoc(doc(db, USERS_COLLECTION, userId), {
-      lastLogin: now.toISOString(),
-      updatedAt: now.toISOString()
-    });
+    // const now = new Date();
+    // await updateDoc(doc(db, USERS_COLLECTION, userId), {
+    //   lastLogin: now.toISOString(),
+    //   updatedAt: now.toISOString()
+    // }); // TODO: Implementar sin Firebase
 
     logger.info('User last login updated', { userId });
   } catch (error) {
@@ -260,11 +255,11 @@ export const updateLastLogin = async (userId: string): Promise<void> => {
 // Desactivar usuario (soft delete)
 export const deactivateUser = async (userId: string): Promise<void> => {
   try {
-    const now = new Date();
-    await updateDoc(doc(db, USERS_COLLECTION, userId), {
-      isActive: false,
-      updatedAt: now.toISOString()
-    });
+    // const now = new Date();
+    // await updateDoc(doc(db, USERS_COLLECTION, userId), {
+    //   isActive: false,
+    //   updatedAt: now.toISOString()
+    // }); // TODO: Implementar sin Firebase
 
     logger.info('User deactivated', { userId });
   } catch (error) {
@@ -276,11 +271,11 @@ export const deactivateUser = async (userId: string): Promise<void> => {
 // Activar usuario
 export const activateUser = async (userId: string): Promise<void> => {
   try {
-    const now = new Date();
-    await updateDoc(doc(db, USERS_COLLECTION, userId), {
-      isActive: true,
-      updatedAt: now.toISOString()
-    });
+    // const now = new Date();
+    // await updateDoc(doc(db, USERS_COLLECTION, userId), {
+    //   isActive: true,
+    //   updatedAt: now.toISOString()
+    // }); // TODO: Implementar sin Firebase
 
     logger.info('User activated', { userId });
   } catch (error) {
@@ -290,32 +285,35 @@ export const activateUser = async (userId: string): Promise<void> => {
 };
 
 // Obtener todos los usuarios (para admin)
-export const getAllUsers = async (activeOnly: boolean = true): Promise<User[]> => {
+export const getAllUsers = async (): Promise<User[]> => {
   try {
-    let usersQuery = query(
-      collection(db, USERS_COLLECTION),
-      orderBy('createdAt', 'desc')
-    );
+    // let usersQuery = query(
+    //   collection(db, USERS_COLLECTION),
+    //   orderBy('createdAt', 'desc')
+    // ); // TODO: Implementar sin Firebase
 
-    if (activeOnly) {
-      usersQuery = query(
-        collection(db, USERS_COLLECTION),
-        where('isActive', '==', true),
-        orderBy('createdAt', 'desc')
-      );
-    }
+    // if (activeOnly) {
+    //   usersQuery = query(
+    //     collection(db, USERS_COLLECTION),
+    //     where('isActive', '==', true),
+    //     orderBy('createdAt', 'desc')
+    //   );
+    // } // TODO: Implementar sin Firebase
 
-    const querySnapshot = await getDocs(usersQuery);
+    // const querySnapshot = await getDocs(usersQuery); // TODO: Implementar sin Firebase
     
-    return querySnapshot.docs.map(doc => {
-      const userData = doc.data();
-      return {
-        ...userData,
-        createdAt: new Date(userData.createdAt),
-        updatedAt: new Date(userData.updatedAt),
-        lastLogin: userData.lastLogin ? new Date(userData.lastLogin) : undefined
-      } as User;
-    });
+    // return querySnapshot.docs.map(doc => {
+    //   const userData = doc.data();
+    //   return {
+    //     ...userData,
+    //     createdAt: new Date(userData.createdAt),
+    //     updatedAt: new Date(userData.updatedAt),
+    //     lastLogin: userData.lastLogin ? new Date(userData.lastLogin) : undefined
+    //   } as User;
+    // });
+    
+    // TODO: Implementar sin Firebase
+    return [];
   } catch (error) {
     logger.error('Error getting all users', { error });
     throw error;
@@ -325,24 +323,27 @@ export const getAllUsers = async (activeOnly: boolean = true): Promise<User[]> =
 // Obtener usuarios por restaurante
 export const getUsersByRestaurant = async (restaurantId: string): Promise<User[]> => {
   try {
-    const usersQuery = query(
-      collection(db, USERS_COLLECTION),
-      where('restaurantId', '==', restaurantId),
-      where('isActive', '==', true),
-      orderBy('createdAt', 'desc')
-    );
+    // const usersQuery = query(
+    //   collection(db, USERS_COLLECTION),
+    //   where('restaurantId', '==', restaurantId),
+    //   where('isActive', '==', true),
+    //   orderBy('createdAt', 'desc')
+    // ); // TODO: Implementar sin Firebase
 
-    const querySnapshot = await getDocs(usersQuery);
+    // const querySnapshot = await getDocs(usersQuery); // TODO: Implementar sin Firebase
     
-    return querySnapshot.docs.map(doc => {
-      const userData = doc.data();
-      return {
-        ...userData,
-        createdAt: new Date(userData.createdAt),
-        updatedAt: new Date(userData.updatedAt),
-        lastLogin: userData.lastLogin ? new Date(userData.lastLogin) : undefined
-      } as User;
-    });
+    // return querySnapshot.docs.map(doc => {
+    //   const userData = doc.data();
+    //   return {
+    //     ...userData,
+    //     createdAt: new Date(userData.createdAt),
+    //     updatedAt: new Date(userData.updatedAt),
+    //     lastLogin: userData.lastLogin ? new Date(userData.lastLogin) : undefined
+    //   } as User;
+    // });
+    
+    // TODO: Implementar sin Firebase
+    return [];
   } catch (error) {
     logger.error('Error getting users by restaurant', { error, restaurantId });
     throw error;
@@ -352,11 +353,11 @@ export const getUsersByRestaurant = async (restaurantId: string): Promise<User[]
 // Cambiar contraseña (marcar como no necesaria)
 export const markPasswordChanged = async (userId: string): Promise<void> => {
   try {
-    const now = new Date();
-    await updateDoc(doc(db, USERS_COLLECTION, userId), {
-      mustChangePassword: false,
-      updatedAt: now.toISOString()
-    });
+    // const now = new Date();
+    // await updateDoc(doc(db, USERS_COLLECTION, userId), {
+    //   mustChangePassword: false,
+    //   updatedAt: now.toISOString()
+    // }); // TODO: Implementar sin Firebase
 
     logger.info('Password change requirement removed', { userId });
   } catch (error) {
@@ -370,19 +371,26 @@ export const migrateExistingUsers = async (): Promise<void> => {
   try {
     // Importar el mapping existente
     // const { userMappings } = await import('./userMapping'); // Property doesn't exist
-    const userMappings: any[] = []; // Mock empty array
+    const userMappings: Record<string, unknown>[] = []; // Mock empty array
     
     for (const mapping of userMappings) {
-      const existingUser = await getUserByUsername(mapping.username);
+      const mappingData = mapping as Record<string, unknown>;
+      const username = typeof mappingData.username === 'string' ? mappingData.username : '';
+      const email = typeof mappingData.email === 'string' ? mappingData.email : '';
+      const role = mappingData.role === 'admin' || mappingData.role === 'restaurant' ? mappingData.role : 'restaurant';
+      const restaurantId = typeof mappingData.restaurantId === 'string' ? mappingData.restaurantId : undefined;
+      const restaurantName = typeof mappingData.restaurantName === 'string' ? mappingData.restaurantName : undefined;
+      
+      const existingUser = await getUserByUsername(username);
       if (!existingUser) {
         await createUser({
-          username: mapping.username,
-          email: mapping.email,
-          role: mapping.role,
-          restaurantId: mapping.restaurantId,
-          restaurantName: mapping.restaurantName
+          username,
+          email,
+          role,
+          restaurantId,
+          restaurantName
         });
-        logger.info('Migrated user from mapping', { username: mapping.username });
+        logger.info('Migrated user from mapping', { username });
       }
     }
 

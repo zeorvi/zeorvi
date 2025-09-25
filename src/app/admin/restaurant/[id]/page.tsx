@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { getRestaurantById, updateRestaurantCredentials, updateRestaurantOwnerInfo } from '@/lib/restaurantServicePostgres';
+import { laGaviotaConfig, otroRestauranteConfig } from '@/lib/restaurantConfigs';
 
 
 export default function RestaurantDetailPage() {
@@ -48,6 +49,41 @@ export default function RestaurantDetailPage() {
     username: '',
     password: ''
   });
+  const [userInfo, setUserInfo] = useState<any>(null);
+
+  // Función para obtener las mesas organizadas por ubicación
+  const getTablesByLocation = () => {
+    if (!restaurantData) return {};
+    
+    let config;
+    if (restaurantData.id === 'rest_003' || restaurantData.name?.toLowerCase().includes('gaviota')) {
+      config = laGaviotaConfig;
+    } else if (restaurantData.id === 'rest_001' || restaurantData.name?.toLowerCase().includes('buen sabor') || restaurantData.name?.toLowerCase().includes('parrilla')) {
+      config = otroRestauranteConfig;
+    }
+    
+    if (!config?.tables) return {};
+    
+    // Agrupar mesas por ubicación y capacidad
+    const groupedTables: { [key: string]: { [capacity: string]: number } } = {};
+    
+    config.tables.forEach((table: any) => {
+      const location = table.location || 'Sin ubicación';
+      const capacity = table.capacity || 0;
+      
+      if (!groupedTables[location]) {
+        groupedTables[location] = {};
+      }
+      
+      if (!groupedTables[location][capacity]) {
+        groupedTables[location][capacity] = 0;
+      }
+      
+      groupedTables[location][capacity]++;
+    });
+    
+    return groupedTables;
+  };
 
   useEffect(() => {
     const loadRestaurantData = async () => {
@@ -71,11 +107,8 @@ export default function RestaurantDetailPage() {
               notes: data.config?.owner_notes || ''
             });
             
-            // Inicializar datos de credenciales (usar email como username)
-            setCredentialsData({
-              username: data.owner_email,
-              password: 'restaurante123' // Contraseña por defecto
-            });
+            // Cargar información del usuario
+            await loadUserInfo(id);
           }
           
           setRestaurantData(data);
@@ -88,6 +121,32 @@ export default function RestaurantDetailPage() {
 
     loadRestaurantData();
   }, [params.id]);
+
+  const loadUserInfo = async (restaurantId: string) => {
+    try {
+      const response = await fetch(`/api/admin/users/${restaurantId}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.user) {
+          setUserInfo(data.user);
+          // Inicializar datos de credenciales con la información real del usuario
+          setCredentialsData({
+            username: data.user.email,
+            password: 'admin123' // Contraseña por defecto (no mostramos la real por seguridad)
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user info:', error);
+    }
+  };
 
   const handleBack = () => {
     router.push('/admin');
@@ -149,54 +208,57 @@ export default function RestaurantDetailPage() {
       return;
     }
 
-    // Validar que el username tenga al menos 3 caracteres
-    if (credentialsData.username.length < 3) {
-      toast.error('❌ El username debe tener al menos 3 caracteres');
-      return;
-    }
-
     // Validar que la contraseña no esté vacía
     if (!credentialsData.password || credentialsData.password.trim() === '') {
       toast.error('❌ La contraseña no puede estar vacía');
       return;
     }
 
+    if (credentialsData.password.length < 6) {
+      toast.error('❌ La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
     try {
-      console.log('💾 Saving credentials:', credentialsData);
+      console.log('💾 Updating password for restaurant:', restaurantData.id);
       
-      // Actualizar en PostgreSQL
-      const success = await updateRestaurantCredentials(restaurantData.id, credentialsData);
+      // Actualizar contraseña usando el nuevo endpoint
+      const response = await fetch(`/api/admin/users/${restaurantData.id}/password`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password: credentialsData.password }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al actualizar contraseña');
+      }
+
+      const data = await response.json();
       
-      if (success) {
-        // Actualizar datos locales
-        setRestaurantData({
-          ...restaurantData,
-          owner_email: credentialsData.username
-        });
-        
+      if (data.success) {
         setIsEditingCredentials(false);
-        toast.success('✅ Credenciales actualizadas correctamente');
+        toast.success('✅ Contraseña actualizada correctamente');
+        
+        // Recargar información del usuario
+        await loadUserInfo(restaurantData.id);
       }
     } catch (error) {
       console.error('❌ Error saving credentials:', error);
       
-      // Mostrar mensaje de error más específico
       const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes('caracteres')) {
-        toast.error('❌ El username debe tener al menos 3 caracteres');
-      } else if (errorMessage.includes('requeridos')) {
-        toast.error('❌ Username y contraseña son requeridos');
-      } else {
-        toast.error('❌ Error al guardar las credenciales: ' + errorMessage);
-      }
+      toast.error('❌ Error al guardar la contraseña: ' + errorMessage);
     }
   };
 
   const handleCancelCredentialsEdit = () => {
     // Restaurar datos originales
     setCredentialsData({
-      username: restaurantData.owner_email,
-      password: 'restaurante123'
+      username: userInfo?.email || restaurantData.owner_email,
+      password: 'admin123'
     });
     setIsEditingCredentials(false);
   };
@@ -354,13 +416,26 @@ export default function RestaurantDetailPage() {
                       </div>
                       <div>
                         <Label className="text-purple-300 font-medium">Contraseña</Label>
-                        <Input
-                          type="password"
-                          value={credentialsData.password}
-                          onChange={(e) => setCredentialsData({...credentialsData, password: e.target.value})}
-                          placeholder="Nueva contraseña"
-                          className="bg-slate-700/50 border-purple-400/30 text-white placeholder-gray-400 focus:border-purple-400 focus:ring-purple-400/20 mt-1"
-                        />
+                        <div className="flex space-x-2">
+                          <Input
+                            type="password"
+                            value={credentialsData.password}
+                            onChange={(e) => setCredentialsData({...credentialsData, password: e.target.value})}
+                            placeholder="Nueva contraseña"
+                            className="bg-slate-700/50 border-purple-400/30 text-white placeholder-gray-400 focus:border-purple-400 focus:ring-purple-400/20 mt-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              const newPassword = 'Temp' + Math.random().toString(36).substring(2, 8) + '!';
+                              setCredentialsData({...credentialsData, password: newPassword});
+                            }}
+                            className="bg-transparent border-purple-400/50 text-purple-300 hover:bg-purple-400/20 hover:border-purple-400 mt-1"
+                          >
+                            Generar
+                          </Button>
+                        </div>
                       </div>
                       <div className="flex space-x-3">
                         <Button
@@ -433,12 +508,51 @@ export default function RestaurantDetailPage() {
                       </div>
 
                       <div className="pt-2 border-t border-purple-400/20">
-                        <div className="flex items-center space-x-3">
-                          <Clock className="h-4 w-4 text-purple-400" />
-                          <span className="text-gray-300">Último acceso:</span>
-                          <span className="text-white font-medium">
-                            Nunca
-                          </span>
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-3">
+                            <Clock className="h-4 w-4 text-purple-400" />
+                            <span className="text-gray-300">Último acceso:</span>
+                            <span className="text-white font-medium">
+                              {userInfo?.last_login 
+                                ? new Date(userInfo.last_login).toLocaleString('es-ES')
+                                : 'Nunca'
+                              }
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-3">
+                            <User className="h-4 w-4 text-purple-400" />
+                            <span className="text-gray-300">Nombre:</span>
+                            <span className="text-white font-medium">
+                              {userInfo?.name || 'No especificado'}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-3">
+                            <Calendar className="h-4 w-4 text-purple-400" />
+                            <span className="text-gray-300">Usuario desde:</span>
+                            <span className="text-white font-medium">
+                              {userInfo?.created_at 
+                                ? new Date(userInfo.created_at).toLocaleDateString('es-ES')
+                                : 'N/A'
+                              }
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="pt-3">
+                          <Button
+                            onClick={() => {
+                              const credentials = `Restaurante: ${restaurantData.name}
+Usuario: ${credentialsData.username}
+Contraseña: ${credentialsData.password}
+
+Accede a: ${window.location.origin}`;
+                              copyToClipboard(credentials, 'Todas las credenciales');
+                            }}
+                            className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold"
+                          >
+                            <Copy className="h-4 w-4 mr-2" />
+                            Copiar Todas las Credenciales
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -695,22 +809,37 @@ export default function RestaurantDetailPage() {
                   <CardDescription className="text-gray-300">Configuración actual de mesas disponibles para reservas telefónicas</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {restaurantData.tables && restaurantData.tables.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                      {restaurantData.tables.map((table: any, index: number) => (
-                        <div key={index} className="p-3 bg-slate-700/30 rounded-lg border border-cyan-400/20 text-center">
-                          <div className="text-cyan-400 font-semibold">{table.name}</div>
-                          <div className="text-white text-sm">{table.capacity} personas</div>
-                          <div className="text-gray-400 text-xs">{table.location}</div>
+                  {(() => {
+                    const tablesByLocation = getTablesByLocation();
+                    const locations = Object.keys(tablesByLocation);
+                    
+                    if (locations.length === 0) {
+                      return (
+                        <div className="text-center py-8">
+                          <div className="text-gray-400 mb-2">🪑 Sin mesas configuradas</div>
+                          <p className="text-sm text-gray-500">Las mesas se configurarán según las especificaciones del restaurante</p>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <div className="text-gray-400 mb-2">🪑 Sin mesas configuradas</div>
-                      <p className="text-sm text-gray-500">Las mesas se configurarán según las especificaciones del restaurante</p>
-                    </div>
-                  )}
+                      );
+                    }
+                    
+                    return (
+                      <div className="space-y-6">
+                        {locations.map((location) => (
+                          <div key={location} className="p-4 bg-slate-700/30 rounded-lg border border-cyan-400/20">
+                            <h4 className="text-cyan-400 font-semibold text-lg mb-3">{location}</h4>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                              {Object.entries(tablesByLocation[location]).map(([capacity, count]) => (
+                                <div key={capacity} className="text-center p-2 bg-slate-600/30 rounded border border-cyan-400/10">
+                                  <div className="text-white font-medium">{count} mesa{count > 1 ? 's' : ''}</div>
+                                  <div className="text-gray-300 text-sm">{capacity} persona{parseInt(capacity) > 1 ? 's' : ''}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </CardContent>
               </Card>
             </div>

@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database';
 import { logger } from '@/lib/logger';
-import { customAuth } from '@/lib/auth/customAuth';
+import authService from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 
@@ -23,7 +23,7 @@ export async function PUT(
       );
     }
 
-    const user = await customAuth.verifyToken(token);
+    const user = await authService.verifyToken(token);
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'Token inválido' },

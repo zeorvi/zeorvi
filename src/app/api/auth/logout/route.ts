@@ -1,45 +1,35 @@
-/**
- * API de Logout - Sistema Personalizado
- * Reemplaza Firebase Authentication
- */
-
 import { NextRequest, NextResponse } from 'next/server';
-import { logger } from '@/lib/logger';
+import authService from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
-  const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-  
   try {
-    // Obtener token de la cookie para logging
-    const token = request.cookies.get('auth-token')?.value;
-    
-    if (token) {
-      // Aquí podrías invalidar el token en una blacklist si quisieras
-      // Por ahora simplemente lo removemos de las cookies
-      logger.info('User logout', { ip });
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Token de autorización requerido' },
+        { status: 401 }
+      );
     }
 
-    // Crear respuesta
-    const response = NextResponse.json({
-      success: true,
-      message: 'Sesión cerrada exitosamente'
-    });
+    const token = authHeader.substring(7);
+    
+    // Verificar token para obtener userId
+    const user = await authService.verifyToken(token);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Token inválido' },
+        { status: 401 }
+      );
+    }
 
-    // Limpiar cookie
-    response.cookies.set('auth-token', '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 0, // Expirar inmediatamente
-      path: '/'
-    });
+    // Hacer logout
+    await authService.logout(user.id);
 
-    return response;
-
+    return NextResponse.json({ message: 'Logout exitoso' });
   } catch (error) {
-    logger.error('Logout API error', { error });
+    console.error('Logout API error:', error);
     return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
+      { error: 'Error interno del servidor' },
       { status: 500 }
     );
   }

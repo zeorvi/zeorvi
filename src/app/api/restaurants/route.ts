@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 let db: any;
 if (process.env.NODE_ENV === 'development') {
   try {
-    db = require('@/lib/database/sqlite').db;
+    db = require('@/lib/database/sqlite').default;
   } catch (error) {
     console.error('Error loading SQLite database:', error);
     // Fallback a PostgreSQL si SQLite falla
@@ -17,7 +17,7 @@ if (process.env.NODE_ENV === 'development') {
   db = require('@/lib/database').db;
 }
 import { logger } from '@/lib/logger';
-import { customAuth } from '@/lib/auth/customAuth';
+import authService from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const user = await customAuth.verifyToken(token);
+    const user = await authService.verifyToken(token);
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'Token inválido' },

@@ -14,6 +14,8 @@ interface TablePlanProps {
 }
 
 export default function TablePlan({ restaurantId, isDarkMode = false }: TablePlanProps) {
+  console.log('🪑 TablePlan component loaded for restaurant:', restaurantId);
+  
   // Usar el hook global de mesas
   const { 
     tables, 
@@ -23,8 +25,11 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
     refreshTables 
   } = useRestaurantTables(restaurantId);
   
+  console.log('📊 Tables from hook:', tables);
+  console.log('⏳ Is loading:', isLoading);
+  
   const [filteredTables, setFilteredTables] = useState(tables);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'libre' | 'ocupada' | 'reservada'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'available' | 'occupied' | 'reserved' | 'maintenance'>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Filtrar mesas cuando cambian los filtros o las mesas
@@ -40,22 +45,27 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
     if (searchTerm) {
       filtered = filtered.filter(table => 
         table.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        table.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        table.client?.name.toLowerCase().includes(searchTerm.toLowerCase())
+        (table.location && table.location.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
     
     setFilteredTables(filtered);
   }, [tables, statusFilter, searchTerm]);
 
-  const handleTableStatusChange = (tableId: string, newStatus: 'libre' | 'ocupada' | 'reservada') => {
-    if (newStatus === 'ocupada' || newStatus === 'reservada') {
+  // Debug adicional
+  if (!restaurantId) {
+    console.error('❌ No restaurantId provided to TablePlan');
+    return <div>Error: No restaurant ID provided</div>;
+  }
+
+  const handleTableStatusChange = (tableId: string, newStatus: 'available' | 'occupied' | 'reserved' | 'maintenance') => {
+    if (newStatus === 'occupied' || newStatus === 'reserved') {
       // Simular datos de cliente para demo
       const clientData = {
         name: 'Cliente Walk-in',
         phone: '+34 600 000 000',
         partySize: Math.floor(Math.random() * 4) + 1,
-        notes: newStatus === 'ocupada' ? 'Mesa ocupada por el gerente' : 'Reserva manual'
+        notes: newStatus === 'occupied' ? 'Mesa ocupada por el gerente' : 'Reserva manual'
       };
       updateTableStatus(tableId, newStatus, clientData);
     } else {
@@ -63,20 +73,43 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
     }
   };
 
-  const getStatusColor = (status: 'libre' | 'ocupada' | 'reservada') => {
+  const getStatusColor = (status: 'available' | 'occupied' | 'reserved' | 'maintenance') => {
     switch (status) {
-      case 'libre': return 'bg-green-500 hover:bg-green-600 text-white';
-      case 'ocupada': return 'bg-red-500 hover:bg-red-600 text-white';
-      case 'reservada': return 'bg-yellow-500 hover:bg-yellow-600 text-white';
+      case 'available': return 'bg-green-500 hover:bg-green-600 text-white';
+      case 'occupied': return 'bg-red-500 hover:bg-red-600 text-white';
+      case 'reserved': return 'bg-yellow-500 hover:bg-yellow-600 text-white';
+      case 'maintenance': return 'bg-gray-500 hover:bg-gray-600 text-white';
       default: return 'bg-gray-500 hover:bg-gray-600 text-white';
     }
   };
 
-  const getStatusText = (status: 'libre' | 'ocupada' | 'reservada') => {
+  // Función para obtener el color de fondo de la card según el estado
+  const getCardBackgroundColor = (status: 'available' | 'occupied' | 'reserved' | 'maintenance') => {
+    if (isDarkMode) {
+      switch (status) {
+        case 'available': return 'bg-green-600 border-green-500';
+        case 'occupied': return 'bg-red-600 border-red-500';
+        case 'reserved': return 'bg-yellow-600 border-yellow-500';
+        case 'maintenance': return 'bg-gray-600 border-gray-500';
+        default: return 'bg-gray-800 border-gray-700';
+      }
+    } else {
+      switch (status) {
+        case 'available': return 'bg-green-500 border-green-600';
+        case 'occupied': return 'bg-red-500 border-red-600';
+        case 'reserved': return 'bg-yellow-500 border-yellow-600';
+        case 'maintenance': return 'bg-gray-500 border-gray-600';
+        default: return 'bg-white border-gray-200';
+      }
+    }
+  };
+
+  const getStatusText = (status: 'available' | 'occupied' | 'reserved' | 'maintenance') => {
     switch (status) {
-      case 'libre': return 'Libre';
-      case 'ocupada': return 'Ocupada';
-      case 'reservada': return 'Reservada';
+      case 'available': return 'Libre';
+      case 'occupied': return 'Ocupada';
+      case 'reserved': return 'Reservada';
+      case 'maintenance': return 'Mantenimiento';
       default: return status;
     }
   };
@@ -99,50 +132,28 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
       
       {/* Header con métricas */}
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className={`text-xl md:text-2xl font-bold transition-colors duration-300 ${
-            isDarkMode ? 'text-white' : 'text-gray-800'
-          }`}>Control de Mesas</h1>
-          
-          <Button
-            onClick={refreshTables}
-            size="sm"
-            className="bg-blue-500 hover:bg-blue-600 text-white"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Actualizar
-          </Button>
-        </div>
 
         {/* Métricas */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <Card className={isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'}>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-blue-600">{metrics.totalTables}</div>
-              <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Total Mesas</div>
-            </CardContent>
-          </Card>
+        <div className="flex justify-center gap-3 mb-4">
+          <div className={`px-3 py-2 rounded text-center ${isDarkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border'}`}>
+            <div className="text-base font-bold text-blue-600">{metrics.totalTables}</div>
+            <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Total</div>
+          </div>
           
-          <Card className={isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'}>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-green-600">{metrics.freeTables}</div>
-              <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Libres</div>
-            </CardContent>
-          </Card>
+          <div className={`px-3 py-2 rounded text-center ${isDarkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border'}`}>
+            <div className="text-base font-bold text-green-600">{metrics.freeTables}</div>
+            <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Libres</div>
+          </div>
           
-          <Card className={isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'}>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-red-600">{metrics.occupiedTables}</div>
-              <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Ocupadas</div>
-            </CardContent>
-          </Card>
+          <div className={`px-3 py-2 rounded text-center ${isDarkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border'}`}>
+            <div className="text-base font-bold text-red-600">{metrics.occupiedTables}</div>
+            <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Ocupadas</div>
+          </div>
           
-          <Card className={isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'}>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-yellow-600">{metrics.reservedTables}</div>
-              <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Reservadas</div>
-            </CardContent>
-          </Card>
+          <div className={`px-3 py-2 rounded text-center ${isDarkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border'}`}>
+            <div className="text-base font-bold text-yellow-600">{metrics.reservedTables}</div>
+            <div className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Reservadas</div>
+          </div>
         </div>
 
         {/* Filtros */}
@@ -157,15 +168,19 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
           </div>
           
           <div className="flex space-x-2">
-            {['all', 'libre', 'ocupada', 'reservada'].map((status) => (
+            {['all', 'available', 'occupied', 'reserved', 'maintenance'].map((status) => (
               <Button
                 key={status}
                 onClick={() => setStatusFilter(status as any)}
                 variant={statusFilter === status ? 'default' : 'outline'}
                 size="sm"
-                className={statusFilter === status ? 'bg-blue-500 text-white' : ''}
+                className={statusFilter === status ? 'bg-blue-500 text-white' : isDarkMode ? 'text-white border-gray-600 hover:bg-gray-700 bg-gray-800' : ''}
               >
-                {status === 'all' ? 'Todas' : status.charAt(0).toUpperCase() + status.slice(1)}
+                {status === 'all' ? 'Todas' : 
+                 status === 'available' ? 'Libres' :
+                 status === 'occupied' ? 'Ocupadas' :
+                 status === 'reserved' ? 'Reservadas' :
+                 status === 'maintenance' ? 'Mantenimiento' : status}
               </Button>
             ))}
           </div>
@@ -176,18 +191,18 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {filteredTables.map((table) => (
           <Card key={table.id} className={`transition-all duration-300 hover:shadow-lg ${
-            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'
+            getCardBackgroundColor(table.status)
           }`}>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className={`text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                <CardTitle className="text-lg text-white">
                   {table.name}
                 </CardTitle>
                 <Badge className={getStatusColor(table.status)}>
                   {getStatusText(table.status)}
                 </Badge>
               </div>
-              <CardDescription className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+              <CardDescription className="text-white">
                 <div className="flex items-center space-x-4 text-sm">
                   <span className="flex items-center">
                     <Users className="h-4 w-4 mr-1" />
@@ -202,54 +217,37 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
             </CardHeader>
             
             <CardContent>
-              {table.client && (
-                <div className={`mb-4 p-3 rounded-lg ${
-                  isDarkMode ? 'bg-gray-700' : 'bg-gray-50'
-                }`}>
-                  <div className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                    {table.client.name}
-                  </div>
-                  <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    {table.client.phone} • {table.client.partySize} personas
-                  </div>
-                  {table.client.notes && (
-                    <div className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                      {table.client.notes}
-                    </div>
-                  )}
-                </div>
-              )}
               
               <div className="flex space-x-2">
                 <Button
-                  onClick={() => handleTableStatusChange(table.id, 'libre')}
+                  onClick={() => handleTableStatusChange(table.id, 'available')}
                   size="sm"
-                  variant={table.status === 'libre' ? 'default' : 'outline'}
+                  variant={table.status === 'available' ? 'default' : 'outline'}
                   className="flex-1 bg-green-500 hover:bg-green-600 text-white"
                 >
                   Liberar
                 </Button>
                 <Button
-                  onClick={() => handleTableStatusChange(table.id, 'ocupada')}
+                  onClick={() => handleTableStatusChange(table.id, 'occupied')}
                   size="sm"
-                  variant={table.status === 'ocupada' ? 'default' : 'outline'}
+                  variant={table.status === 'occupied' ? 'default' : 'outline'}
                   className="flex-1 bg-red-500 hover:bg-red-600 text-white"
                 >
                   Ocupar
                 </Button>
                 <Button
-                  onClick={() => handleTableStatusChange(table.id, 'reservada')}
+                  onClick={() => handleTableStatusChange(table.id, 'reserved')}
                   size="sm"
-                  variant={table.status === 'reservada' ? 'default' : 'outline'}
+                  variant={table.status === 'reserved' ? 'default' : 'outline'}
                   className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white"
                 >
                   Reservar
                 </Button>
               </div>
               
-              <div className={`text-xs mt-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+              <div className="text-xs mt-2 text-white/80">
                 <Clock className="h-3 w-3 inline mr-1" />
-                Actualizada: {new Date(table.lastUpdated).toLocaleTimeString()}
+                Actualizada: {table.lastUpdated ? new Date(table.lastUpdated).toLocaleTimeString() : 'N/A'}
               </div>
             </CardContent>
           </Card>

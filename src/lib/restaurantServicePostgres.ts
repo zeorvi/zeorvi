@@ -3,6 +3,44 @@
  * Reemplaza el servicio de Firebase
  */
 
+/**
+ * Helper para obtener el token de autenticación
+ */
+function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  
+  // Intentar obtener de cookies primero
+  const cookies = document.cookie.split(';');
+  for (const cookie of cookies) {
+    const [name, value] = cookie.trim().split('=');
+    if (name === 'auth-token') {
+      return value;
+    }
+  }
+  
+  // Respaldo: obtener de localStorage
+  return localStorage.getItem('auth-token');
+}
+
+/**
+ * Helper para crear headers con autenticación
+ */
+function createAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  const token = getAuthToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+    console.log('🔑 Token encontrado, enviando en header Authorization');
+  } else {
+    console.log('⚠️ No se encontró token, usando solo cookies');
+  }
+
+  return headers;
+}
+
 export interface RestaurantData {
   id: string;
   name: string;
@@ -31,40 +69,10 @@ export async function getAllRestaurants(): Promise<RestaurantData[]> {
   try {
     console.log('🔍 Fetching all restaurants from API...');
     
-    // Obtener token de las cookies o localStorage como respaldo
-    const getToken = () => {
-      if (typeof document === 'undefined') return null;
-      
-      // Intentar obtener de cookies primero
-      const cookies = document.cookie.split(';');
-      for (const cookie of cookies) {
-        const [name, value] = cookie.trim().split('=');
-        if (name === 'auth-token') {
-          return value;
-        }
-      }
-      
-      // Respaldo: obtener de localStorage
-      return localStorage.getItem('auth-token');
-    };
-
-    const token = getToken();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    // Agregar token al header Authorization si está disponible
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-      console.log('🔑 Token encontrado, enviando en header Authorization');
-    } else {
-      console.log('⚠️ No se encontró token, usando solo cookies');
-    }
-    
     const response = await fetch('/api/restaurants', {
       method: 'GET',
       credentials: 'include', // Incluir cookies de autenticación
-      headers,
+      headers: createAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -103,9 +111,7 @@ export async function getRestaurantById(restaurantId: string): Promise<Restauran
     const response = await fetch(`/api/restaurants/${restaurantId}`, {
       method: 'GET',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: createAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -159,9 +165,7 @@ export async function createRestaurant(restaurantData: {
     const response = await fetch('/api/restaurants', {
       method: 'POST',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: createAuthHeaders(),
       body: JSON.stringify(restaurantData),
     });
 
@@ -196,9 +200,7 @@ export async function updateRestaurant(
     const response = await fetch(`/api/restaurants/${restaurantId}`, {
       method: 'PUT',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: createAuthHeaders(),
       body: JSON.stringify(updateData),
     });
 
@@ -238,9 +240,7 @@ export async function updateRestaurantCredentials(
     const response = await fetch(`/api/restaurants/${restaurantId}/credentials`, {
       method: 'PUT',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: createAuthHeaders(),
       body: JSON.stringify({
         username: credentials.username,
         password: credentials.password
@@ -298,9 +298,7 @@ export async function updateRestaurantOwnerInfo(
     const response = await fetch(`/api/restaurants/${restaurantId}`, {
       method: 'PUT',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: createAuthHeaders(),
       body: JSON.stringify(updateData),
     });
 
@@ -332,9 +330,7 @@ export async function deleteRestaurant(restaurantId: string): Promise<boolean> {
     const response = await fetch(`/api/restaurants/${restaurantId}`, {
       method: 'DELETE',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: createAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -368,9 +364,7 @@ export async function updateRestaurantStatus(
     const response = await fetch(`/api/restaurants/${restaurantId}/status`, {
       method: 'PATCH',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: createAuthHeaders(),
       body: JSON.stringify({ status }),
     });
 
@@ -402,9 +396,7 @@ export async function getRestaurantStats(restaurantId: string): Promise<Record<s
     const response = await fetch(`/api/restaurants/${restaurantId}/stats`, {
       method: 'GET',
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: createAuthHeaders(),
     });
 
     if (!response.ok) {

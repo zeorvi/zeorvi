@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { customAuth } from '@/lib/auth/customAuth';
+import authService from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Verificar token
-    const user = await customAuth.verifyToken(token);
+    const user = await authService.verifyToken(token);
     
     if (!user) {
       return NextResponse.json(

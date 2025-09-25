@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 let db: any;
 if (process.env.NODE_ENV === 'development') {
   try {
-    db = require('@/lib/database/sqlite').db;
+    db = require('@/lib/database/sqlite').sqliteDb;
   } catch (error) {
     console.error('Error loading SQLite database:', error);
     // Fallback a PostgreSQL si SQLite falla
@@ -17,7 +17,7 @@ if (process.env.NODE_ENV === 'development') {
   db = require('@/lib/database').db;
 }
 import { logger } from '@/lib/logger';
-import { customAuth } from '@/lib/auth/customAuth';
+import authService from '@/lib/auth';
 
 export async function PUT(
   request: NextRequest,
@@ -25,7 +25,16 @@ export async function PUT(
 ) {
   try {
     // Verificar autenticación
-    const token = request.cookies.get('auth-token')?.value;
+    let token = request.cookies.get('auth-token')?.value;
+    
+    // Si no hay token en cookies, buscar en Authorization header
+    if (!token) {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
+    
     if (!token) {
       return NextResponse.json(
         { success: false, error: 'No autorizado' },
@@ -33,7 +42,7 @@ export async function PUT(
       );
     }
 
-    const user = await customAuth.verifyToken(token);
+    const user = await authService.verifyToken(token);
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'Token inválido' },
@@ -146,7 +155,16 @@ export async function GET(
 ) {
   try {
     // Verificar autenticación
-    const token = request.cookies.get('auth-token')?.value;
+    let token = request.cookies.get('auth-token')?.value;
+    
+    // Si no hay token en cookies, buscar en Authorization header
+    if (!token) {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
+    
     if (!token) {
       return NextResponse.json(
         { success: false, error: 'No autorizado' },
@@ -154,7 +172,7 @@ export async function GET(
       );
     }
 
-    const user = await customAuth.verifyToken(token);
+    const user = await authService.verifyToken(token);
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'Token inválido' },
@@ -180,10 +198,7 @@ export async function GET(
       }
       
       // Contar usuarios del restaurante
-      const userCountStmt = db.db.prepare('SELECT COUNT(*) as count FROM restaurant_users WHERE restaurant_id = ? AND status = ?');
-      const userCountResult = userCountStmt.get(restaurantId, 'active');
-      const user_count = userCountResult ? userCountResult.count : 0;
-      
+      const user_count = await db.getUserCount(restaurantId);
       restaurant.user_count = user_count;
       
     } else {

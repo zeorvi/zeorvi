@@ -1,148 +1,193 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyRetellWebhook } from '@/lib/webhookValidator';
-import { logger } from '@/lib/logger';
+import { getRestaurantById } from '@/lib/restaurantServicePostgres';
 
-// GET - Buscar cliente por teléfono o consultar todos
+// GET - Obtener información de clientes
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const phone = searchParams.get('phone');
     const restaurantId = searchParams.get('restaurantId');
+    const phone = searchParams.get('phone');
+    const name = searchParams.get('name');
 
     if (!restaurantId) {
-      return NextResponse.json({ error: 'Restaurant ID required' }, { status: 400 });
+      return NextResponse.json({
+        success: false,
+        error: 'restaurantId es requerido'
+      }, { status: 400 });
     }
 
-    // Mock data de clientes
-    const allClients = [
+    // Obtener datos del restaurante
+    const restaurantData = await getRestaurantById(restaurantId);
+    if (!restaurantData) {
+      return NextResponse.json({
+        success: false,
+        error: 'Restaurante no encontrado'
+      }, { status: 404 });
+    }
+
+    // Simular base de datos de clientes (en producción esto vendría de la base de datos)
+    const mockClients = [
       {
-        id: 'cli_001',
-        nombre: 'Juan Pérez',
-        telefono: '+34 600 123 456',
-        email: 'juan@email.com',
-        fechaRegistro: '2024-01-01',
-        ultimaVisita: '2024-01-15',
-        totalReservas: 8,
-        mesaPreferida: 'Terraza',
-        notasEspeciales: 'Alérgico a mariscos',
-        historialReservas: [
-          { fecha: '2024-01-15', hora: '20:00', personas: 4, mesa: 'M5' },
-          { fecha: '2024-01-10', hora: '19:30', personas: 2, mesa: 'M3' }
-        ]
-      },
-      {
-        id: 'cli_002',
-        nombre: 'María García',
-        telefono: '+34 601 234 567',
+        id: 'client_001',
+        name: 'María García',
+        phone: '+34 666 123 456',
         email: 'maria@email.com',
-        fechaRegistro: '2024-01-05',
-        ultimaVisita: '2024-01-12',
-        totalReservas: 3,
-        mesaPreferida: 'Salón Principal',
-        notasEspeciales: 'Prefiere mesa cerca de la ventana',
-        historialReservas: [
-          { fecha: '2024-01-12', hora: '21:00', personas: 6, mesa: 'M8' },
-          { fecha: '2024-01-08', hora: '19:00', personas: 2, mesa: 'M2' }
-        ]
+        totalReservations: 12,
+        lastVisit: '2024-01-10',
+        favoriteTable: 'S1',
+        preferences: {
+          location: 'Salón Principal',
+          time: '20:00',
+          specialRequests: 'Sin gluten'
+        },
+        notes: 'Cliente VIP, siempre pide mesa cerca de la ventana',
+        createdAt: '2023-06-15T10:30:00Z'
       },
       {
-        id: 'cli_003',
-        nombre: 'Carlos López',
-        telefono: '+34 602 345 678',
-        email: 'carlos@email.com',
-        fechaRegistro: '2024-01-03',
-        ultimaVisita: '2024-01-14',
-        totalReservas: 5,
-        mesaPreferida: 'Salón Privado',
-        notasEspeciales: 'Cliente VIP - Celebraciones familiares',
-        historialReservas: [
-          { fecha: '2024-01-14', hora: '20:30', personas: 8, mesa: 'M7' },
-          { fecha: '2024-01-07', hora: '19:30', personas: 4, mesa: 'M4' }
-        ]
+        id: 'client_002',
+        name: 'Juan López',
+        phone: '+34 666 789 012',
+        email: 'juan@email.com',
+        totalReservations: 8,
+        lastVisit: '2024-01-12',
+        favoriteTable: 'T1',
+        preferences: {
+          location: 'Terraza',
+          time: '22:00',
+          specialRequests: 'Mesa para fumadores'
+        },
+        notes: 'Prefiere terraza, viene con frecuencia los viernes',
+        createdAt: '2023-08-20T14:15:00Z'
+      },
+      {
+        id: 'client_003',
+        name: 'Ana Martín',
+        phone: '+34 666 345 678',
+        email: 'ana@email.com',
+        totalReservations: 25,
+        lastVisit: '2024-01-14',
+        favoriteTable: 'B1',
+        preferences: {
+          location: 'Barra',
+          time: '19:30',
+          specialRequests: 'Cumpleaños'
+        },
+        notes: 'Cliente frecuente, celebra cumpleaños aquí cada año',
+        createdAt: '2023-03-10T09:45:00Z'
       }
     ];
 
-    // Si se busca por teléfono específico
+    // Filtrar por teléfono si se especifica
+    let filteredClients = mockClients;
     if (phone) {
-      const client = allClients.find(c => c.telefono === phone);
-      if (!client) {
-        return NextResponse.json({
-          success: false,
-          message: 'Cliente no encontrado',
-          data: null
-        });
-      }
-
-      return NextResponse.json({
-        success: true,
-        data: client,
-        message: `Información de ${client.nombre} encontrada`
-      });
+      filteredClients = mockClients.filter(c => c.phone.includes(phone));
     }
 
-    // Si no se especifica teléfono, devolver todos los clientes
+    // Filtrar por nombre si se especifica
+    if (name) {
+      filteredClients = filteredClients.filter(c => 
+        c.name.toLowerCase().includes(name.toLowerCase())
+      );
+    }
+
+    // Calcular estadísticas
+    const totalClients = mockClients.length;
+    const vipClients = mockClients.filter(c => c.totalReservations >= 10);
+    const newClients = mockClients.filter(c => {
+      const createdAt = new Date(c.createdAt);
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      return createdAt > thirtyDaysAgo;
+    });
+
     return NextResponse.json({
       success: true,
-      data: {
-        clientes: allClients,
-        total: allClients.length,
-        clientesVIP: allClients.filter(c => c.totalReservas >= 5),
-        nuevosClientes: allClients.filter(c => c.totalReservas <= 2)
+      restaurant: {
+        id: restaurantData.id,
+        name: restaurantData.name
+      },
+      filters: {
+        phone: phone || 'todos los teléfonos',
+        name: name || 'todos los nombres'
+      },
+      clients: filteredClients,
+      statistics: {
+        total: totalClients,
+        vip: vipClients.length,
+        newThisMonth: newClients.length,
+        averageReservations: Math.round(mockClients.reduce((sum, c) => sum + c.totalReservations, 0) / totalClients)
       }
     });
 
   } catch (error) {
-    logger.error('Error fetching client data for Retell', { error });
-    return NextResponse.json({ 
-      error: 'Error al obtener información de clientes' 
+    console.error('Error getting clients:', error);
+    return NextResponse.json({
+      success: false,
+      error: 'Error interno del servidor'
     }, { status: 500 });
   }
 }
 
-// POST - Registrar nuevo cliente desde Retell
+// POST - Crear o actualizar cliente
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    
-    // Validar webhook de Retell
-    const signature = request.headers.get('x-retell-signature') || '';
-    const validation = verifyRetellWebhook(signature, JSON.stringify(body));
-    if (!validation.valid) {
-      return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
+    const { 
+      restaurantId, 
+      name, 
+      phone, 
+      email, 
+      preferences, 
+      notes 
+    } = body;
+
+    if (!restaurantId || !name || !phone) {
+      return NextResponse.json({
+        success: false,
+        error: 'Faltan campos requeridos: restaurantId, name, phone'
+      }, { status: 400 });
     }
 
-    const { nombre, telefono, email, notasEspeciales, restaurantId } = body;
+    // Obtener datos del restaurante
+    const restaurantData = await getRestaurantById(restaurantId);
+    if (!restaurantData) {
+      return NextResponse.json({
+        success: false,
+        error: 'Restaurante no encontrado'
+      }, { status: 404 });
+    }
 
+    // Generar ID único para el cliente
+    const clientId = `client_${Date.now()}`;
+
+    // Crear el cliente
     const newClient = {
-      id: `cli_${Date.now()}`,
-      nombre,
-      telefono,
-      email: email || '',
-      fechaRegistro: new Date().toISOString(),
-      ultimaVisita: new Date().toISOString(),
-      totalReservas: 0,
-      mesaPreferida: '',
-      notasEspeciales: notasEspeciales || '',
-      historialReservas: []
+      id: clientId,
+      name,
+      phone,
+      email: email || null,
+      totalReservations: 0,
+      lastVisit: null,
+      favoriteTable: null,
+      preferences: preferences || {},
+      notes: notes || null,
+      createdAt: new Date().toISOString()
     };
 
-    logger.info('New client registered via Retell', { 
-      clientId: newClient.id,
-      nombre,
-      restaurantId 
-    });
+    // En producción aquí se guardaría en la base de datos
+    console.log('Nuevo cliente creado:', newClient);
 
     return NextResponse.json({
       success: true,
       client: newClient,
-      message: `Cliente ${nombre} registrado exitosamente`
+      message: `Cliente ${name} agregado a la base de datos`
     });
 
   } catch (error) {
-    logger.error('Error registering client via Retell', { error });
-    return NextResponse.json({ 
-      error: 'Error al registrar cliente' 
+    console.error('Error creating client:', error);
+    return NextResponse.json({
+      success: false,
+      error: 'Error interno del servidor'
     }, { status: 500 });
   }
 }
-

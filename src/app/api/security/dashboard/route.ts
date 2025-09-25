@@ -3,7 +3,7 @@
  * Dashboard de seguridad en tiempo real
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { createSecureAPIMiddleware, createSecureResponse, getClientIP } from '@/lib/apiSecurity';
 import { securityMonitor } from '@/lib/securityMonitor';
 import { logger } from '@/lib/logger';

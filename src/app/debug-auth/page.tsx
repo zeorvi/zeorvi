@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useClientAuth } from '@/hooks/useClientAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,11 +10,7 @@ export default function DebugAuthPage() {
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [testResults, setTestResults] = useState<any>(null);
 
-  useEffect(() => {
-    updateDebugInfo();
-  }, [user, isAuthenticated]);
-
-  const updateDebugInfo = () => {
+  const updateDebugInfo = useCallback(() => {
     const info = {
       cookies: typeof document !== 'undefined' ? document.cookie : 'N/A',
       localStorage: typeof window !== 'undefined' ? localStorage.getItem('auth-token') : 'N/A',
@@ -24,7 +20,11 @@ export default function DebugAuthPage() {
       url: typeof window !== 'undefined' ? window.location.href : 'N/A'
     };
     setDebugInfo(info);
-  };
+  }, [user, isAuthenticated, loading]);
+
+  useEffect(() => {
+    updateDebugInfo();
+  }, [updateDebugInfo]);
 
   const handleLogin = async () => {
     try {
@@ -70,7 +70,7 @@ export default function DebugAuthPage() {
       setTestResults({
         status: 'error',
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   };
@@ -110,7 +110,7 @@ export default function DebugAuthPage() {
       setTestResults({
         status: 'error',
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   };

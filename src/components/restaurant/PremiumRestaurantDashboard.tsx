@@ -6,14 +6,16 @@ import { getRestaurantById, type RestaurantData } from '@/lib/restaurantServiceP
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Sun, Moon, RefreshCw } from 'lucide-react';
+import { Sun, Moon, RefreshCw, LogOut } from 'lucide-react';
 import { ReservationLoading, TableLoading, AILoading } from '@/components/ui/optimized-loading';
+import { useClientAuth } from '@/hooks/useClientAuth';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 // Lazy loading de componentes pesados
 const OpenAIChat = lazy(() => import('@/components/ai/OpenAIChat'));
 const ReservationCalendar = lazy(() => import('./ReservationCalendar'));
 const TablePlan = lazy(() => import('./TablePlanNew'));
-const TranscriptViewer = lazy(() => import('./TranscriptViewer'));
 
 interface PremiumRestaurantDashboardProps {
   restaurantId: string;
@@ -44,10 +46,32 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [restaurantData, setRestaurantData] = useState<RestaurantData | null>(null);
   
+  // Hooks para logout
+  const { logout } = useClientAuth();
+  const router = useRouter();
+  
   // Hook para gestión global de mesas - temporalmente deshabilitado
   // const { 
   //   updateTableStatus
   // } = useRestaurantTables(restaurantId);
+
+  // Función placeholder para updateTableStatus
+  const updateTableStatus = (tableId: string, status: string, data?: any) => {
+    console.log('🔄 Updating table status:', { tableId, status, data });
+    // TODO: Implementar actualización real de estado de mesa
+  };
+
+  // Función para cerrar sesión
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast.success('Sesión cerrada exitosamente');
+      router.push('/login');
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+      toast.error('Error al cerrar sesión');
+    }
+  };
 
   useEffect(() => {
 
@@ -59,7 +83,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
         console.log('🏪 Restaurant data loaded for dashboard:', data);
         
         // NO generar datos mock - Retell AI se encargará de las reservas reales
-        console.log('🪑 Tables configured for restaurant:', data?.tables);
+        console.log('🪑 Restaurant data loaded:', data);
         console.log('📅 No mock reservations - waiting for real data from Retell AI');
         setReservations([]); // Dashboard vacío hasta que lleguen datos reales
       } catch (error) {
@@ -183,6 +207,21 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                 {isDarkMode ? <Sun className="h-3.5 w-3.5 md:h-4 md:w-4" /> : <Moon className="h-3.5 w-3.5 md:h-4 md:w-4" />}
               </Button>
               
+              {/* Botón de cerrar sesión */}
+              <Button
+                onClick={handleLogout}
+                variant="outline"
+                size="sm"
+                className={`h-8 w-8 md:h-9 md:w-9 transition-all duration-300 ${
+                  isDarkMode 
+                    ? 'bg-red-800 border-red-600 text-white hover:bg-red-700' 
+                    : 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100'
+                }`}
+                title="Cerrar sesión"
+              >
+                <LogOut className="h-3.5 w-3.5 md:h-4 md:w-4" />
+              </Button>
+              
               {/* Stats en tiempo real del restaurante */}
             </div>
           </div>
@@ -203,7 +242,6 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                 { id: 'reservations', label: 'Gestión de Reservas', color: 'violet' },
                 { id: 'tables', label: 'Control de Mesas', color: 'orange' },
                 { id: 'clients', label: 'Base de Clientes', color: 'red' },
-                ...(restaurantId === 'rest_003' ? [{ id: 'transcripts', label: 'Transcripts IA', color: 'green' }] : []),
                 { id: 'ai_chat', label: 'Chat con IA', color: 'purple' },
                 { id: 'settings', label: 'Configuración', color: 'slate' }
               ].map(item => (
@@ -369,7 +407,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                 key={`reservations-${restaurantId}-${restaurantData?.name}`}
                 restaurantId={restaurantId} 
                 isDarkMode={isDarkMode} 
-                restaurantTables={restaurantData?.tables}
+                restaurantTables={[]}
               />
             </Suspense>
           )}
@@ -413,20 +451,6 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
             </div>
           )}
 
-          {activeSection === 'transcripts' && restaurantId === 'rest_003' && (
-            <Suspense fallback={
-              <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              </div>
-            }>
-              <div className="p-6">
-                <TranscriptViewer 
-                  restaurantId={restaurantId}
-                  restaurantName={restaurantName}
-                />
-              </div>
-            </Suspense>
-          )}
 
 
 
@@ -463,7 +487,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-blue-900 mb-2">Tipo</label>
-                      <div className="bg-white p-3 rounded-lg border border-blue-200">{restaurantData?.type || restaurantType}</div>
+                      <div className="bg-white p-3 rounded-lg border border-blue-200">{restaurantType}</div>
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-blue-900 mb-2">Teléfono</label>
