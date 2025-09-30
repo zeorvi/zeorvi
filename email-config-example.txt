@@ -1,0 +1,26 @@
+# Configuración de Email para el formulario de contacto
+# Copia este archivo como .env.local y configura tus credenciales
+
+# Configuración SMTP (Gmail como ejemplo)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=tu-email@gmail.com
+SMTP_PASS=tu-contraseña-de-aplicacion
+
+# Email donde quieres recibir los mensajes del formulario
+CONTACT_EMAIL=contacto@zeorvi.com
+
+# Configuración de la aplicación
+NEXT_PUBLIC_BASE_URL=http://localhost:3001
+NODE_ENV=development
+
+# Instrucciones para Gmail:
+# 1. Ve a tu cuenta de Google
+# 2. Activa la verificación en 2 pasos
+# 3. Genera una "Contraseña de aplicación" específica para esta app
+# 4. Usa esa contraseña en SMTP_PASS (no tu contraseña normal)
+
+# Para otros proveedores de email:
+# - Outlook: smtp-mail.outlook.com, puerto 587
+# - Yahoo: smtp.mail.yahoo.com, puerto 587
+# - Tu propio servidor: configura según tu proveedor
