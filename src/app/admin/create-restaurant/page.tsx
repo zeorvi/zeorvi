@@ -66,7 +66,7 @@ export default function CreateRestaurantPage() {
       'Comedor Principal': 'Área principal del restaurante',
       'Terraza': 'Área al aire libre',
       'Salón Privado': 'Área privada para eventos especiales'
-    }
+    } as Record<string, string>
   });
 
   // Configuración de mesas (solo las que se gestionan por llamada)
@@ -1069,7 +1069,22 @@ IMPORTANTE:
                   onClick={() => {
                     setStep(1);
                     setGeneratedCredentials(null);
-                    setRestaurantData({ name: '', email: '', phone: '', address: '', twilioNumber: '' });
+                    setRestaurantData({ 
+                      name: '', 
+                      email: '', 
+                      phone: '', 
+                      address: '', 
+                      twilioNumber: '',
+                      horarioLunesJueves: '12:00 - 23:00',
+                      horarioViernesSabado: '12:00 - 00:00',
+                      horarioDomingo: '12:00 - 22:00',
+                      ubicaciones: ['Comedor Principal', 'Terraza', 'Salón Privado'],
+                      descripcionUbicaciones: {
+                        'Comedor Principal': 'Área principal del restaurante',
+                        'Terraza': 'Área al aire libre',
+                        'Salón Privado': 'Área privada para eventos especiales'
+                      } as Record<string, string>
+                    });
                     setLocations([
                       { 
                         name: 'Comedor 1', 
