@@ -393,7 +393,6 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                       </div>
                       <div>
                         <h3 className="text-2xl font-bold text-slate-900 mb-2">No hay reservas programadas</h3>
-                        <p className="text-slate-600 text-lg">El día está libre para reservas walk-in</p>
                       </div>
                     </div>
                   </Card>
