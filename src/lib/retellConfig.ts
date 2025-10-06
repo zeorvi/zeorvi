@@ -596,7 +596,7 @@ export function createRetellConfigForRestaurant(restaurantId: string, restaurant
     restaurantName: restaurantName,
     voiceId: config.voiceId || 'es-ES-ElviraNeural',
     language: config.language || 'es-ES',
-    webhookUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://zeorvi.com'}/api/retell/webhook`,
+    webhookUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.zeorvi.com'}/api/retell/webhook`,
     apiEndpoints: {
       tables: `GET /api/retell/tables?restaurantId=${restaurantId}`,
       reservations: `GET /api/retell/reservations?restaurantId=${restaurantId}`,
