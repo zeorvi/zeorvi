@@ -88,7 +88,7 @@ export default function RestaurantDetailPage() {
 
   useEffect(() => {
     const loadRestaurantData = async () => {
-      if (params.id) {
+      if (params?.id) {
         const id = params.id as string;
         console.log('🔍 Loading restaurant with ID:', id);
         
@@ -121,7 +121,7 @@ export default function RestaurantDetailPage() {
     };
 
     loadRestaurantData();
-  }, [params.id]);
+  }, [params?.id]);
 
   const loadUserInfo = async (restaurantId: string) => {
     try {
@@ -299,7 +299,7 @@ export default function RestaurantDetailPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400 mx-auto mb-4"></div>
           <p className="text-cyan-300">Cargando detalles del restaurante...</p>
-          <p className="text-gray-400 text-sm mt-2">ID: {params.id}</p>
+          <p className="text-gray-400 text-sm mt-2">ID: {params?.id}</p>
           <Button
             variant="outline"
             onClick={() => router.push('/admin')}

@@ -214,7 +214,34 @@ DISPONIBILIDAD:
    - GET /api/retell/check-availability?restaurantId=${restaurantId}&people={personas}&date={fecha}&time={hora}
    - GET /api/retell/dashboard-info?restaurantId=${restaurantId}
 
+ESTADO COMPLETO DEL RESTAURANTE:
+   - GET /api/retell/restaurant-status?restaurantId=${restaurantId}
+   Esta API te proporciona TODA la información del restaurante:
+   - Estado actual (abierto/cerrado)
+   - Horario del restaurante por días
+   - Estado de TODAS las mesas (libres, ocupadas, reservadas, ocupado todo el día)
+   - Estadísticas de ocupación
+   - Disponibilidad por capacidad
+   - Ubicaciones disponibles
+   - Recomendaciones para reservas
+
 ESTAS APIs te dan acceso COMPLETO para leer y modificar todo el dashboard
+
+INSTRUCCIONES IMPORTANTES PARA EL AGENTE:
+
+ANTES DE CUALQUIER CONSULTA DE RESERVAS:
+1. SIEMPRE usa GET /api/retell/restaurant-status?restaurantId=${restaurantId} para obtener el estado actual
+2. Verifica si el restaurante está ABIERTO antes de ofrecer reservas
+3. Consulta las mesas LIBRES disponibles
+4. Revisa el horario del restaurante para el día solicitado
+
+INFORMACIÓN QUE DEBES CONOCER SIEMPRE:
+- Estado actual del restaurante (abierto/cerrado)
+- Horario de apertura y cierre
+- Número de mesas libres, ocupadas y reservadas
+- Disponibilidad por capacidad (2, 4, 6, 8 personas)
+- Ubicaciones disponibles (Terraza, Salón Principal, etc.)
+- Porcentaje de ocupación actual
 
 PROCESOS COMPLETOS PARA GESTIÓN DE RESERVAS:
 

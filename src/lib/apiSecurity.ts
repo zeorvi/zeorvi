@@ -120,7 +120,7 @@ export function createSecureAPIMiddleware() {
         
         // 6. Agregar headers de seguridad a la respuesta
         response.headers.set('X-Content-Type-Options', 'nosniff');
-        response.headers.set('X-Frame-Options', 'DENY');
+        response.headers.set('X-Frame-Options', 'SAMEORIGIN');
         response.headers.set('X-XSS-Protection', '1; mode=block');
         
         return response;
@@ -282,7 +282,7 @@ export function createSecureResponse(
   // Headers de seguridad
   const securityHeaders = {
     'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
+    'X-Frame-Options': 'SAMEORIGIN',
     'X-XSS-Protection': '1; mode=block',
     'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
     'Referrer-Policy': 'strict-origin-when-cross-origin',

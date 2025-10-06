@@ -95,6 +95,13 @@ class ClientAuthService {
 
   async verifyToken(token: string): Promise<AuthUser | null> {
     try {
+      // Verificar si el token está expirado antes de hacer la llamada
+      if (this.isTokenExpired(token)) {
+        console.warn('Token is expired, clearing it');
+        this.clearToken();
+        return null;
+      }
+
       const response = await fetch(`${this.baseUrl}/auth/verify`, {
         method: 'POST',
         headers: {
@@ -104,6 +111,9 @@ class ClientAuthService {
       });
 
       if (!response.ok) {
+        // Si el token es inválido, limpiarlo
+        console.warn('Token verification failed, clearing token');
+        this.clearToken();
         return null;
       }
 
@@ -111,6 +121,7 @@ class ClientAuthService {
       return data.user;
     } catch (error) {
       console.error('Token verification error:', error);
+      this.clearToken();
       return null;
     }
   }
@@ -174,6 +185,18 @@ class ClientAuthService {
   // =============================================
   // UTILIDADES DE TOKEN
   // =============================================
+
+  isTokenExpired(token: string): boolean {
+    try {
+      // Decodificar el token sin verificar la firma (solo para obtener la fecha de expiración)
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const currentTime = Math.floor(Date.now() / 1000);
+      return payload.exp < currentTime;
+    } catch (error) {
+      console.error('Error checking token expiration:', error);
+      return true; // Si hay error, considerar como expirado
+    }
+  }
 
   getToken(): string | null {
     if (typeof window === 'undefined') return null;

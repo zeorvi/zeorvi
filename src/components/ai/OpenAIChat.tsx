@@ -174,19 +174,26 @@ Soy vuestro Asistente IA para ${restaurantName}.
 
       setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
-      // Respuesta de ejemplo si no hay API configurada
-      // La API ya está funcionando, este catch no debería ejecutarse
+      // Si hay error en la API, mostrar mensaje de error útil
       console.error('❌ Error llamando API:', error);
-      const exampleResponse = generateExampleResponse(userMessage.content);
       
-      const aiMessage: Message = {
+      const errorMessage: Message = {
         id: `ai_${Date.now()}`,
         role: 'assistant',
-        content: exampleResponse,
+        content: `¡Ups! 😅 Parece que hay un problema técnico momentáneo. 
+
+Estoy aquí para ayudaros, pero necesito que me hagáis una pregunta más específica. Por ejemplo:
+
+• "¿Cómo hacer una tortilla española?"
+• "¿Cuántas mesas están ocupadas?"
+• "¿Qué es la inteligencia artificial?"
+• "¿Cómo funciona el marketing digital?"
+
+¡Intentad de nuevo con una pregunta concreta y os ayudo inmediatamente! 😊`,
         timestamp: new Date().toISOString()
       };
 
-      setMessages(prev => [...prev, aiMessage]);
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsTyping(false);
       // Forzar scroll cuando termina de escribir - múltiples intentos
@@ -478,21 +485,21 @@ Como tu asistente IA integral, puedo ayudarte con una gran variedad de temas. Au
   }
 
   return (
-    <div className="p-3 md:p-4 space-y-3 md:space-y-4">
+    <div className="p-2 sm:p-3 md:p-4 space-y-2 sm:space-y-3 md:space-y-4">
 
-      {/* Área de Chat con altura fija */}
-      <Card className={`h-[500px] md:h-[580px] flex flex-col backdrop-blur-sm border-0 shadow-xl rounded-xl md:rounded-2xl transition-all duration-300 ${
+      {/* Área de Chat con altura responsive */}
+      <Card className={`h-[400px] sm:h-[450px] md:h-[500px] lg:h-[580px] flex flex-col backdrop-blur-sm border-0 shadow-xl rounded-lg sm:rounded-xl md:rounded-2xl transition-all duration-300 ${
         isDarkMode ? 'bg-gray-900/80' : 'bg-white/60'
       }`}>
         {/* Mensajes */}
-        <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3 md:space-y-4 scroll-smooth" id="chat-messages-container">
+        <div className="flex-1 overflow-y-auto p-2 sm:p-3 md:p-4 space-y-2 sm:space-y-3 md:space-y-4 scroll-smooth" id="chat-messages-container">
           {messages.map((message) => (
             <div
               key={message.id}
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-xs md:max-w-sm lg:max-w-xl px-4 md:px-6 py-3 md:py-4 rounded-xl md:rounded-2xl shadow-lg ${
+                className={`max-w-[85%] sm:max-w-xs md:max-w-sm lg:max-w-xl px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 rounded-lg sm:rounded-xl md:rounded-2xl shadow-lg ${
                   message.role === 'user'
                     ? 'bg-gray-700 text-white'
                     : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
@@ -545,38 +552,39 @@ Como tu asistente IA integral, puedo ayudarte con una gran variedad de temas. Au
         </div>
 
         {/* Input de mensaje - ABAJO PERO VISIBLE */}
-        <div className={`px-3 md:px-4 pb-0 pt-0 -mb-2 border-t transition-colors duration-300 ${
+        <div className={`px-2 sm:px-3 md:px-4 pb-0 pt-0 -mb-1 sm:-mb-2 border-t transition-colors duration-300 ${
           isDarkMode ? 'border-gray-700/50' : 'border-slate-200/50'
         }`}>
-          <div className="flex items-center space-x-2 md:space-x-4">
+          <div className="flex items-center space-x-1 sm:space-x-2 md:space-x-4">
             <div className="flex-1 relative">
               <Input
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && !isTyping && handleSendMessage()}
                 placeholder="Pregúntame sobre reservas, mesas, personal..."
-                className={`pr-10 md:pr-12 py-1.5 md:py-2 rounded-lg md:rounded-xl border-2 transition-all duration-300 text-sm ${
+                className={`pr-8 sm:pr-10 md:pr-12 py-1 sm:py-1.5 md:py-2 rounded-md sm:rounded-lg md:rounded-xl border-2 transition-all duration-300 text-xs sm:text-sm ${
                   isDarkMode 
                     ? 'bg-gray-800 border-gray-600 text-white placeholder-gray-400 focus:border-purple-400' 
                     : 'border-slate-200 focus:border-purple-400'
                 }`}
                 disabled={isTyping}
               />
-              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+              <div className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2">
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-purple-400 rounded-full animate-pulse"></div>
               </div>
             </div>
             
             <Button 
               onClick={handleSendMessage} 
               disabled={!newMessage.trim() || isTyping}
-              className={`px-4 md:px-6 py-1.5 md:py-2 rounded-lg md:rounded-xl font-semibold shadow-lg transition-all duration-300 text-sm ${
+              className={`px-3 sm:px-4 md:px-6 py-1 sm:py-1.5 md:py-2 rounded-md sm:rounded-lg md:rounded-xl font-semibold shadow-lg transition-all duration-300 text-xs sm:text-sm ${
                 isDarkMode 
                   ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 text-white' 
                   : 'bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white'
               }`}
             >
-              Enviar
+              <span className="hidden sm:inline">Enviar</span>
+              <span className="sm:hidden">→</span>
             </Button>
           </div>
         </div>

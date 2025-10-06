@@ -50,7 +50,7 @@ export async function middleware(request: NextRequest) {
   if (isPublicRoute) {
     // Aplicar headers de seguridad básicos
     const response = NextResponse.next();
-    response.headers.set('X-Frame-Options', 'DENY');
+    response.headers.set('X-Frame-Options', 'SAMEORIGIN');
     response.headers.set('X-Content-Type-Options', 'nosniff');
     response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     return response;
@@ -59,7 +59,7 @@ export async function middleware(request: NextRequest) {
   // Para desarrollo, permitir acceso sin autenticación
   if (process.env.NODE_ENV === 'development') {
     const response = NextResponse.next();
-    response.headers.set('X-Frame-Options', 'DENY');
+    response.headers.set('X-Frame-Options', 'SAMEORIGIN');
     response.headers.set('X-Content-Type-Options', 'nosniff');
     response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     return response;
@@ -73,7 +73,7 @@ export async function middleware(request: NextRequest) {
       // Redirigir al login
       const redirectUrl = new URL('/login', request.url);
       const response = NextResponse.redirect(redirectUrl);
-      response.headers.set('X-Frame-Options', 'DENY');
+      response.headers.set('X-Frame-Options', 'SAMEORIGIN');
       response.headers.set('X-Content-Type-Options', 'nosniff');
       response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
       return response;
@@ -81,7 +81,7 @@ export async function middleware(request: NextRequest) {
 
     // Continuar con la request (con headers de seguridad)
     const response = NextResponse.next();
-    response.headers.set('X-Frame-Options', 'DENY');
+    response.headers.set('X-Frame-Options', 'SAMEORIGIN');
     response.headers.set('X-Content-Type-Options', 'nosniff');
     response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     
@@ -92,7 +92,7 @@ export async function middleware(request: NextRequest) {
     const redirectUrl = new URL('/login', request.url);
     const response = NextResponse.redirect(redirectUrl);
     response.cookies.delete('auth-token');
-    response.headers.set('X-Frame-Options', 'DENY');
+    response.headers.set('X-Frame-Options', 'SAMEORIGIN');
     response.headers.set('X-Content-Type-Options', 'nosniff');
     response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
     return response;

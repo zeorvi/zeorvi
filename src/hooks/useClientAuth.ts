@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import clientAuthService, { type AuthUser } from '@/lib/clientAuth';
+import apiClient from '@/lib/apiClient';
 
 export function useClientAuth() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -19,23 +20,27 @@ export function useClientAuth() {
       const token = getToken();
       
       if (token) {
+        console.log('🔍 Checking authentication with token...');
         const currentUser = await clientAuthService.verifyToken(token);
         
         if (currentUser) {
+          console.log('✅ User authenticated:', currentUser.email);
           setUser(currentUser);
           setIsAuthenticated(true);
         } else {
-          // Token inválido, limpiar
+          // Token inválido o expirado, limpiar
+          console.warn('❌ Token invalid or expired, clearing authentication');
           clientAuthService.clearToken();
           setUser(null);
           setIsAuthenticated(false);
         }
       } else {
+        console.log('ℹ️ No token found, user not authenticated');
         setUser(null);
         setIsAuthenticated(false);
       }
     } catch (error) {
-      console.error('Auth check error:', error);
+      console.error('❌ Auth check error:', error);
       setUser(null);
       setIsAuthenticated(false);
       clientAuthService.clearToken();

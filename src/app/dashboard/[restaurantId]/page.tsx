@@ -37,7 +37,7 @@ interface RestaurantData {
 
 export default function RestaurantDashboardPage() {
   const params = useParams();
-  const restaurantId = params.restaurantId as string;
+  const restaurantId = params?.restaurantId as string;
   
   const [restaurantData, setRestaurantData] = useState<RestaurantData | null>(null);
   const [loading, setLoading] = useState(true);

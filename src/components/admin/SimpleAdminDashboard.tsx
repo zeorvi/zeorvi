@@ -5,9 +5,10 @@ import { useClientAuth } from '@/hooks/useClientAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { LogOut, Users, Plus, Settings, RefreshCw, Trash2, AlertTriangle, Phone, Bot, Database } from 'lucide-react';
+import { LogOut, Users, Plus, Settings, RefreshCw, Trash2, AlertTriangle, Phone, Bot, Database, Key } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getAllRestaurants, deleteRestaurant, updateRestaurantStatus, type RestaurantData } from '@/lib/restaurantServicePostgres';
+import UpdateCredentials from './UpdateCredentials';
 
 export default function SimpleAdminDashboard() {
   const router = useRouter();
@@ -15,6 +16,8 @@ export default function SimpleAdminDashboard() {
   const [restaurants, setRestaurants] = useState<RestaurantData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [showUpdateCredentials, setShowUpdateCredentials] = useState(false);
+  const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantData | null>(null);
 
   const loadRestaurants = async (showToast = false) => {
     setIsLoading(true);
@@ -129,6 +132,17 @@ export default function SimpleAdminDashboard() {
       console.error('Error updating restaurant status:', error);
       toast.error('Error al actualizar el estado del restaurante');
     }
+  };
+
+  const handleUpdateCredentials = (restaurant: RestaurantData) => {
+    setSelectedRestaurant(restaurant);
+    setShowUpdateCredentials(true);
+  };
+
+  const handleCredentialsUpdated = () => {
+    setShowUpdateCredentials(false);
+    setSelectedRestaurant(null);
+    toast.success('Credenciales actualizadas correctamente');
   };
 
   const handleSyncRestaurants = async () => {
@@ -387,6 +401,15 @@ export default function SimpleAdminDashboard() {
                               Ver
                             </Button>
                             <Button
+                              onClick={() => handleUpdateCredentials(restaurant)}
+                              variant="outline"
+                              size="sm"
+                              className="bg-transparent border-yellow-400/50 text-yellow-300 hover:bg-yellow-400/20 hover:border-yellow-400"
+                              title="Actualizar credenciales"
+                            >
+                              <Key className="h-4 w-4" />
+                            </Button>
+                            <Button
                               onClick={() => handleDeleteRestaurant(restaurant.id, restaurant.name)}
                               variant="outline"
                               size="sm"
@@ -405,6 +428,33 @@ export default function SimpleAdminDashboard() {
           </div>
         </div>
       </main>
+
+      {/* Modal de Actualización de Credenciales */}
+      {showUpdateCredentials && selectedRestaurant && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Actualizar Credenciales - {selectedRestaurant.name}
+              </h3>
+              <UpdateCredentials
+                userId={selectedRestaurant.id}
+                currentEmail={selectedRestaurant.owner_email}
+                currentUsername={selectedRestaurant.name.toLowerCase().replace(/\s+/g, '')}
+                onSuccess={handleCredentialsUpdated}
+              />
+              <div className="mt-4 flex justify-end">
+                <Button
+                  onClick={() => setShowUpdateCredentials(false)}
+                  variant="outline"
+                >
+                  Cerrar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

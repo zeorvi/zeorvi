@@ -405,12 +405,104 @@ Para vuestro restaurante: controlad costes, optimizad precios, analizad rentabil
     return `¡Hola! 👋 Estoy estupendamente, gracias por preguntar. Soy vuestro asistente IA con conocimientos sobre cualquier tema. ¿En qué puedo ayudaros?`;
   }
 
-  // 🤖 RESPUESTA INTELIGENTE GENERAL
-  return `¡Vale! Me preguntáis sobre "${userMessage}".
+  // 🎯 RESPUESTAS ESPECÍFICAS PARA PREGUNTAS COMUNES
+  
+  // Preguntas sobre el restaurante específico
+  if (input.includes('mesa') || input.includes('ocupación') || input.includes('disponible')) {
+    return `🍽️ Estado actual de ${restaurantName}:
 
-Tengo conocimientos sobre prácticamente cualquier tema: ciencia, historia, geografía, deportes, música, cocina, economía, cultura, tecnología, salud, y mucho más.
+📊 OCUPACIÓN EN TIEMPO REAL:
+• ${context.currentOccupancy}/${context.totalTables} mesas ocupadas
+• ${context.totalTables - context.currentOccupancy} mesas disponibles
+• ${context.todayReservations} reservas programadas para hoy
 
-Decidme exactamente qué queréis saber y os doy información detallada y útil.
+🕐 HORA ACTUAL: ${context.currentTime}
+📅 DÍA: ${context.dayOfWeek}
 
-¿En qué tema específico puedo ayudaros?`;
+💡 RECOMENDACIÓN: La ocupación está al ${Math.round((context.currentOccupancy/context.totalTables)*100)}%, que es ${context.currentOccupancy/context.totalTables > 0.7 ? 'alta' : 'moderada'} para un ${context.dayOfWeek}.
+
+¿Necesitáis información específica sobre alguna mesa o reserva?`;
+  }
+
+  // Preguntas sobre personal
+  if (input.includes('personal') || input.includes('empleado') || input.includes('staff') || input.includes('trabajador')) {
+    return `👥 Personal de ${restaurantName}:
+
+👨‍🍳 EQUIPO EN TURNO:
+• ${context.staffOnDuty} personas trabajando actualmente
+• Personal distribuido en cocina, sala y atención al cliente
+
+📈 RENDIMIENTO:
+• Personal bien distribuido para la ocupación actual
+• Equipo experimentado y eficiente
+
+💡 SUGERENCIA: Con ${context.currentOccupancy} mesas ocupadas y ${context.staffOnDuty} personas, la ratio está optimizada.
+
+¿Necesitáis información específica sobre algún miembro del equipo?`;
+  }
+
+  // Preguntas sobre ingresos
+  if (input.includes('ingreso') || input.includes('dinero') || input.includes('venta') || input.includes('facturación')) {
+    return `💰 Estado financiero de ${restaurantName}:
+
+📊 INGRESOS HOY:
+• $${context.todayRevenue.toLocaleString()} facturado hasta ahora
+• Promedio por mesa: $${Math.round(context.todayRevenue/context.currentOccupancy).toLocaleString()}
+
+📈 ANÁLISIS:
+• ${context.todayReservations} reservas programadas
+• ${context.currentOccupancy} mesas activas
+• Día: ${context.dayOfWeek}
+
+💡 INSIGHT: Los ingresos están ${context.todayRevenue > 10000 ? 'por encima' : 'por debajo'} del promedio esperado para un ${context.dayOfWeek}.
+
+¿Queréis análisis más detallado de algún aspecto financiero?`;
+  }
+
+  // Preguntas sobre especialidades del restaurante
+  if (input.includes('especialidad') || input.includes('plato') || input.includes('menú') || input.includes('carta')) {
+    return `🍴 Especialidades de ${restaurantName}:
+
+👨‍🍳 PLATOS ESTRELLA:
+• ${context.specialties.join(' • ')}
+
+🏆 CARACTERÍSTICAS:
+• Cocina tradicional con toque moderno
+• Ingredientes frescos y de calidad
+• Preparación artesanal
+
+💡 RECOMENDACIÓN: Hoy es ${context.dayOfWeek}, perfecto para ${context.specialties[0].toLowerCase()}.
+
+¿Queréis información sobre algún plato específico o ingredientes?`;
+  }
+
+  // 🤖 RESPUESTA INTELIGENTE GENERAL - MEJORADA
+  return `¡Hola! 👋 Soy vuestro asistente IA integral para ${restaurantName}.
+
+He recibido vuestra pregunta sobre "${userMessage}" y estoy aquí para ayudaros con cualquier tema que necesitéis.
+
+🧠 MIS CAPACIDADES:
+• Información sobre ${restaurantName} y gestión de restaurantes
+• Recetas y técnicas culinarias de cualquier cocina del mundo
+• Consejos de negocio, marketing y gestión empresarial
+• Ciencia, tecnología, historia, geografía, cultura
+• Salud, nutrición, deportes y bienestar
+• Economía, finanzas e inversiones
+• Educación, idiomas y desarrollo personal
+• Entretenimiento: música, cine, libros, series
+• Clima, noticias y actualidad
+• Y prácticamente cualquier otro tema
+
+💡 ESTADO ACTUAL DE ${restaurantName.toUpperCase()}:
+• ${context.currentOccupancy}/${context.totalTables} mesas ocupadas
+• ${context.todayReservations} reservas para hoy
+• ${context.staffOnDuty} personas en turno
+• Especialidades: ${context.specialties.join(', ')}
+
+¿Podríais ser más específicos sobre qué queréis saber? Por ejemplo:
+• Si es una receta: "¿Cómo hacer paella valenciana?"
+• Si es sobre el restaurante: "¿Cuántas mesas están libres?"
+• Si es información general: "¿Qué es la inteligencia artificial?"
+
+¡Estoy aquí para ayudaros con lo que sea! 😊`;
 }

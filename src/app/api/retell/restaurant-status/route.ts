@@ -1,161 +1,204 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTablesByStatus, getRestaurantMetrics, getReservationsByDate } from '@/lib/restaurantData';
 import { logger } from '@/lib/logger';
+import { getRestaurantById } from '@/lib/restaurantServicePostgres';
+import { productionDb } from '@/lib/database/production';
+import { occupancyPredictor } from '@/lib/occupancyPredictor';
 
-// GET - Obtener estado completo del restaurante para Retell
+// GET - Obtener estado completo del restaurante para el agente de IA
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const restaurantId = searchParams.get('restaurantId') || 'default';
-    const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
-    
-    // Obtener todas las mesas por estado
-    const mesasLibres = getTablesByStatus('libre');
-    const mesasOcupadas = getTablesByStatus('ocupada');
-    const mesasReservadas = getTablesByStatus('reservada');
-    const todasLasMesas = getTablesByStatus('all');
-    
-    // Obtener métricas del restaurante
-    const metrics = getRestaurantMetrics();
-    
-    // Obtener reservas del día
-    const reservasHoy = getReservationsByDate(new Date(date));
-    
-    // Analizar disponibilidad por turnos
-    const turnos = {
-      almuerzo: {
-        primer_turno: { horario: '13:00-15:00', disponible: true, mesas_libres: 0 },
-        segundo_turno: { horario: '14:00-16:00', disponible: true, mesas_libres: 0 }
-      },
-      cena: {
-        primer_turno: { horario: '20:00-22:00', disponible: true, mesas_libres: 0 },
-        segundo_turno: { horario: '22:00-23:30', disponible: true, mesas_libres: 0 }
-      }
+    const restaurantId = searchParams.get('restaurantId');
+
+    if (!restaurantId) {
+      return NextResponse.json({
+        success: false,
+        error: 'restaurantId es requerido'
+      }, { status: 400 });
+    }
+
+    // Obtener datos del restaurante
+    const restaurantData = await getRestaurantById(restaurantId);
+    if (!restaurantData) {
+      return NextResponse.json({
+        success: false,
+        error: 'Restaurante no encontrado'
+      }, { status: 404 });
+    }
+
+    // Obtener datos reales de la base de datos
+    const [tableStates, schedule, metrics, reservations] = await Promise.all([
+      productionDb.getTableStates(restaurantId),
+      productionDb.getRestaurantSchedule(restaurantId),
+      productionDb.getCurrentMetrics(restaurantId),
+      productionDb.getReservations(restaurantId, new Date().toISOString().split('T')[0])
+    ]);
+
+    const now = new Date();
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const currentDay = dayNames[now.getDay()];
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
+    // Verificar si el restaurante está abierto
+    const todaySchedule = schedule.find(s => s.dayOfWeek === currentDay);
+    const isCurrentlyOpen = todaySchedule?.isOpen && 
+      todaySchedule.openingTime && 
+      todaySchedule.closingTime &&
+      currentHour >= parseInt(todaySchedule.openingTime.split(':')[0]) &&
+      currentHour < parseInt(todaySchedule.closingTime.split(':')[0]);
+
+    // Calcular disponibilidad por capacidad
+    const availabilityByCapacity = {
+      para2Personas: tableStates.filter(t => t.status === 'libre' && t.capacity >= 2).length,
+      para4Personas: tableStates.filter(t => t.status === 'libre' && t.capacity >= 4).length,
+      para6Personas: tableStates.filter(t => t.status === 'libre' && t.capacity >= 6).length,
+      para8Personas: tableStates.filter(t => t.status === 'libre' && t.capacity >= 8).length,
     };
-    
-    // Calcular disponibilidad por turno
-    ['13:00', '14:00', '20:00', '22:00'].forEach(hora => {
-      const reservasEnHora = reservasHoy.filter(r => r.time === hora && r.status !== 'cancelada');
-      const mesasDisponibles = todasLasMesas.length - reservasEnHora.length;
-      
-      if (hora === '13:00') {
-        turnos.almuerzo.primer_turno.mesas_libres = mesasDisponibles;
-        turnos.almuerzo.primer_turno.disponible = mesasDisponibles > 0;
-      } else if (hora === '14:00') {
-        turnos.almuerzo.segundo_turno.mesas_libres = mesasDisponibles;
-        turnos.almuerzo.segundo_turno.disponible = mesasDisponibles > 0;
-      } else if (hora === '20:00') {
-        turnos.cena.primer_turno.mesas_libres = mesasDisponibles;
-        turnos.cena.primer_turno.disponible = mesasDisponibles > 0;
-      } else if (hora === '22:00') {
-        turnos.cena.segundo_turno.mesas_libres = mesasDisponibles;
-        turnos.cena.segundo_turno.disponible = mesasDisponibles > 0;
+
+    // Obtener ubicaciones únicas
+    const ubicaciones = Array.from(new Set(tableStates.map(t => t.location)));
+    const mesasPorUbicacion = ubicaciones.reduce((acc: any, loc) => {
+      const tablesInLoc = tableStates.filter(t => t.location === loc);
+      acc[loc] = {
+        total: tablesInLoc.length,
+        libres: tablesInLoc.filter(t => t.status === 'libre').length,
+        ocupadas: tablesInLoc.filter(t => t.status === 'ocupada').length,
+        reservadas: tablesInLoc.filter(t => t.status === 'reservada').length,
+      };
+      return acc;
+    }, {});
+
+    // Generar predicciones para las próximas horas
+    const predictions = [];
+    for (let hour = currentHour; hour <= 23; hour++) {
+      try {
+        const prediction = await occupancyPredictor.predictOccupancy(restaurantId, now, hour);
+        predictions.push({
+          hora: `${hour}:00`,
+          ocupacionPredicha: prediction.predictedOccupancy,
+          confianza: prediction.confidenceScore,
+          recomendaciones: prediction.recommendations
+        });
+      } catch (error) {
+        logger.error(`Error predicting for hour ${hour}:`, error);
       }
-    });
-    
-    // Respuesta estructurada para Retell
-    const response = {
+    }
+
+    // Generar recomendaciones
+    const recommendations = [];
+    if (metrics.occupancyRate > 80) {
+      recommendations.push('Alta ocupación actual - considera reservas con anticipación');
+    } else if (metrics.occupancyRate < 30) {
+      recommendations.push('Baja ocupación actual - ideal para nuevas reservas');
+    }
+
+    if (availabilityByCapacity.para2Personas === 0) {
+      recommendations.push('No hay mesas disponibles para 2 personas');
+    }
+    if (availabilityByCapacity.para4Personas === 0) {
+      recommendations.push('No hay mesas disponibles para 4 personas');
+    }
+
+    // Crear respuesta completa
+    const dashboardInfo = {
       restaurante: {
         id: restaurantId,
-        fecha_consulta: date,
-        estado_general: {
-          total_mesas: metrics.totalTables,
-          mesas_libres: metrics.freeTables,
-          mesas_ocupadas: metrics.occupiedTables,
-          mesas_reservadas: metrics.reservedTables,
-          ocupacion_porcentaje: metrics.averageOccupancy
-        }
+        nombre: restaurantData.name,
+        tipo: 'Restaurante',
+        telefono: restaurantData.phone,
+        email: restaurantData.email,
+        direccion: restaurantData.address,
       },
-      
-      mesas_por_estado: {
-        libres: mesasLibres.map(mesa => ({
-          id: mesa.id,
-          nombre: mesa.name,
-          capacidad: mesa.capacity,
-          ubicacion: mesa.location,
-          disponible_para_reserva: true
-        })),
-        
-        ocupadas: mesasOcupadas.map(mesa => ({
-          id: mesa.id,
-          nombre: mesa.name,
-          capacidad: mesa.capacity,
-          ubicacion: mesa.location,
-          cliente: mesa.client?.name || 'Cliente',
-          telefono: mesa.client?.phone || '',
-          tiempo_ocupada: mesa.reservation?.duration || 120,
-          hora_reserva: mesa.reservation?.time || ''
-        })),
-        
-        reservadas: mesasReservadas.map(mesa => ({
-          id: mesa.id,
-          nombre: mesa.name,
-          capacidad: mesa.capacity,
-          ubicacion: mesa.location,
-          cliente: mesa.client?.name || 'Cliente',
-          telefono: mesa.client?.phone || '',
-          hora_reserva: mesa.reservation?.time || '',
-          personas: mesa.reservation?.people || 0,
-          estado_reserva: mesa.reservation?.status || 'pendiente',
-          notas: mesa.reservation?.notes || ''
-        }))
+      estadoActual: {
+        estaAbierto: isCurrentlyOpen,
+        diaActual: currentDay,
+        horaActual: `${currentHour}:${currentMinute < 10 ? '0' + currentMinute : currentMinute}`,
+        fechaActual: now.toLocaleDateString('es-ES'),
       },
-      
-      turnos_disponibilidad: turnos,
-      
-      reservas_hoy: {
-        total: reservasHoy.length,
-        por_estado: {
-          pendientes: reservasHoy.filter(r => r.status === 'pendiente').length,
-          confirmadas: reservasHoy.filter(r => r.status === 'confirmada').length,
-          canceladas: reservasHoy.filter(r => r.status === 'cancelada').length,
-          completadas: reservasHoy.filter(r => r.status === 'completada').length
+      horario: {
+        diasAbierto: schedule.filter(s => s.isOpen).map(s => s.dayOfWeek),
+        horarios: schedule.reduce((acc: any, s) => {
+          acc[s.dayOfWeek] = s.isOpen && s.openingTime && s.closingTime 
+            ? `${s.openingTime} - ${s.closingTime}` 
+            : 'Cerrado';
+          return acc;
+        }, {}),
+        proximoCierre: todaySchedule?.closingTime || 'No disponible',
+      },
+      mesas: {
+        total: metrics.totalTables,
+        porEstado: {
+          libres: metrics.freeTables,
+          ocupadas: metrics.occupiedTables,
+          reservadas: metrics.reservedTables,
+          ocupadoTodoDia: tableStates.filter(t => t.status === 'ocupado_todo_dia').length,
         },
-        por_turno: {
-          almuerzo_13: reservasHoy.filter(r => r.time === '13:00' && r.status !== 'cancelada').length,
-          almuerzo_14: reservasHoy.filter(r => r.time === '14:00' && r.status !== 'cancelada').length,
-          cena_20: reservasHoy.filter(r => r.time === '20:00' && r.status !== 'cancelada').length,
-          cena_22: reservasHoy.filter(r => r.time === '22:00' && r.status !== 'cancelada').length
-        }
+        porcentajeOcupacion: metrics.occupancyRate,
+        detalleMesas: tableStates.map(t => ({
+          nombre: t.tableName,
+          capacidad: t.capacity,
+          ubicacion: t.location,
+          estado: t.status,
+          cliente: t.clientName || null,
+          telefono: t.clientPhone || null,
+          personas: t.partySize || null,
+          ultimaActualizacion: t.lastUpdated.toISOString(),
+        })),
       },
-      
-      recomendaciones_para_retell: {
-        turno_menos_ocupado: (() => {
-          const ocupacionTurnos = [
-            { turno: 'almuerzo 13:00', ocupadas: reservasHoy.filter(r => r.time === '13:00' && r.status !== 'cancelada').length },
-            { turno: 'almuerzo 14:00', ocupadas: reservasHoy.filter(r => r.time === '14:00' && r.status !== 'cancelada').length },
-            { turno: 'cena 20:00', ocupadas: reservasHoy.filter(r => r.time === '20:00' && r.status !== 'cancelada').length },
-            { turno: 'cena 22:00', ocupadas: reservasHoy.filter(r => r.time === '22:00' && r.status !== 'cancelada').length }
-          ];
-          return ocupacionTurnos.sort((a, b) => a.ocupadas - b.ocupadas)[0];
-        })(),
-        
-        capacidades_disponibles: mesasLibres.reduce((acc, mesa) => {
-          acc[mesa.capacity] = (acc[mesa.capacity] || 0) + 1;
-          return acc;
-        }, {} as Record<number, number>),
-        
-        ubicaciones_disponibles: mesasLibres.reduce((acc, mesa) => {
-          acc[mesa.location] = (acc[mesa.location] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>)
-      }
+      disponibilidad: availabilityByCapacity,
+      ubicaciones: {
+        total: ubicaciones.length,
+        lista: ubicaciones,
+        mesasPorUbicacion,
+      },
+      reservas: {
+        totalHoy: reservations.length,
+        confirmadas: reservations.filter(r => r.status === 'confirmada').length,
+        pendientes: reservations.filter(r => r.status === 'pendiente').length,
+        proximasReservas: reservations
+          .filter(r => r.status === 'confirmada')
+          .sort((a, b) => new Date(`${a.reservationDate} ${a.reservationTime}`).getTime() - new Date(`${b.reservationDate} ${b.reservationTime}`).getTime())
+          .slice(0, 5)
+          .map(r => ({
+            cliente: r.clientName,
+            telefono: r.clientPhone,
+            personas: r.partySize,
+            hora: r.reservationTime,
+            mesa: r.tableId || 'Por asignar',
+            estado: r.status
+          }))
+      },
+      predicciones: {
+        proximasHoras: predictions,
+        tendencia: predictions.length > 0 ? 
+          (predictions[predictions.length - 1].ocupacionPredicha > predictions[0].ocupacionPredicha ? 'creciente' : 'decreciente') : 
+          'estable'
+      },
+      recomendaciones: recommendations,
+      puedeReservar: isCurrentlyOpen && metrics.freeTables > 0,
+      capacidadMaxima: Math.max(...tableStates.map(t => t.capacity)),
     };
-    
-    logger.info('Estado del restaurante consultado por Retell', {
-      restaurantId,
-      date,
-      totalMesas: metrics.totalTables,
-      mesasLibres: metrics.freeTables
+
+    logger.info('Restaurant status provided to Retell', { 
+      restaurantId, 
+      totalTables: metrics.totalTables,
+      occupancyRate: metrics.occupancyRate,
+      isOpen: isCurrentlyOpen 
     });
-    
-    return NextResponse.json(response);
-    
+
+    return NextResponse.json({
+      success: true,
+      data: dashboardInfo,
+      timestamp: now.toISOString(),
+      message: 'Información completa del estado del restaurante disponible para el agente'
+    });
+
   } catch (error) {
-    logger.error('Error al obtener estado del restaurante para Retell', { error });
-    return NextResponse.json(
-      { error: 'Error al consultar estado del restaurante' },
-      { status: 500 }
-    );
+    logger.error('Error providing restaurant status to Retell', error);
+    return NextResponse.json({
+      success: false,
+      error: 'Error al obtener el estado del restaurante'
+    }, { status: 500 });
   }
 }

@@ -227,6 +227,61 @@ class SQLiteDatabase {
     }
   }
 
+  async updateUser(userId: string, updateData: Partial<RestaurantUser>): Promise<boolean> {
+    const run = promisify(this.db.run.bind(this.db));
+    try {
+      const fields = [];
+      const values = [];
+      
+      if (updateData.email) {
+        fields.push('email = ?');
+        values.push(updateData.email);
+      }
+      
+      if (updateData.password_hash) {
+        fields.push('password_hash = ?');
+        values.push(updateData.password_hash);
+      }
+      
+      if (updateData.name) {
+        fields.push('name = ?');
+        values.push(updateData.name);
+      }
+      
+      if (updateData.role) {
+        fields.push('role = ?');
+        values.push(updateData.role);
+      }
+      
+      if (updateData.permissions) {
+        fields.push('permissions = ?');
+        values.push(JSON.stringify(updateData.permissions));
+      }
+      
+      if (updateData.status) {
+        fields.push('status = ?');
+        values.push(updateData.status);
+      }
+      
+      // Siempre actualizar updated_at
+      fields.push('updated_at = CURRENT_TIMESTAMP');
+      
+      if (fields.length === 0) {
+        return false;
+      }
+      
+      values.push(userId);
+      
+      const query = `UPDATE restaurant_users SET ${fields.join(', ')} WHERE id = ?`;
+      await run(query);
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating user:', error);
+      return false;
+    }
+  }
+
   async updateLastLogin(userId: string): Promise<void> {
     const run = promisify(this.db.run.bind(this.db));
     try {

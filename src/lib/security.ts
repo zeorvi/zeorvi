@@ -17,12 +17,12 @@ const SECURITY_CONFIG = {
   // Headers de seguridad
   SECURITY_HEADERS: {
     'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
+    'X-Frame-Options': 'SAMEORIGIN',
     'X-XSS-Protection': '1; mode=block',
     'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-    'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.firebase.com https://*.firebase.com https://*.twilio.com https://*.retellai.com; frame-ancestors 'none';"
+    'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.firebase.com https://*.firebase.com https://*.twilio.com https://*.retellai.com https://accounts.google.com; frame-src 'self' https://accounts.google.com https://drive.google.com; frame-ancestors 'self' https://accounts.google.com https://drive.google.com;"
   },
   
   // Patrones de ataque conocidos
