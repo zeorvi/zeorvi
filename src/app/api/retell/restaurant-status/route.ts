@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
-import { getRestaurantById } from '@/lib/restaurantServicePostgres';
+import { sqliteDb } from '@/lib/database/sqlite';
 import { productionDb } from '@/lib/database/production';
 import { occupancyPredictor } from '@/lib/occupancyPredictor';
 
@@ -17,8 +17,8 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Obtener datos del restaurante
-    const restaurantData = await getRestaurantById(restaurantId);
+    // Obtener datos del restaurante usando SQLite
+    const restaurantData = await sqliteDb.getRestaurant(restaurantId);
     if (!restaurantData) {
       return NextResponse.json({
         success: false,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRestaurantById } from '@/lib/restaurantServicePostgres';
+import { sqliteDb } from '@/lib/database/sqlite';
 
 // GET - Listar reservas del restaurante
 export async function GET(request: NextRequest) {
@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Obtener datos del restaurante
-    const restaurantData = await getRestaurantById(restaurantId);
+    // Obtener datos del restaurante usando SQLite
+    const restaurantData = await sqliteDb.getRestaurant(restaurantId);
     if (!restaurantData) {
       return NextResponse.json({
         success: false,
@@ -150,8 +150,8 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Obtener datos del restaurante
-    const restaurantData = await getRestaurantById(restaurantId);
+    // Obtener datos del restaurante usando SQLite
+    const restaurantData = await sqliteDb.getRestaurant(restaurantId);
     if (!restaurantData) {
       return NextResponse.json({
         success: false,
