@@ -1,107 +1,82 @@
-const { RetellReservationFlow } = require('../src/lib/retellReservationFlow');
+/**
+ * Script para probar el flujo completo: Retell → Dashboard
+ */
+
+const BASE_URL = 'https://zeorvi-pfg0nz4wt-zeorvis-projects.vercel.app';
 
 async function testCompleteFlow() {
-  console.log('🧪 Probando Flujo Completo: Cliente → Retell AI → Google Sheets → Dashboard\n');
+  console.log('🔄 Probando flujo completo: Retell → Dashboard\n');
 
   try {
-    // 1. Simular llamada de cliente solicitando reserva
-    console.log('📞 Simulando llamada de cliente...');
-    const reservationRequest = {
-      customerName: 'Juan Pérez',
-      phone: '555-1234',
-      people: 4,
-      date: new Date().toISOString().split('T')[0], // Hoy
-      time: '20:00',
-      specialRequests: 'Mesa cerca de la ventana, cumpleaños',
-      restaurantId: 'rest_gaviota_001',
-      restaurantName: 'La Gaviota',
-      spreadsheetId: 'spreadsheet_gaviota_001'
-    };
+    // 1. Simular llamada de Retell
+    console.log('1️⃣ Simulando llamada de Retell...');
+    const simulationResponse = await fetch(`${BASE_URL}/api/retell/simulate-call`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: 'Hola, me llamo Ana García y quiero reservar una mesa para 2 personas mañana a las 21:00',
+        restaurantId: 'rest_003'
+      })
+    });
 
-    console.log('📋 Solicitud de reserva:', reservationRequest);
-
-    // 2. Procesar solicitud de reserva
-    console.log('\n🔄 Procesando solicitud de reserva...');
-    const result = await RetellReservationFlow.processReservationRequest(reservationRequest);
-
-    if (result.success) {
-      console.log('✅ Reserva procesada exitosamente!');
-      console.log('📝 Mensaje para el cliente:', result.message);
-      console.log('🆔 ID de reserva:', result.reservationId);
-      console.log('📊 Datos de reserva:', result.reservation);
+    if (simulationResponse.ok) {
+      const simulation = await simulationResponse.json();
+      console.log('✅ Simulación exitosa:');
+      console.log('   📝 Datos extraídos:', simulation.extractedData);
+      console.log('   🤖 Respuesta del agente:', simulation.agentResponse);
+      
+      if (simulation.reservationResult?.success) {
+        console.log('   🎉 Reserva creada:', simulation.reservationResult.reservation);
+      }
     } else {
-      console.log('❌ Reserva no pudo ser procesada');
-      console.log('📝 Mensaje para el cliente:', result.message);
+      console.log('❌ Error en simulación:', simulationResponse.status);
     }
 
-    // 3. Simular verificación de disponibilidad
-    console.log('\n🔍 Verificando disponibilidad...');
-    const availability = await RetellReservationFlow.checkAvailability(
-      reservationRequest.date,
-      '21:00', // Hora diferente
-      2, // Menos personas
-      reservationRequest.restaurantId,
-      reservationRequest.restaurantName,
-      reservationRequest.spreadsheetId
-    );
-
-    console.log('📊 Disponibilidad:', availability);
-
-    // 4. Simular búsqueda de reserva existente
-    console.log('\n🔍 Buscando reserva existente...');
-    const existingReservation = await RetellReservationFlow.findExistingReservation(
-      reservationRequest.customerName,
-      reservationRequest.phone,
-      reservationRequest.restaurantId,
-      reservationRequest.restaurantName
-    );
-
-    if (existingReservation) {
-      console.log('✅ Reserva existente encontrada:', existingReservation);
-    } else {
-      console.log('ℹ️ No se encontró reserva existente');
+    // 2. Verificar que la reserva aparece en el dashboard
+    console.log('\n2️⃣ Verificando dashboard...');
+    
+    // Verificar reservas
+    const reservationsResponse = await fetch(`${BASE_URL}/api/retell/reservations?restaurantId=rest_003`);
+    if (reservationsResponse.ok) {
+      const reservations = await reservationsResponse.json();
+      console.log('✅ Reservas en dashboard:', reservations.reservations?.length || 0);
     }
 
-    // 5. Simular modificación de reserva
-    console.log('\n🔄 Simulando modificación de reserva...');
-    const modifyResult = await RetellReservationFlow.modifyExistingReservation(
-      reservationRequest.customerName,
-      reservationRequest.phone,
-      reservationRequest.date,
-      '21:00', // Nueva hora
-      2, // Nuevo número de personas
-      reservationRequest.restaurantId,
-      reservationRequest.restaurantName,
-      reservationRequest.spreadsheetId
-    );
+    // Verificar mesas
+    const tablesResponse = await fetch(`${BASE_URL}/api/retell/tables?restaurantId=rest_003`);
+    if (tablesResponse.ok) {
+      const tables = await tablesResponse.json();
+      console.log('✅ Mesas en dashboard:', tables.tables?.length || 0);
+      console.log('   📊 Estadísticas:', tables.statistics);
+    }
 
-    console.log('📝 Resultado de modificación:', modifyResult);
+    // 3. Verificar información del dashboard
+    console.log('\n3️⃣ Verificando información del dashboard...');
+    const dashboardResponse = await fetch(`${BASE_URL}/api/retell/dashboard?restaurantId=rest_003`);
+    if (dashboardResponse.ok) {
+      const dashboard = await dashboardResponse.json();
+      console.log('✅ Dashboard data:');
+      console.log('   🏪 Restaurante:', dashboard.restaurante?.nombre);
+      console.log('   📅 Reservas hoy:', dashboard.agendaDiaria?.reservasHoy?.length || 0);
+      console.log('   🪑 Mesas totales:', dashboard.mesas?.length || 0);
+    }
 
-    console.log('\n🎉 ¡Flujo completo probado exitosamente!');
-    console.log('\n📋 Resumen del flujo:');
-    console.log('✅ Cliente llama al restaurante');
-    console.log('✅ Retell AI detecta solicitud de reserva');
-    console.log('✅ Sistema verifica disponibilidad en Google Sheets');
-    console.log('✅ Sistema crea/modifica reserva en Google Sheets');
-    console.log('✅ Sistema genera respuesta para el cliente');
-    console.log('✅ Dashboard se actualiza en tiempo real');
-    console.log('✅ Cliente recibe confirmación o rechazo');
-
-    console.log('\n🔗 APIs disponibles:');
-    console.log('📞 Webhook Retell AI: POST /api/retell/webhook');
-    console.log('🔄 Procesar reserva: POST /api/retell/reservation');
-    console.log('🔍 Verificar disponibilidad: GET /api/retell/reservation');
-    console.log('📊 Obtener reservas: GET /api/google-sheets/reservas');
+    console.log('\n🎉 Flujo completo probado!');
+    console.log('\n📋 Lo que debería pasar en el dashboard real:');
+    console.log('   1. 📞 Cliente llama al agente de Retell');
+    console.log('   2. 🤖 Agente procesa la reserva automáticamente');
+    console.log('   3. 💾 Reserva se guarda en la base de datos');
+    console.log('   4. 🔔 Dashboard se actualiza en tiempo real');
+    console.log('   5. 📊 Todas las estadísticas se recalculan');
+    console.log('   6. 🪑 Mesa cambia de estado automáticamente');
+    console.log('   7. 📅 Nueva reserva aparece en la agenda');
 
   } catch (error) {
-    console.error('❌ Error en el flujo completo:', error);
-    console.log('\n🔧 Posibles soluciones:');
-    console.log('1. Verifica que Google Sheets esté configurado correctamente');
-    console.log('2. Verifica que las credenciales de Google estén configuradas');
-    console.log('3. Verifica que el spreadsheet ID sea correcto');
-    console.log('4. Revisa los logs para más detalles del error');
+    console.error('❌ Error durante la prueba:', error.message);
   }
 }
 
-// Ejecutar prueba del flujo completo
+// Ejecutar la prueba
 testCompleteFlow();
