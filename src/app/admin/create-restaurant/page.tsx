@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import authService from '@/lib/auth';
 import { addUserMappingWithUsername } from '@/lib/userMapping';
 import { createRestaurant } from '@/lib/restaurantServicePostgres';
+import { generateAgentPromptForRestaurant } from '@/lib/retellConfig';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,7 +56,17 @@ export default function CreateRestaurantPage() {
     email: '',
     phone: '',
     address: '',
-    twilioNumber: ''
+    twilioNumber: '',
+    // Configuración específica para el prompt
+    horarioLunesJueves: '12:00 - 23:00',
+    horarioViernesSabado: '12:00 - 00:00',
+    horarioDomingo: '12:00 - 22:00',
+    ubicaciones: ['Comedor Principal', 'Terraza', 'Salón Privado'],
+    descripcionUbicaciones: {
+      'Comedor Principal': 'Área principal del restaurante',
+      'Terraza': 'Área al aire libre',
+      'Salón Privado': 'Área privada para eventos especiales'
+    }
   });
 
   // Configuración de mesas (solo las que se gestionan por llamada)
@@ -434,16 +445,30 @@ IMPORTANTE:
       // 6. Generar código de configuración
       const configCode = generateConfigCode();
       
-      // 7. Generar configuración de Retell
+      // 7. Generar configuración de Retell con prompt personalizado
       const retellConfig = generateRetellConfig();
+      
+      // 8. Generar prompt personalizado usando la configuración específica
+      const promptPersonalizado = generateAgentPromptForRestaurant(
+        restaurantData.name, 
+        'Restaurante Tradicional', 
+        {
+          restaurantId: restaurantResult.restaurant.id,
+          horarioLunesJueves: restaurantData.horarioLunesJueves,
+          horarioViernesSabado: restaurantData.horarioViernesSabado,
+          horarioDomingo: restaurantData.horarioDomingo,
+          ubicaciones: restaurantData.ubicaciones,
+          descripcionUbicaciones: restaurantData.descripcionUbicaciones
+        }
+      );
 
-      // 8. Mostrar credenciales
+      // 9. Mostrar credenciales con prompt personalizado
       setGeneratedCredentials({
         username,
         email: restaurantData.email,
         password: tempPassword,
         restaurantName: restaurantData.name,
-        configCode: configCode + '\n\n' + retellConfig
+        configCode: configCode + '\n\n' + retellConfig + '\n\n' + '// PROMPT PERSONALIZADO:\n' + promptPersonalizado
       });
 
       setStep(3);
@@ -601,6 +626,99 @@ IMPORTANTE:
                   className="bg-slate-700/50 border-cyan-400/30 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20"
                   required
                 />
+              </div>
+
+              {/* Configuración de Horarios */}
+              <div className="border-t border-slate-600 pt-6">
+                <h3 className="text-lg font-semibold text-cyan-300 mb-4">🕒 Horarios del Restaurante</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-cyan-300 font-medium">Lunes a Jueves</Label>
+                    <Input
+                      value={restaurantData.horarioLunesJueves}
+                      onChange={(e) => setRestaurantData({...restaurantData, horarioLunesJueves: e.target.value})}
+                      placeholder="12:00 - 23:00"
+                      className="bg-slate-700/50 border-cyan-400/30 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-cyan-300 font-medium">Viernes y Sábado</Label>
+                    <Input
+                      value={restaurantData.horarioViernesSabado}
+                      onChange={(e) => setRestaurantData({...restaurantData, horarioViernesSabado: e.target.value})}
+                      placeholder="12:00 - 00:00"
+                      className="bg-slate-700/50 border-cyan-400/30 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-cyan-300 font-medium">Domingo</Label>
+                    <Input
+                      value={restaurantData.horarioDomingo}
+                      onChange={(e) => setRestaurantData({...restaurantData, horarioDomingo: e.target.value})}
+                      placeholder="12:00 - 22:00"
+                      className="bg-slate-700/50 border-cyan-400/30 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Configuración de Ubicaciones */}
+              <div className="border-t border-slate-600 pt-6">
+                <h3 className="text-lg font-semibold text-cyan-300 mb-4">🍽️ Ubicaciones del Restaurante</h3>
+                <div className="space-y-3">
+                  {restaurantData.ubicaciones.map((ubicacion, index) => (
+                    <div key={index} className="flex gap-2">
+                      <Input
+                        value={ubicacion}
+                        onChange={(e) => {
+                          const newUbicaciones = [...restaurantData.ubicaciones];
+                          newUbicaciones[index] = e.target.value;
+                          setRestaurantData({...restaurantData, ubicaciones: newUbicaciones});
+                        }}
+                        placeholder="Nombre de la ubicación"
+                        className="bg-slate-700/50 border-cyan-400/30 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20"
+                      />
+                      <Input
+                        value={restaurantData.descripcionUbicaciones[ubicacion] || ''}
+                        onChange={(e) => {
+                          const newDescripciones = {...restaurantData.descripcionUbicaciones};
+                          newDescripciones[ubicacion] = e.target.value;
+                          setRestaurantData({...restaurantData, descripcionUbicaciones: newDescripciones});
+                        }}
+                        placeholder="Descripción de la ubicación"
+                        className="bg-slate-700/50 border-cyan-400/30 text-white placeholder-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          const newUbicaciones = restaurantData.ubicaciones.filter((_, i) => i !== index);
+                          const newDescripciones = {...restaurantData.descripcionUbicaciones};
+                          delete newDescripciones[ubicacion];
+                          setRestaurantData({...restaurantData, ubicaciones: newUbicaciones, descripcionUbicaciones: newDescripciones});
+                        }}
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const nuevaUbicacion = `Ubicación ${restaurantData.ubicaciones.length + 1}`;
+                      setRestaurantData({
+                        ...restaurantData, 
+                        ubicaciones: [...restaurantData.ubicaciones, nuevaUbicacion],
+                        descripcionUbicaciones: {...restaurantData.descripcionUbicaciones, [nuevaUbicacion]: ''}
+                      });
+                    }}
+                    className="w-full border-dashed border-cyan-400/50 text-cyan-300 hover:bg-cyan-400/10"
+                  >
+                    + Agregar Ubicación
+                  </Button>
+                </div>
               </div>
               <Button 
                 onClick={() => setStep(2)} 
