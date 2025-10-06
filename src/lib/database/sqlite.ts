@@ -318,23 +318,8 @@ class SQLiteDatabase {
         INSERT INTO restaurants (
           id, name, slug, owner_email, owner_name, phone, address, city, country,
           config, plan, status, retell_config, twilio_config, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `, [
-        id,
-        restaurantData.name || 'Nuevo Restaurante',
-        slug,
-        restaurantData.owner_email || '',
-        restaurantData.owner_name || '',
-        restaurantData.phone || '',
-        restaurantData.address || '',
-        restaurantData.city || '',
-        restaurantData.country || '',
-        JSON.stringify(restaurantData.config || {}),
-        restaurantData.plan || 'basic',
-        restaurantData.status || 'active',
-        JSON.stringify(restaurantData.retell_config || {}),
-        JSON.stringify(restaurantData.twilio_config || {})
-      ]);
+        ) VALUES ('${id}', '${restaurantData.name || 'Nuevo Restaurante'}', '${slug}', '${restaurantData.owner_email || ''}', '${restaurantData.owner_name || ''}', '${restaurantData.phone || ''}', '${restaurantData.address || ''}', '${restaurantData.city || ''}', '${restaurantData.country || ''}', '${JSON.stringify(restaurantData.config || {})}', '${restaurantData.plan || 'basic'}', '${restaurantData.status || 'active'}', '${JSON.stringify(restaurantData.retell_config || {})}', '${JSON.stringify(restaurantData.twilio_config || {})}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `);
       
       // Retornar el restaurante creado
       return await this.getRestaurant(id);
@@ -354,17 +339,8 @@ class SQLiteDatabase {
       await run(`
         INSERT INTO restaurant_users (
           id, restaurant_id, email, password_hash, name, role, permissions, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `, [
-        id,
-        userData.restaurant_id || '',
-        userData.email || '',
-        userData.password_hash || '',
-        userData.name || '',
-        userData.role || 'employee',
-        JSON.stringify(userData.permissions || []),
-        userData.status || 'active'
-      ]);
+        ) VALUES ('${id}', '${userData.restaurant_id || ''}', '${userData.email || ''}', '${userData.password_hash || ''}', '${userData.name || ''}', '${userData.role || 'employee'}', '${JSON.stringify(userData.permissions || [])}', '${userData.status || 'active'}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `);
       
       // Retornar el usuario creado
       const row = await get(`SELECT * FROM restaurant_users WHERE id = '${id}'`) as any;
@@ -387,71 +363,57 @@ class SQLiteDatabase {
     const run = promisify(this.db.run.bind(this.db));
     try {
       const fields = [];
-      const values = [];
       
       if (updateData.name) {
-        fields.push('name = ?');
-        values.push(updateData.name);
+        fields.push(`name = '${updateData.name}'`);
       }
       
       if (updateData.slug) {
-        fields.push('slug = ?');
-        values.push(updateData.slug);
+        fields.push(`slug = '${updateData.slug}'`);
       }
       
       if (updateData.owner_email) {
-        fields.push('owner_email = ?');
-        values.push(updateData.owner_email);
+        fields.push(`owner_email = '${updateData.owner_email}'`);
       }
       
       if (updateData.owner_name) {
-        fields.push('owner_name = ?');
-        values.push(updateData.owner_name);
+        fields.push(`owner_name = '${updateData.owner_name}'`);
       }
       
       if (updateData.phone) {
-        fields.push('phone = ?');
-        values.push(updateData.phone);
+        fields.push(`phone = '${updateData.phone}'`);
       }
       
       if (updateData.address) {
-        fields.push('address = ?');
-        values.push(updateData.address);
+        fields.push(`address = '${updateData.address}'`);
       }
       
       if (updateData.city) {
-        fields.push('city = ?');
-        values.push(updateData.city);
+        fields.push(`city = '${updateData.city}'`);
       }
       
       if (updateData.country) {
-        fields.push('country = ?');
-        values.push(updateData.country);
+        fields.push(`country = '${updateData.country}'`);
       }
       
       if (updateData.config) {
-        fields.push('config = ?');
-        values.push(JSON.stringify(updateData.config));
+        fields.push(`config = '${JSON.stringify(updateData.config)}'`);
       }
       
       if (updateData.plan) {
-        fields.push('plan = ?');
-        values.push(updateData.plan);
+        fields.push(`plan = '${updateData.plan}'`);
       }
       
       if (updateData.status) {
-        fields.push('status = ?');
-        values.push(updateData.status);
+        fields.push(`status = '${updateData.status}'`);
       }
       
       if (updateData.retell_config) {
-        fields.push('retell_config = ?');
-        values.push(JSON.stringify(updateData.retell_config));
+        fields.push(`retell_config = '${JSON.stringify(updateData.retell_config)}'`);
       }
       
       if (updateData.twilio_config) {
-        fields.push('twilio_config = ?');
-        values.push(JSON.stringify(updateData.twilio_config));
+        fields.push(`twilio_config = '${JSON.stringify(updateData.twilio_config)}'`);
       }
       
       // Siempre actualizar updated_at
@@ -461,10 +423,8 @@ class SQLiteDatabase {
         return await this.getRestaurant(id);
       }
       
-      values.push(id);
-      
-      const query = `UPDATE restaurants SET ${fields.join(', ')} WHERE id = ?`;
-      await run(query, values);
+      const query = `UPDATE restaurants SET ${fields.join(', ')} WHERE id = '${id}'`;
+      await run(query);
       
       return await this.getRestaurant(id);
     } catch (error) {
