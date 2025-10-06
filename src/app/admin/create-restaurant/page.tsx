@@ -395,21 +395,41 @@ IMPORTANTE:
       const generatedTables = generateTables();
       console.log('🪑 Generated tables for restaurant:', generatedTables);
       
-      // 5. Guardar restaurante en la base de datos
-      const restaurantSuccess = await createRestaurant({
-        name: restaurantData.name,
-        slug: username,
-        owner_email: restaurantData.email,
-        owner_name: restaurantData.name,
-        phone: restaurantData.phone,
-        address: restaurantData.address,
-        retell_config: newUserMapping.retellConfig,
-        twilio_config: newUserMapping.twilioConfig
+      // 5. Guardar restaurante en la base de datos usando la nueva API
+      const restaurantResponse = await fetch('/api/restaurants', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: restaurantData.name,
+          slug: username,
+          owner_email: restaurantData.email,
+          owner_name: restaurantData.name,
+          phone: restaurantData.phone,
+          address: restaurantData.address,
+          city: 'Ciudad',
+          country: 'España',
+          config: {
+            theme: 'modern',
+            features: ['reservations', 'tables', 'menu', 'analytics']
+          },
+          plan: 'premium',
+          retell_config: newUserMapping.retellConfig,
+          twilio_config: newUserMapping.twilioConfig,
+          admin_email: restaurantData.email,
+          admin_password: tempPassword,
+          admin_name: restaurantData.name
+        })
       });
 
-      if (!restaurantSuccess) {
-        throw new Error('Error al guardar el restaurante en la base de datos');
+      if (!restaurantResponse.ok) {
+        const errorData = await restaurantResponse.json();
+        throw new Error(errorData.error || 'Error al crear el restaurante');
       }
+
+      const restaurantResult = await restaurantResponse.json();
+      console.log('✅ Restaurante creado:', restaurantResult);
 
       // 6. Generar código de configuración
       const configCode = generateConfigCode();

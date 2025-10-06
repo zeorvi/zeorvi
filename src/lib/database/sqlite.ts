@@ -306,6 +306,173 @@ class SQLiteDatabase {
     }
   }
 
+  async createRestaurant(restaurantData: Partial<Restaurant>): Promise<Restaurant | null> {
+    const run = promisify(this.db.run.bind(this.db));
+    const get = promisify(this.db.get.bind(this.db));
+    
+    try {
+      const id = restaurantData.id || `rest_${Date.now()}`;
+      const slug = restaurantData.slug || restaurantData.name?.toLowerCase().replace(/\s+/g, '-') || 'restaurant';
+      
+      await run(`
+        INSERT INTO restaurants (
+          id, name, slug, owner_email, owner_name, phone, address, city, country,
+          config, plan, status, retell_config, twilio_config, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `, [
+        id,
+        restaurantData.name || 'Nuevo Restaurante',
+        slug,
+        restaurantData.owner_email || '',
+        restaurantData.owner_name || '',
+        restaurantData.phone || '',
+        restaurantData.address || '',
+        restaurantData.city || '',
+        restaurantData.country || '',
+        JSON.stringify(restaurantData.config || {}),
+        restaurantData.plan || 'basic',
+        restaurantData.status || 'active',
+        JSON.stringify(restaurantData.retell_config || {}),
+        JSON.stringify(restaurantData.twilio_config || {})
+      ]);
+      
+      // Retornar el restaurante creado
+      return await this.getRestaurant(id);
+    } catch (error) {
+      console.error('Error creating restaurant:', error);
+      return null;
+    }
+  }
+
+  async createUser(userData: Partial<RestaurantUser>): Promise<RestaurantUser | null> {
+    const run = promisify(this.db.run.bind(this.db));
+    const get = promisify(this.db.get.bind(this.db));
+    
+    try {
+      const id = userData.id || `user_${Date.now()}`;
+      
+      await run(`
+        INSERT INTO restaurant_users (
+          id, restaurant_id, email, password_hash, name, role, permissions, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `, [
+        id,
+        userData.restaurant_id || '',
+        userData.email || '',
+        userData.password_hash || '',
+        userData.name || '',
+        userData.role || 'employee',
+        JSON.stringify(userData.permissions || []),
+        userData.status || 'active'
+      ]);
+      
+      // Retornar el usuario creado
+      const row = await get(`SELECT * FROM restaurant_users WHERE id = '${id}'`) as any;
+      if (!row) return null;
+      
+      return {
+        ...row,
+        permissions: JSON.parse(row.permissions),
+        created_at: new Date(row.created_at),
+        updated_at: new Date(row.updated_at),
+        last_login: row.last_login ? new Date(row.last_login) : undefined
+      };
+    } catch (error) {
+      console.error('Error creating user:', error);
+      return null;
+    }
+  }
+
+  async updateRestaurant(id: string, updateData: Partial<Restaurant>): Promise<Restaurant | null> {
+    const run = promisify(this.db.run.bind(this.db));
+    try {
+      const fields = [];
+      const values = [];
+      
+      if (updateData.name) {
+        fields.push('name = ?');
+        values.push(updateData.name);
+      }
+      
+      if (updateData.slug) {
+        fields.push('slug = ?');
+        values.push(updateData.slug);
+      }
+      
+      if (updateData.owner_email) {
+        fields.push('owner_email = ?');
+        values.push(updateData.owner_email);
+      }
+      
+      if (updateData.owner_name) {
+        fields.push('owner_name = ?');
+        values.push(updateData.owner_name);
+      }
+      
+      if (updateData.phone) {
+        fields.push('phone = ?');
+        values.push(updateData.phone);
+      }
+      
+      if (updateData.address) {
+        fields.push('address = ?');
+        values.push(updateData.address);
+      }
+      
+      if (updateData.city) {
+        fields.push('city = ?');
+        values.push(updateData.city);
+      }
+      
+      if (updateData.country) {
+        fields.push('country = ?');
+        values.push(updateData.country);
+      }
+      
+      if (updateData.config) {
+        fields.push('config = ?');
+        values.push(JSON.stringify(updateData.config));
+      }
+      
+      if (updateData.plan) {
+        fields.push('plan = ?');
+        values.push(updateData.plan);
+      }
+      
+      if (updateData.status) {
+        fields.push('status = ?');
+        values.push(updateData.status);
+      }
+      
+      if (updateData.retell_config) {
+        fields.push('retell_config = ?');
+        values.push(JSON.stringify(updateData.retell_config));
+      }
+      
+      if (updateData.twilio_config) {
+        fields.push('twilio_config = ?');
+        values.push(JSON.stringify(updateData.twilio_config));
+      }
+      
+      // Siempre actualizar updated_at
+      fields.push('updated_at = CURRENT_TIMESTAMP');
+      
+      if (fields.length === 0) {
+        return await this.getRestaurant(id);
+      }
+      
+      values.push(id);
+      
+      const query = `UPDATE restaurants SET ${fields.join(', ')} WHERE id = ?`;
+      await run(query, values);
+      
+      return await this.getRestaurant(id);
+    } catch (error) {
+      console.error('Error updating restaurant:', error);
+      return null;
+    }
+  }
+
   async getAllRestaurants(): Promise<Restaurant[]> {
     const all = promisify(this.db.all.bind(this.db));
     try {

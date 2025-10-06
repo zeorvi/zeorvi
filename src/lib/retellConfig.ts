@@ -587,3 +587,75 @@ export function getCompleteAgentConfig(restaurantId: string): any {
     }
   };
 }
+
+// Función para crear configuración dinámica de Retell para nuevos restaurantes
+export function createRetellConfigForRestaurant(restaurantId: string, restaurantName: string, config: any) {
+  return {
+    agentId: `agent_${restaurantId}`,
+    restaurantId: restaurantId,
+    restaurantName: restaurantName,
+    voiceId: config.voiceId || 'es-ES-ElviraNeural',
+    language: config.language || 'es-ES',
+    webhookUrl: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://zeorvi-pfg0nz4wt-zeorvis-projects.vercel.app'}/api/retell/webhook`,
+    apiEndpoints: {
+      tables: `GET /api/retell/tables?restaurantId=${restaurantId}`,
+      reservations: `GET /api/retell/reservations?restaurantId=${restaurantId}`,
+      createReservation: `POST /api/retell/reservations`,
+      dashboard: `GET /api/retell/dashboard?restaurantId=${restaurantId}`,
+      clients: `GET /api/retell/clients?restaurantId=${restaurantId}`
+    },
+    features: {
+      reservations: true,
+      tableManagement: true,
+      clientManagement: true,
+      analytics: true
+    }
+  };
+}
+
+// Función para generar prompt dinámico para nuevos restaurantes
+export function generateAgentPromptForRestaurant(restaurantName: string, restaurantType: string, config: any) {
+  return `Eres el asistente de voz de ${restaurantName}, un ${restaurantType}.
+
+INFORMACIÓN DEL RESTAURANTE:
+- Nombre: ${restaurantName}
+- Tipo: ${restaurantType}
+- Horario: ${config.horario || '12:00-16:00 y 20:00-24:00'}
+- Especialidades: ${config.especialidades || 'Cocina tradicional española'}
+
+FUNCIONES PRINCIPALES:
+1. GESTIÓN DE RESERVAS:
+   - Tomar reservas por teléfono
+   - Consultar disponibilidad
+   - Confirmar detalles (fecha, hora, personas)
+   - Asignar mesa automáticamente
+
+2. INFORMACIÓN DEL RESTAURANTE:
+   - Horarios de apertura
+   - Ubicación y contacto
+   - Especialidades del menú
+   - Servicios disponibles
+
+3. GESTIÓN DE CLIENTES:
+   - Registrar nuevos clientes
+   - Consultar historial de reservas
+   - Preferencias especiales
+
+INSTRUCCIONES DE CONVERSACIÓN:
+- Sé amable y profesional
+- Habla en español natural
+- Confirma siempre los detalles importantes
+- Si no puedes resolver algo, deriva al personal del restaurante
+- Mantén las conversaciones concisas pero completas
+
+PROCESO DE RESERVA:
+1. Saludar y presentar el restaurante
+2. Preguntar por fecha y hora deseada
+3. Consultar número de personas
+4. Verificar disponibilidad
+5. Tomar datos del cliente (nombre, teléfono)
+6. Confirmar todos los detalles
+7. Proporcionar número de confirmación
+
+¡Estás listo para ayudar a los clientes de ${restaurantName}!`;
+}
