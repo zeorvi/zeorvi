@@ -3,9 +3,11 @@
  * - Asigna mesas automáticamente
  * - Libera mesas después de 2 horas
  * - Verifica disponibilidad futura
+ * - Sincroniza con Google Sheets
  */
 
 import { RestaurantTableGenerator } from '@/lib/restaurantTableGenerator';
+import { GoogleSheetsService } from '@/lib/googleSheetsService';
 
 export interface Mesa {
   id: string;
@@ -36,6 +38,7 @@ export interface ReservaConMesa {
 
 export class TableManagementSystem {
   private static readonly DURACION_RESERVA = 2; // 2 horas
+  // Cache en memoria como fallback cuando Google Sheets no está disponible
   private static readonly MESAS_POR_RESTAURANTE: Record<string, Mesa[]> = {
     'rest_003': [ // La Gaviota - 12 mesas
       { id: 'mesa_1', numero: '1', capacidad: 2, ubicacion: 'Interior', estado: 'libre' },
@@ -235,12 +238,42 @@ export class TableManagementSystem {
 
   /**
    * Obtener estado actual de todas las mesas
+   * Prioriza Google Sheets, fallback a memoria
    */
   static async obtenerEstadoMesas(restaurantId: string): Promise<Mesa[]> {
-    // Obtener mesas del restaurante (estáticas o generadas dinámicamente)
+    try {
+      // 1. Intentar leer mesas desde Google Sheets
+      console.log(`📊 Leyendo mesas desde Google Sheets para ${restaurantId}`);
+      const mesasSheets = await GoogleSheetsService.getMesas(restaurantId);
+      
+      if (mesasSheets && mesasSheets.length > 0) {
+        // Convertir formato de Google Sheets a formato Mesa
+        const mesas = mesasSheets.map(mesaSheet => ({
+          id: `mesa_${mesaSheet.ID}`,
+          numero: mesaSheet.ID,
+          capacidad: mesaSheet.Capacidad,
+          ubicacion: mesaSheet.Zona,
+          estado: 'libre' as const, // Estado por defecto, se actualizará con reservas
+          reservaActual: undefined
+        }));
+        
+        console.log(`✅ ${mesas.length} mesas cargadas desde Google Sheets`);
+        
+        // Actualizar cache en memoria
+        this.MESAS_POR_RESTAURANTE[restaurantId] = mesas;
+        
+        // Liberar mesas automáticamente antes de retornar estado
+        await this.liberarMesasAutomaticamente(restaurantId);
+        
+        return mesas;
+      }
+    } catch (error) {
+      console.warn(`⚠️ Error leyendo mesas desde Google Sheets:`, error);
+    }
+    
+    // 2. Fallback: usar mesas en memoria o generar automáticamente
     let mesas = this.MESAS_POR_RESTAURANTE[restaurantId];
     
-    // Si no existe el restaurante, generar mesas automáticamente
     if (!mesas) {
       console.log(`🆕 Generando mesas automáticamente para restaurante ${restaurantId}`);
       const mesasGeneradas = RestaurantTableGenerator.getTablesForRestaurant(restaurantId);

@@ -101,3 +101,36 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# ============================================
+# SEGURIDAD CRÍTICA - NO COMMITEAR
+# ============================================
+# Credenciales de Google
+google-credentials.json
+service-account-key.json
+*.json.key
+
+# Archivos de configuración con secretos
+.env.production
+.env.staging
+
+# Backups que pueden contener datos sensibles
+backups/
+*.sql
+*.dump
+*.backup
+
+# Certificados SSL
+*.pem
+*.key
+*.crt
+*.p12
+ssl/
+
+# Docker volumes con datos
+docker-volumes/
+
+# PM2 logs y dumps
+.pm2/
+pm2-*.log
+dump.rdb

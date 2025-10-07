@@ -1,8 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Zap } from 'lucide-react';
-import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
 
 export default function HeroSection() {
 
@@ -19,7 +18,7 @@ export default function HeroSection() {
               </span>
             </h1>
             
-            <p className="text-lg sm:text-xl md:text-2xl text-gray-200 font-light leading-relaxed text-center lg:text-left">
+            <p className="text-lg sm:text-xl md:text-2xl text-gray-200 font-light text-center md:text-center lg:text-left max-w-sm md:max-w-2xl lg:max-w-xl leading-relaxed mx-auto md:mx-auto lg:mx-0">
               Nunca más una llamada perdida. Atiende clientes mientras duermes y genera ingresos en tus días de descanso.
             </p>
 
@@ -60,6 +59,7 @@ export default function HeroSection() {
                       allow="autoplay"
                       className="rounded-lg"
                       title="Demo de Restaurante IA"
+                      style={{border: 'none'}}
                     />
                   </div>
                 </div>

@@ -2,6 +2,8 @@
  * Utilidades para trabajar con Retell AI
  */
 
+import { getRestaurantName } from './restaurantSheets';
+
 /**
  * Extrae el restaurantId del cuerpo de la petición de Retell
  * Prioriza metadata.restaurantId, luego usa regex como fallback
@@ -32,16 +34,15 @@ export function getRestaurantId(body: any): string | null {
 
 /**
  * Obtiene el nombre del restaurante desde su ID
+ * Usa la función centralizada de restaurantSheets.ts
  */
 export function getRestaurantNameFromId(restaurantId: string): string {
-  const names: Record<string, string> = {
-    'rest_003': 'La Gaviota',
-    'rest_001': 'Restaurante El Buen Sabor',
-    'rest_002': 'La Parrilla del Chef',
-    'rest_004': 'Restaurante El Buen Sabor'
-  };
-  
-  return names[restaurantId] || `Restaurante ${restaurantId}`;
+  try {
+    return getRestaurantName(restaurantId);
+  } catch (error) {
+    console.warn(`No se encontró nombre para ${restaurantId}:`, error);
+    return `Restaurante ${restaurantId}`;
+  }
 }
 
 /**

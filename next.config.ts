@@ -71,8 +71,8 @@ const nextConfig: NextConfig = {
             value: 'on'
           },
           {
-            key: 'X-Frame-Options',
-            value: 'DENY'
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'self' https://drive.google.com;"
           }
         ],
       },

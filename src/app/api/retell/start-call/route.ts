@@ -13,7 +13,8 @@ export async function POST(request: NextRequest) {
     }
 
     // ✅ CORREGIDO: Usar POST para create-agent
-    const agentResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/retell/create-agent`, {
+    const base = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const agentResponse = await fetch(`${base}/api/retell/create-agent`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -5,15 +5,24 @@ import path from 'path';
 // Cargar variables de entorno desde .env.local
 dotenvConfig({ path: path.join(process.cwd(), '.env.local') });
 
+// Función para validar que las variables requeridas existan
+function requireEnv(key: string, defaultValue?: string): string {
+  const value = process.env[key] || defaultValue;
+  if (!value && process.env.NODE_ENV === 'production') {
+    throw new Error(`❌ Variable de entorno requerida faltante: ${key}`);
+  }
+  return value || '';
+}
+
 export const config = {
   // Base de datos
   database: {
-    url: process.env.DATABASE_URL || 'postgresql://postgres.rjalwnbkknjqdxzwatrw:asturias-1999-asturias@aws-1-eu-west-2.pooler.supabase.com:6543/postgres'
+    url: requireEnv('DATABASE_URL', 'postgresql://localhost:5432/restaurant_dev')
   },
   
   // JWT
   jwt: {
-    secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production-2024',
+    secret: requireEnv('JWT_SECRET', 'dev-secret-key-only-for-development'),
     expiresIn: process.env.JWT_EXPIRES_IN || '7d'
   },
   
@@ -35,18 +44,35 @@ export const config = {
   
   // Servicios externos
   retell: {
-    apiKey: process.env.RETELL_API_KEY || 'your-retell-api-key'
+    apiKey: requireEnv('RETELL_API_KEY', '')
+  },
+  
+  // Google Sheets
+  googleSheets: {
+    clientEmail: process.env.GOOGLE_CLIENT_EMAIL || '',
+    privateKey: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n') || '',
+    projectId: process.env.GOOGLE_PROJECT_ID || ''
   },
   
   twilio: {
-    accountSid: process.env.TWILIO_ACCOUNT_SID || 'your-twilio-account-sid',
-    authToken: process.env.TWILIO_AUTH_TOKEN || 'your-twilio-auth-token',
-    phoneNumber: process.env.TWILIO_PHONE_NUMBER || '+1234567890'
-  }
+    accountSid: process.env.TWILIO_ACCOUNT_SID || '',
+    authToken: process.env.TWILIO_AUTH_TOKEN || '',
+    phoneNumber: process.env.TWILIO_PHONE_NUMBER || ''
+  },
+  
+  // Entorno
+  nodeEnv: process.env.NODE_ENV || 'development',
+  isProduction: process.env.NODE_ENV === 'production',
+  isDevelopment: process.env.NODE_ENV === 'development'
 };
 
-console.log('🔧 Config loaded:', {
-  databaseUrl: config.database.url.replace(/:[^:@]*@/, ':***@'),
-  hasJwtSecret: !!config.jwt.secret,
-  hasRetellKey: !!config.retell.apiKey
-});
+// Solo mostrar logs en desarrollo
+if (!config.isProduction) {
+  console.log('🔧 Config loaded:', {
+    environment: config.nodeEnv,
+    databaseUrl: config.database.url.replace(/:[^:@]*@/, ':***@'),
+    hasJwtSecret: !!config.jwt.secret,
+    hasRetellKey: !!config.retell.apiKey,
+    hasGoogleSheets: !!(config.googleSheets.clientEmail && config.googleSheets.privateKey)
+  });
+}

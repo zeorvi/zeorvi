@@ -1,43 +1,18 @@
-// Mapa de IDs reales de Google Sheets por restaurante
-export const RESTAURANT_SHEETS: Record<string, { name: string; spreadsheetId: string }> = {
-  'rest_003': { 
-    name: 'La Gaviota', 
-    spreadsheetId: '115x4UoUrtTxaG1vYzCReKaOonu7-5CTv4f9Oxe3e_J4' 
+export const RESTAURANT_SHEETS = {
+  rest_003: {
+    name: "La Gaviota",
+    spreadsheetId: "115x4UoUrtTxaG1vYzCReKaOonu7-5CTv4f9Oxe3e_J4",
   },
-  'rest_001': { 
-    name: 'Restaurante El Buen Sabor', 
-    spreadsheetId: '115x4UoUrtTxaG1vYzCReKaOonu7-5CTv4f9Oxe3e_J4' 
-  },
-  'rest_002': { 
-    name: 'La Parrilla del Chef', 
-    spreadsheetId: '115x4UoUrtTxaG1vYzCReKaOonu7-5CTv4f9Oxe3e_J4' 
-  },
-  'rest_004': { 
-    name: 'Restaurante El Buen Sabor', 
-    spreadsheetId: '115x4UoUrtTxaG1vYzCReKaOonu7-5CTv4f9Oxe3e_J4' 
-  }
 };
 
-/**
- * Obtiene el ID del spreadsheet de Google Sheets para un restaurante
- */
-export function getSpreadsheetId(restaurantId: string): string {
-  const item = RESTAURANT_SHEETS[restaurantId];
-  if (!item) {
-    throw new Error(`No se encontró spreadsheetId para ${restaurantId}`);
-  }
-  return item.spreadsheetId;
+export function getSpreadsheetId(restaurantId: string) {
+  const data = RESTAURANT_SHEETS[restaurantId as keyof typeof RESTAURANT_SHEETS];
+  if (!data) throw new Error(`No se encontró hoja para ${restaurantId}`);
+  return data.spreadsheetId;
 }
 
-/**
- * Obtiene el nombre del restaurante por su ID
- */
-export function getRestaurantName(restaurantId: string): string {
-  const item = RESTAURANT_SHEETS[restaurantId];
-  if (!item) {
-    throw new Error(`No se encontró nombre para ${restaurantId}`);
-  }
-  return item.name;
+export function getRestaurantName(restaurantId: string) {
+  return RESTAURANT_SHEETS[restaurantId as keyof typeof RESTAURANT_SHEETS]?.name || "Restaurante";
 }
 
 /**

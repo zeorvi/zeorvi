@@ -41,10 +41,28 @@ class IntelligentAlertSystem {
   private alertRules: Map<string, AlertRule[]> = new Map();
   private alertConfigs: Map<string, AlertConfig> = new Map();
   private alertHistory: Alert[] = [];
+  private isInitialized = false;
+  private isMonitoring = false;
 
   constructor() {
-    this.initializeDefaultRules();
-    this.startMonitoring();
+    // No inicializar automáticamente para evitar queries en build time
+    // Solo inicializar cuando se llame a un método público
+  }
+
+  // Inicialización lazy - solo cuando se necesita
+  private ensureInitialized() {
+    if (!this.isInitialized) {
+      this.initializeDefaultRules();
+      this.isInitialized = true;
+    }
+  }
+
+  // Iniciar monitoreo solo si estamos en runtime
+  private ensureMonitoring() {
+    if (!this.isMonitoring && typeof window === 'undefined' && process.env.NODE_ENV !== 'test') {
+      this.startMonitoring();
+      this.isMonitoring = true;
+    }
   }
 
   // Inicializar reglas por defecto
@@ -64,14 +82,25 @@ class IntelligentAlertSystem {
 
   // Iniciar monitoreo
   private startMonitoring() {
+    // Solo iniciar monitoreo en runtime, no en build time
+    // Detectar si estamos en build phase de Next.js
+    if (typeof window === 'undefined' && process.env.NEXT_PHASE === 'phase-production-build') {
+      console.log('⚠️  Skipping alert system monitoring during build');
+      return;
+    }
+
     // Monitorear cada 30 segundos
     setInterval(() => {
-      this.checkAllRestaurants();
+      this.checkAllRestaurants().catch(err => {
+        logger.error('Error checking restaurants in alert system', err);
+      });
     }, 30000);
 
     // Monitorear predicciones cada 5 minutos
     setInterval(() => {
-      this.checkPredictions();
+      this.checkPredictions().catch(err => {
+        logger.error('Error checking predictions in alert system', err);
+      });
     }, 300000);
 
     logger.info('Intelligent Alert System started');
@@ -385,6 +414,7 @@ class IntelligentAlertSystem {
 
   // Configurar alertas para restaurante
   async configureAlerts(restaurantId: string, config: AlertConfig): Promise<void> {
+    this.ensureInitialized();
     this.alertConfigs.set(restaurantId, config);
     
     // En una implementación real, esto se guardaría en la base de datos
@@ -405,6 +435,7 @@ class IntelligentAlertSystem {
     byType: Record<string, number>;
     bySeverity: Record<string, number>;
   } {
+    this.ensureInitialized();
     const alerts = restaurantId 
       ? this.alertHistory.filter(a => a.restaurantId === restaurantId)
       : this.alertHistory;
