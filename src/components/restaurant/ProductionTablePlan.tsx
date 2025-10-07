@@ -66,6 +66,13 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
   // Estados principales
   const [tables, setTables] = useState<TableState[]>([]);
   const [schedule, setSchedule] = useState<RestaurantSchedule[]>([]);
+  const [restaurantStatus, setRestaurantStatus] = useState<{
+    abierto: boolean;
+    mensaje: string;
+    horarios?: Array<{ Turno: string; Inicio: string; Fin: string }>;
+  }>({ abierto: true, mensaje: 'Verificando estado...' });
+  const [diasCerrados, setDiasCerrados] = useState<string[]>([]);
+  const [selectedDiasCerrados, setSelectedDiasCerrados] = useState<string[]>([]);
   const [metrics, setMetrics] = useState<RestaurantMetrics>({
     totalTables: 0,
     occupiedTables: 0,
@@ -78,7 +85,7 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
   
   // Estados de filtros y búsqueda
   const [filteredTables, setFilteredTables] = useState<TableState[]>([]);
-  const [statusFilter, setStatusFilter] = useState<'all' | TableStatus>('all');
+  const [statusFilter, setStatusFilter] = useState<TableStatus>('libre');
   const [searchTerm, setSearchTerm] = useState('');
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   
@@ -107,11 +114,18 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
     try {
       setIsLoading(true);
       
-      // Cargar datos iniciales
-      const [tablesData, scheduleData, metricsData] = await Promise.all([
+      // Obtener fecha y hora actual para verificar horarios
+      const today = new Date().toISOString().split('T')[0];
+      const currentHour = new Date().getHours();
+      const currentTime = `${currentHour.toString().padStart(2, '0')}:00`;
+      
+      // Cargar datos iniciales incluyendo estado del restaurante
+      const [tablesData, scheduleData, metricsData, statusData, diasCerradosData] = await Promise.all([
         fetch(`/api/restaurant/tables?restaurantId=${restaurantId}`).then(res => res.json()),
         fetch(`/api/restaurant/schedule?restaurantId=${restaurantId}`).then(res => res.json()),
-        fetch(`/api/restaurant/metrics?restaurantId=${restaurantId}`).then(res => res.json())
+        fetch(`/api/restaurant/metrics?restaurantId=${restaurantId}`).then(res => res.json()),
+        fetch(`/api/google-sheets/horarios?restaurantId=${restaurantId}&fecha=${today}&hora=${currentTime}`).then(res => res.json()),
+        fetch(`/api/google-sheets/dias-cerrados?restaurantId=${restaurantId}`).then(res => res.json())
       ]);
 
       if (tablesData.success) {
@@ -124,6 +138,15 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
       
       if (metricsData.success) {
         setMetrics(metricsData.data);
+      }
+      
+      if (statusData.success) {
+        setRestaurantStatus(statusData.status);
+      }
+      
+      if (diasCerradosData.success) {
+        setDiasCerrados(diasCerradosData.diasCerrados);
+        setSelectedDiasCerrados(diasCerradosData.diasCerrados);
       }
 
       // Si no hay mesas, inicializar con datos por defecto
@@ -169,54 +192,12 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
     }
   };
 
-  // Inicializar WebSocket
+  // Inicializar WebSocket (deshabilitado temporalmente)
   const initializeWebSocket = () => {
-    try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
-      
-      const websocket = new WebSocket(wsUrl);
-      
-      websocket.onopen = () => {
-        console.log('🔌 WebSocket connected');
-        setIsConnected(true);
-        
-        // Suscribirse a actualizaciones del restaurante
-        websocket.send(JSON.stringify({
-          type: 'subscribe',
-          restaurantId: restaurantId
-        }));
-      };
-      
-      websocket.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          handleWebSocketMessage(message);
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
-        }
-      };
-      
-      websocket.onclose = () => {
-        console.log('🔌 WebSocket disconnected');
-        setIsConnected(false);
-        
-        // Reconectar después de 5 segundos
-        setTimeout(() => {
-          initializeWebSocket();
-        }, 5000);
-      };
-      
-      websocket.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setIsConnected(false);
-      };
-      
-      setWs(websocket);
-    } catch (error) {
-      console.error('Error initializing WebSocket:', error);
-      setIsConnected(false);
-    }
+    // WebSocket deshabilitado temporalmente para evitar errores
+    // TODO: Implementar WebSocket server cuando sea necesario
+    console.log('🔌 WebSocket deshabilitado temporalmente');
+    setIsConnected(false);
   };
 
   // Manejar mensajes del WebSocket
@@ -262,9 +243,7 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
     let filtered = tables;
 
     // Filtro por estado
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(table => table.status === statusFilter);
-    }
+    filtered = filtered.filter(table => table.status === statusFilter);
 
     // Filtro por búsqueda
     if (searchTerm) {
@@ -309,6 +288,39 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
     }
   };
 
+  // Guardar días cerrados
+  const handleSaveDiasCerrados = async () => {
+    try {
+      const response = await fetch('/api/google-sheets/dias-cerrados', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          restaurantId,
+          diasCerrados: selectedDiasCerrados
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setDiasCerrados(selectedDiasCerrados);
+          setShowScheduleDialog(false);
+          toast.success('Días cerrados actualizados correctamente');
+          
+          // Recargar datos para actualizar el estado del restaurante
+          initializeData();
+        } else {
+          toast.error(result.error || 'Error al actualizar días cerrados');
+        }
+      } else {
+        toast.error('Error al actualizar días cerrados');
+      }
+    } catch (error) {
+      console.error('Error saving dias cerrados:', error);
+      toast.error('Error al actualizar días cerrados');
+    }
+  };
+
   // Manejar cambio de horario
   const handleScheduleChange = async (dayOfWeek: string, isOpen: boolean, openingTime?: string, closingTime?: string) => {
     try {
@@ -349,23 +361,10 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
     }
   };
 
-  // Verificar si el restaurante está abierto
+  // Usar el estado del restaurante desde Google Sheets
   const isRestaurantOpen = useMemo(() => {
-    const now = new Date();
-    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const currentDay = dayNames[now.getDay()];
-    
-    const todaySchedule = schedule.find(s => s.dayOfWeek === currentDay);
-    if (!todaySchedule || !todaySchedule.isOpen) return false;
-    
-    if (!todaySchedule.openingTime || !todaySchedule.closingTime) return true;
-    
-    const currentTime = now.getHours() * 60 + now.getMinutes();
-    const openingTime = parseTime(todaySchedule.openingTime);
-    const closingTime = parseTime(todaySchedule.closingTime);
-    
-    return currentTime >= openingTime && currentTime <= closingTime;
-  }, [schedule]);
+    return restaurantStatus.abierto;
+  }, [restaurantStatus]);
 
   // Función auxiliar para parsear tiempo
   const parseTime = (timeStr: string): number => {
@@ -422,16 +421,6 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div className="flex items-center gap-2 sm:gap-3">
           <h2 className="text-lg sm:text-xl font-semibold">Control de Mesas</h2>
-          <div className="flex items-center gap-2">
-            {isConnected ? (
-              <Wifi className="h-4 w-4 text-green-500" />
-            ) : (
-              <WifiOff className="h-4 w-4 text-red-500" />
-            )}
-            <span className="text-xs sm:text-sm text-gray-500">
-              {isConnected ? 'Conectado' : 'Desconectado'}
-            </span>
-          </div>
         </div>
         
         <div className="flex items-center gap-2 sm:gap-3">
@@ -475,6 +464,11 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
           <span className="text-sm sm:text-base font-medium">
             {isRestaurantOpen ? 'Restaurante Abierto' : 'Restaurante Cerrado'}
           </span>
+          {restaurantStatus.mensaje && (
+            <span className="text-xs text-gray-500 ml-2">
+              ({restaurantStatus.mensaje.split('.')[0]})
+            </span>
+          )}
         </div>
       </div>
 
@@ -530,14 +524,6 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
         </div>
         
         <div className="flex gap-2 sm:gap-3">
-          <Button
-            onClick={() => setStatusFilter('all')}
-            variant={statusFilter === 'all' ? 'default' : 'outline'}
-            size="sm"
-            className="h-9 sm:h-10 px-3 sm:px-4"
-          >
-            Todas
-          </Button>
           <Button
             onClick={() => setStatusFilter('libre')}
             variant={statusFilter === 'libre' ? 'default' : 'outline'}
@@ -642,60 +628,62 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
         ))}
       </div>
 
-      {/* Dialog de horario */}
+      {/* Dialog de días cerrados */}
       <Dialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Horario del Restaurante</DialogTitle>
+            <DialogTitle>Configuración de Días Cerrados</DialogTitle>
             <DialogDescription>
-              Configura los días y horarios de apertura
+              Selecciona los días de la semana que el restaurante estará cerrado todo el día
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
-            {schedule.map((daySchedule) => (
-              <div key={daySchedule.dayOfWeek} className="flex items-center justify-between">
+            {['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'].map((dia) => (
+              <div key={dia} className="flex items-center justify-between">
                 <Label className="text-sm font-medium capitalize">
-                  {daySchedule.dayOfWeek === 'monday' ? 'Lunes' :
-                   daySchedule.dayOfWeek === 'tuesday' ? 'Martes' :
-                   daySchedule.dayOfWeek === 'wednesday' ? 'Miércoles' :
-                   daySchedule.dayOfWeek === 'thursday' ? 'Jueves' :
-                   daySchedule.dayOfWeek === 'friday' ? 'Viernes' :
-                   daySchedule.dayOfWeek === 'saturday' ? 'Sábado' : 'Domingo'}
+                  {dia}
                 </Label>
                 
                 <div className="flex items-center gap-2">
                   <Switch
-                    checked={daySchedule.isOpen}
-                    onCheckedChange={(checked) => 
-                      handleScheduleChange(daySchedule.dayOfWeek, checked, daySchedule.openingTime, daySchedule.closingTime)
-                    }
+                    checked={selectedDiasCerrados.includes(dia)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedDiasCerrados(prev => [...prev, dia]);
+                      } else {
+                        setSelectedDiasCerrados(prev => prev.filter(d => d !== dia));
+                      }
+                    }}
                   />
-                  
-                  {daySchedule.isOpen && (
-                    <div className="flex items-center gap-1">
-                      <Input
-                        type="time"
-                        value={daySchedule.openingTime || '12:00'}
-                        onChange={(e) => 
-                          handleScheduleChange(daySchedule.dayOfWeek, true, e.target.value, daySchedule.closingTime)
-                        }
-                        className="w-20 h-8 text-xs"
-                      />
-                      <span className="text-xs">-</span>
-                      <Input
-                        type="time"
-                        value={daySchedule.closingTime || '23:00'}
-                        onChange={(e) => 
-                          handleScheduleChange(daySchedule.dayOfWeek, true, daySchedule.openingTime, e.target.value)
-                        }
-                        className="w-20 h-8 text-xs"
-                      />
-                    </div>
-                  )}
+                  <span className="text-xs text-gray-500">
+                    {selectedDiasCerrados.includes(dia) ? 'Cerrado' : 'Abierto'}
+                  </span>
                 </div>
               </div>
             ))}
+            
+            <div className="pt-4 border-t">
+              <div className="text-xs text-gray-500 mb-3">
+                <strong>Días cerrados actuales:</strong> {diasCerrados.length > 0 ? diasCerrados.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ') : 'Ninguno'}
+              </div>
+              
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleSaveDiasCerrados}
+                  className="flex-1"
+                >
+                  Guardar Cambios
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={() => setShowScheduleDialog(false)}
+                  className="flex-1"
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

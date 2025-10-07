@@ -43,7 +43,7 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
   } = useRestaurantTables(restaurantId);
   
   const [filteredTables, setFilteredTables] = useState(tables);
-  const [statusFilter, setStatusFilter] = useState<'all' | TableStatus>('all');
+  const [statusFilter, setStatusFilter] = useState<TableStatus | 'all'>('available');
   const [searchTerm, setSearchTerm] = useState('');
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [restaurantSchedule, setRestaurantSchedule] = useState<RestaurantSchedule>({
@@ -68,7 +68,7 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
     
     // Filtrar por estado
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(table => table.status === (statusFilter as TableStatus));
+      filtered = filtered.filter(table => table.status === statusFilter);
     }
     
     // Filtrar por búsqueda
@@ -311,7 +311,7 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
           </div>
           
           <div className="flex flex-wrap gap-2 sm:gap-3">
-            {['all', 'available', 'occupied', 'reserved'].map((status) => (
+            {['available', 'occupied', 'reserved'].map((status) => (
               <Button
                 key={status}
                 onClick={() => setStatusFilter(status as any)}
@@ -325,8 +325,7 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
                       : ''
                 }`}
               >
-                {status === 'all' ? 'Todas' : 
-                 status === 'available' ? 'Libres' :
+                {status === 'available' ? 'Libres' :
                  status === 'occupied' ? 'Ocupadas' :
                  status === 'reserved' ? 'Reservadas' : status}
               </Button>

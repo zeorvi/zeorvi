@@ -3,10 +3,11 @@
  */
 
 import { getRestaurantName } from './restaurantSheets';
+import { getRestaurantFromAgentId } from './agentMapping';
 
 /**
  * Extrae el restaurantId del cuerpo de la petición de Retell
- * Prioriza metadata.restaurantId, luego usa regex como fallback
+ * Prioriza metadata.restaurantId, luego usa el mapeo de agent_id
  */
 export function getRestaurantId(body: any): string | null {
   // Primero intenta obtener desde metadata
@@ -16,13 +17,14 @@ export function getRestaurantId(body: any): string | null {
     return meta;
   }
 
-  // Fallback: usar regex en agent_id
+  // Segundo: usar el mapeo de agent_id (IDs reales de Retell AI)
   const agentId = body?.agent_id || '';
-  const match = String(agentId).match(/rest_([a-zA-Z0-9_]+)_agent/);
-  if (match) {
-    const restaurantId = `rest_${match[1]}`;
-    console.log(`📍 RestaurantId desde agent_id: ${restaurantId}`);
-    return restaurantId;
+  if (agentId) {
+    const restaurantId = getRestaurantFromAgentId(agentId);
+    if (restaurantId) {
+      console.log(`📍 RestaurantId desde agent_id mapeado: ${restaurantId}`);
+      return restaurantId;
+    }
   }
 
   console.warn('❌ No se pudo extraer restaurantId de:', { 

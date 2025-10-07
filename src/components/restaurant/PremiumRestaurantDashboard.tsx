@@ -27,6 +27,7 @@ interface PremiumRestaurantDashboardProps {
 
 interface Reservation {
   id: string;
+  date: string;
   time: string;
   clientName: string;
   partySize: number;
@@ -46,6 +47,11 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [restaurantStatus, setRestaurantStatus] = useState<{
+    abierto: boolean;
+    mensaje: string;
+    horarios?: Array<{ Turno: string; Inicio: string; Fin: string }>;
+  }>({ abierto: true, mensaje: 'Verificando estado...' });
   
   // Hooks para autenticación y datos del restaurante
   const { logout } = useClientAuth();
@@ -80,38 +86,65 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
     }
   };
 
-  // Función para cargar reservas desde la API de Retell
-  const loadReservationsFromRetell = useCallback(async () => {
+  // Función para cargar reservas desde Google Sheets
+  const loadReservationsFromGoogleSheets = useCallback(async () => {
     try {
+      // Obtener solo reservas de HOY para la agenda del día
       const today = new Date().toISOString().split('T')[0];
-      const response = await fetch(`/api/retell/reservations?restaurantId=${restaurantId}&date=${today}`);
+      const currentHour = new Date().getHours();
+      const currentTime = `${currentHour.toString().padStart(2, '0')}:00`;
+      
+      // PRIMERO: Verificar si el restaurante está abierto
+      const statusResponse = await fetch(`/api/google-sheets/horarios?restaurantId=${restaurantId}&fecha=${today}&hora=${currentTime}`);
+      
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        if (statusData.success) {
+          setRestaurantStatus(statusData.status);
+          
+          // Si el restaurante está cerrado, no mostrar reservas
+          if (!statusData.status.abierto) {
+            console.log('🏪 Restaurante cerrado, no cargando reservas');
+            setReservations([]);
+            return;
+          }
+        }
+      }
+      
+      // Si está abierto, cargar reservas normalmente
+      const response = await fetch(`/api/google-sheets/reservas?restaurantId=${restaurantId}&fecha=${today}`);
       
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          // Convertir formato de Retell al formato del dashboard
-          const formattedReservations = data.reservations.map((reserva: {
-            id: string;
-            time: string;
-            customerName: string;
-            people: number;
-            tableName?: string;
-            status: string;
-            specialRequests?: string;
-            phone?: string;
-          }) => ({
-            id: reserva.id,
-            time: reserva.time,
-            clientName: reserva.customerName,
-            partySize: reserva.people,
-            table: reserva.tableName || 'Por asignar',
-            status: reserva.status,
-            notes: reserva.specialRequests || '',
-            phone: reserva.phone || ''
-          }));
+          // Convertir formato de Google Sheets al formato del dashboard
+          const todayReservations = data.reservas
+            .sort((a: any, b: any) => a.Hora.localeCompare(b.Hora))
+            .map((reserva: {
+              ID: string;
+              Fecha: string;
+              Hora: string;
+              Cliente: string;
+              Personas: number;
+              Mesa?: string;
+              Estado: string;
+              Notas?: string;
+              Telefono?: string;
+            }) => ({
+              id: reserva.ID,
+              date: reserva.Fecha,
+              time: reserva.Hora,
+              clientName: reserva.Cliente,
+              partySize: reserva.Personas,
+              table: reserva.Mesa || 'Por asignar',
+              status: reserva.Estado === 'Confirmada' ? 'confirmed' : 
+                     reserva.Estado === 'Pendiente' ? 'pending' : 'cancelled',
+              notes: reserva.Notas || '',
+              phone: reserva.Telefono || ''
+            }));
           
-          setReservations(formattedReservations);
-          console.log('📅 PremiumDashboard: Reservas cargadas desde Retell API:', formattedReservations);
+          setReservations(todayReservations);
+          console.log('📅 PremiumDashboard: Reservas de hoy cargadas desde Google Sheets:', todayReservations);
         } else {
           console.error('Error cargando reservas:', data.error);
           setReservations([]);
@@ -121,7 +154,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
         setReservations([]);
       }
     } catch (error) {
-      console.error('Error cargando reservas desde Retell API:', error);
+      console.error('Error cargando reservas desde Google Sheets:', error);
       setReservations([]);
     }
   }, [restaurantId]);
@@ -129,12 +162,21 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
   useEffect(() => {
     // Cargar reservas cuando los datos del restaurante estén disponibles
     if (restaurantData && !loading) {
-      loadReservationsFromRetell();
+      loadReservationsFromGoogleSheets();
     }
-  }, [restaurantData, loading, loadReservationsFromRetell]);
+  }, [restaurantData, loading, loadReservationsFromGoogleSheets]);
 
+  // Auto-refresh de reservas cada 30 segundos
+  useEffect(() => {
+    if (!restaurantData || loading) return;
 
+    const interval = setInterval(() => {
+      console.log('🔄 Auto-refresh: Actualizando reservas desde Google Sheets...');
+      loadReservationsFromGoogleSheets();
+    }, 30000); // 30 segundos
 
+    return () => clearInterval(interval);
+  }, [restaurantData, loading, loadReservationsFromGoogleSheets]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -259,7 +301,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
               <Button
                 onClick={() => {
                   refreshData();
-                  loadReservationsFromRetell();
+                  loadReservationsFromGoogleSheets();
                 }}
                 variant="outline"
                 size="sm"
@@ -374,17 +416,25 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                   <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
                     <h2 className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight transition-colors duration-300 ${
                       isDarkMode ? 'text-white' : 'text-slate-900'
-                    }`}>Reservas de Hoy</h2>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                      <span className={`text-xs transition-colors duration-300 ${
-                        isDarkMode ? 'text-gray-400' : 'text-slate-500'
-                      }`}>Sincronización en tiempo real</span>
+                    }`}>Agenda del Día</h2>
+                    
+                    {/* Indicador de estado del restaurante */}
+                    <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium ${
+                      restaurantStatus.abierto 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        restaurantStatus.abierto ? 'bg-green-500' : 'bg-red-500'
+                      }`}></div>
+                      <span>
+                        {restaurantStatus.abierto ? 'Abierto' : 'Cerrado'}
+                      </span>
                     </div>
                   </div>
                   <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                     <Button 
-                      onClick={loadReservationsFromRetell}
+                      onClick={loadReservationsFromGoogleSheets}
                       className="px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold shadow-lg text-xs sm:text-sm"
                     >
                       🔄 Actualizar
@@ -396,13 +446,37 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                 </div>
                 
                 {reservations.length === 0 ? (
-                  <Card className="p-12 text-center bg-white/60 backdrop-blur-sm border-0 shadow-xl rounded-2xl">
+                  <Card className={`p-12 text-center backdrop-blur-sm border-0 shadow-xl rounded-2xl ${
+                    isDarkMode ? 'bg-gray-800/60' : 'bg-white/60'
+                  }`}>
                     <div className="space-y-6">
-                      <div className="w-20 h-20 bg-slate-100 rounded-2xl mx-auto flex items-center justify-center">
-                        <div className="w-10 h-10 bg-slate-300 rounded-xl"></div>
+                      <div className={`w-20 h-20 rounded-2xl mx-auto flex items-center justify-center ${
+                        restaurantStatus.abierto ? 'bg-slate-100' : 'bg-red-100'
+                      }`}>
+                        <div className={`w-10 h-10 rounded-xl ${
+                          restaurantStatus.abierto ? 'bg-slate-300' : 'bg-red-300'
+                        }`}></div>
                       </div>
                       <div>
-                        <h3 className="text-2xl font-bold text-slate-900 mb-2">No hay reservas programadas</h3>
+                        {restaurantStatus.abierto ? (
+                          <>
+                            <h3 className={`text-2xl font-bold mb-2 ${
+                              isDarkMode ? 'text-white' : 'text-slate-900'
+                            }`}>No hay reservas programadas</h3>
+                            <p className={`text-sm ${
+                              isDarkMode ? 'text-gray-400' : 'text-slate-600'
+                            }`}>El restaurante está abierto pero no hay reservas para hoy</p>
+                          </>
+                        ) : (
+                          <>
+                            <h3 className={`text-2xl font-bold mb-2 ${
+                              isDarkMode ? 'text-white' : 'text-slate-900'
+                            }`}>Restaurante Cerrado</h3>
+                            <p className={`text-sm ${
+                              isDarkMode ? 'text-gray-400' : 'text-slate-600'
+                            }`}>{restaurantStatus.mensaje}</p>
+                          </>
+                        )}
                       </div>
                     </div>
                   </Card>

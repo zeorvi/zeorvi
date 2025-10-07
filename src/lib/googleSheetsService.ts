@@ -11,7 +11,7 @@ export interface Reserva {
   Personas: number;
   Zona: string;
   Mesa: string;
-  Estado: 'pendiente' | 'confirmada' | 'cancelada';
+  Estado: 'pendiente' | 'confirmada' | 'cancelada' | 'Pendiente' | 'Confirmada' | 'Cancelada';
   Notas?: string;
   Creado: string;
 }
@@ -78,9 +78,29 @@ export class GoogleSheetsService {
     }
   }
 
-  // ✅ Añadir nueva reserva
-  static async addReserva(restaurantId: string, reserva: Omit<Reserva, 'ID' | 'Creado'>): Promise<{ success: boolean; ID?: string }> {
+  // ✅ Añadir nueva reserva con validación de disponibilidad
+  static async addReserva(restaurantId: string, reserva: Omit<Reserva, 'ID' | 'Creado'>): Promise<{ success: boolean; ID?: string; error?: string }> {
     try {
+      // VALIDAR DISPONIBILIDAD ANTES DE CREAR LA RESERVA
+      const disponibilidad = await this.verificarDisponibilidad(
+        restaurantId,
+        reserva.Fecha,
+        reserva.Hora,
+        reserva.Personas,
+        reserva.Zona
+      );
+
+      if (!disponibilidad.disponible) {
+        console.warn(`❌ Mesa no disponible para reserva: ${disponibilidad.mensaje}`);
+        return { 
+          success: false, 
+          error: disponibilidad.mensaje 
+        };
+      }
+
+      // Si la mesa especificada no está disponible, usar la mesa sugerida
+      const mesaFinal = disponibilidad.mesa || reserva.Mesa;
+      
       const sheets = await this.getClient();
       const sheetId = this.getSheetId(restaurantId);
       
@@ -101,7 +121,7 @@ export class GoogleSheetsService {
             reserva.Telefono,
             reserva.Personas.toString(),
             reserva.Zona,
-            reserva.Mesa,
+            mesaFinal, // Usar la mesa validada
             reserva.Estado,
             reserva.Notas || '',
             creado
@@ -109,11 +129,11 @@ export class GoogleSheetsService {
         },
       });
       
-      console.log(`✅ Reserva creada: ${reservaId} para ${restaurantId}`);
+      console.log(`✅ Reserva creada exitosamente: ${reserva.Cliente} - Mesa ${mesaFinal} - ${reserva.Fecha} ${reserva.Hora}`);
       return { success: true, ID: reservaId };
     } catch (error) {
       console.error(`Error creando reserva para ${restaurantId}:`, error);
-      return { success: false };
+      return { success: false, error: 'Error interno del servidor' };
     }
   }
 
@@ -219,17 +239,197 @@ export class GoogleSheetsService {
     }
   }
 
-  // ✅ Verificar disponibilidad
-  static async verificarDisponibilidad(
+  // ✅ Leer días cerrados
+  static async getDiasCerrados(restaurantId: string): Promise<string[]> {
+    try {
+      const sheets = await this.getClient();
+      const sheetId = this.getSheetId(restaurantId);
+      
+      const res = await sheets.spreadsheets.values.get({
+        spreadsheetId: sheetId,
+        range: "Configuracion!A2:B",
+      });
+      
+      const values = res.data.values || [];
+      const diasCerradosRow = values.find(row => row[0] === 'dias_cerrados' && row[1]);
+      
+      if (diasCerradosRow && diasCerradosRow[1]) {
+        // Parsear la cadena separada por comas
+        const diasCerrados = diasCerradosRow[1].split(',').map((dia: string) => dia.trim().toLowerCase());
+        return diasCerrados;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error(`Error leyendo días cerrados para ${restaurantId}:`, error);
+      return ['martes']; // Valor por defecto
+    }
+  }
+
+  // ✅ Leer horarios
+  static async getHorarios(restaurantId: string): Promise<Array<{ Dia: string; Inicio: string; Fin: string }>> {
+    try {
+      const sheets = await this.getClient();
+      const sheetId = this.getSheetId(restaurantId);
+      
+      const res = await sheets.spreadsheets.values.get({
+        spreadsheetId: sheetId,
+        range: "Horarios!A2:C",
+      });
+      
+      const values = res.data.values || [];
+      return values.map(row => ({
+        Dia: row[0] || '',
+        Inicio: row[1] || '',
+        Fin: row[2] || '',
+      }));
+    } catch (error) {
+      console.error(`Error leyendo horarios para ${restaurantId}:`, error);
+      return [];
+    }
+  }
+
+  // ✅ Guardar días cerrados
+  static async saveDiasCerrados(restaurantId: string, diasCerrados: string[]): Promise<{ success: boolean }> {
+    try {
+      const sheets = await this.getClient();
+      const sheetId = this.getSheetId(restaurantId);
+      
+      // Primero, verificar si la hoja "Configuracion" existe, si no, crearla
+      try {
+        await sheets.spreadsheets.values.get({
+          spreadsheetId: sheetId,
+          range: "Configuracion!A1",
+        });
+      } catch (error) {
+        // Si la hoja no existe, crearla
+        console.log('Creando hoja Configuracion...');
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: sheetId,
+          requestBody: {
+            requests: [{
+              addSheet: {
+                properties: {
+                  title: 'Configuracion'
+                }
+              }
+            }]
+          }
+        });
+      }
+      
+      // Crear o actualizar la hoja de configuración
+      const configData = [
+        ['Configuracion', 'Valor'],
+        ['dias_cerrados', diasCerrados.join(',')]
+      ];
+      
+      // Limpiar la hoja y escribir nueva configuración
+      await sheets.spreadsheets.values.clear({
+        spreadsheetId: sheetId,
+        range: "Configuracion!A:B",
+      });
+      
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: sheetId,
+        range: "Configuracion!A1:B2",
+        valueInputOption: "USER_ENTERED",
+        requestBody: {
+          values: configData
+        }
+      });
+      
+      console.log(`✅ Días cerrados guardados para ${restaurantId}: ${diasCerrados.join(', ')}`);
+      return { success: true };
+    } catch (error) {
+      console.error(`Error guardando días cerrados para ${restaurantId}:`, error);
+      return { success: false };
+    }
+  }
+
+  // ✅ Verificar si el restaurante está abierto
+  static async verificarRestauranteAbierto(
     restaurantId: string, 
     fecha: string, 
-    hora: string, 
-    personas: number, 
+    hora: string
+  ): Promise<{ abierto: boolean; mensaje: string; horarios?: Array<{ Turno: string; Inicio: string; Fin: string }> }> {
+    try {
+      // PRIMERO: Verificar si el día está cerrado
+      const fechaObj = new Date(fecha);
+      const diaSemana = fechaObj.toLocaleDateString('es-ES', { weekday: 'long' });
+      
+      // Leer días cerrados desde Google Sheets
+      const diasCerrados = await this.getDiasCerrados(restaurantId);
+      
+      if (diasCerrados.includes(diaSemana.toLowerCase())) {
+        const diasTexto = diasCerrados.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ');
+        return {
+          abierto: false,
+          mensaje: `Restaurante cerrado los ${diasTexto}`
+        };
+      }
+
+      const turnos = await this.getTurnos(restaurantId);
+      
+      if (turnos.length === 0) {
+        return {
+          abierto: true, // Si no hay horarios configurados, asumir que está abierto
+          mensaje: 'Horarios no configurados, asumiendo que está abierto'
+        };
+      }
+
+      // Verificar si la hora está dentro de algún turno
+      const horaNum = parseInt(hora.split(':')[0]);
+      
+      for (const turno of turnos) {
+        const inicioNum = parseInt(turno.Inicio.split(':')[0]);
+        const finNum = parseInt(turno.Fin.split(':')[0]);
+        
+        if (horaNum >= inicioNum && horaNum < finNum) {
+          return {
+            abierto: true,
+            mensaje: `Restaurante abierto en horario de ${turno.Turno}`,
+            horarios: turnos
+          };
+        }
+      }
+      
+      // Si no está en ningún turno, está cerrado
+      const horariosTexto = turnos.map(t => `${t.Turno}: ${t.Inicio}-${t.Fin}`).join(', ');
+      return {
+        abierto: false,
+        mensaje: `Restaurante cerrado. Horarios: ${horariosTexto}`,
+        horarios: turnos
+      };
+      
+    } catch (error) {
+      console.error(`Error verificando horarios para ${restaurantId}:`, error);
+      return {
+        abierto: true, // En caso de error, asumir que está abierto
+        mensaje: 'Error verificando horarios, asumiendo que está abierto'
+      };
+    }
+  }
+
+  // ✅ Calcular disponibilidad futura considerando liberación de mesas
+  static async calcularDisponibilidadFutura(
+    restaurantId: string,
+    fecha: string,
+    hora: string,
+    personas: number,
     zona?: string
   ): Promise<{ disponible: boolean; mesa?: string; mensaje: string; alternativas?: string[] }> {
     try {
+      console.log(`🔍 Calculando disponibilidad futura: ${restaurantId}, ${fecha}, ${hora}, ${personas}, ${zona}`);
+      
       const mesas = await this.getMesas(restaurantId);
       const reservas = await this.getReservas(restaurantId);
+      
+      console.log(`🔍 Mesas encontradas:`, mesas.length);
+      console.log(`🔍 Reservas encontradas:`, reservas.length);
+      
+      // Convertir fecha y hora a timestamp para cálculos
+      const fechaHoraSolicitada = new Date(`${fecha}T${hora}:00`);
       
       // Filtrar mesas por zona y capacidad
       let mesasDisponibles = mesas.filter(mesa => 
@@ -248,20 +448,72 @@ export class GoogleSheetsService {
       const reservasExistentes = reservas.filter(reserva => 
         reserva.Fecha === fecha && 
         reserva.Hora === hora && 
-        (reserva.Estado === 'confirmada' || reserva.Estado === 'pendiente')
+        (reserva.Estado.toLowerCase() === 'confirmada' || reserva.Estado.toLowerCase() === 'pendiente')
       );
       
+      // Verificar mesas que se liberarán antes de la hora solicitada
+      const mesasQueSeLiberan = [];
+      for (const reserva of reservas) {
+        if (reserva.Estado.toLowerCase() === 'confirmada' || reserva.Estado.toLowerCase() === 'pendiente') {
+          const fechaHoraReserva = new Date(`${reserva.Fecha}T${reserva.Hora}:00`);
+          
+          // Calcular cuándo se liberará la mesa (2 horas después)
+          const fechaHoraLiberacion = new Date(fechaHoraReserva.getTime() + (2 * 60 * 60 * 1000));
+          
+          // Si la mesa se liberará antes de la hora solicitada, está disponible
+          if (fechaHoraLiberacion <= fechaHoraSolicitada) {
+            mesasQueSeLiberan.push({
+              mesa: reserva.Mesa,
+              liberacion: fechaHoraLiberacion.toISOString(),
+              reservaAnterior: reserva
+            });
+          }
+        }
+      }
+      
+      // Combinar mesas libres con mesas que se liberarán
       const mesasOcupadas = reservasExistentes.map(r => r.Mesa);
       const mesasLibres = mesasDisponibles.filter(mesa => 
         !mesasOcupadas.includes(mesa.ID)
       );
       
-      if (mesasLibres.length > 0) {
-        const mesaElegida = mesasLibres[0];
+      // Agregar mesas que se liberarán
+      const mesasLiberadas = mesasQueSeLiberan.filter(libera => 
+        !mesasOcupadas.includes(libera.mesa) &&
+        mesasDisponibles.some(mesa => mesa.ID === libera.mesa)
+      );
+      
+      const todasLasMesasDisponibles = [
+        ...mesasLibres,
+        ...mesasLiberadas.map(libera => 
+          mesasDisponibles.find(mesa => mesa.ID === libera.mesa)
+        ).filter(Boolean)
+      ];
+      
+      if (todasLasMesasDisponibles.length > 0) {
+        const mesaElegida = todasLasMesasDisponibles[0];
+        
+        if (!mesaElegida) {
+          return {
+            disponible: false,
+            mensaje: 'No hay mesas disponibles para el turno solicitado'
+          };
+        }
+        
+        const esLiberada = mesasLiberadas.some(libera => libera.mesa === mesaElegida.ID);
+        
+        let mensaje = `Mesa ${mesaElegida.ID} disponible en ${mesaElegida.Zona} para ${personas} personas`;
+        if (esLiberada) {
+          const liberacion = mesasLiberadas.find(libera => libera.mesa === mesaElegida.ID);
+          if (liberacion) {
+            mensaje += ` (se liberará a las ${new Date(liberacion.liberacion).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })})`;
+          }
+        }
+        
         return {
           disponible: true,
           mesa: mesaElegida.ID,
-          mensaje: `Mesa ${mesaElegida.ID} disponible en ${mesaElegida.Zona} para ${personas} personas`
+          mensaje: mensaje
         };
       } else {
         // Buscar alternativas
@@ -276,7 +528,42 @@ export class GoogleSheetsService {
         };
       }
     } catch (error) {
-      console.error(`Error verificando disponibilidad para ${restaurantId}:`, error);
+      console.error(`Error calculando disponibilidad futura para ${restaurantId}:`, error);
+      return {
+        disponible: false,
+        mensaje: 'Error calculando disponibilidad'
+      };
+    }
+  }
+
+  // ✅ Verificar disponibilidad
+  static async verificarDisponibilidad(
+    restaurantId: string, 
+    fecha: string, 
+    hora: string, 
+    personas: number, 
+    zona?: string
+  ): Promise<{ disponible: boolean; mesa?: string; mensaje: string; alternativas?: string[] }> {
+    try {
+      console.log(`🔍 Verificando disponibilidad: ${restaurantId}, ${fecha}, ${hora}, ${personas}, ${zona}`);
+      
+      // PRIMERO: Verificar si el restaurante está abierto
+      const horariosCheck = await this.verificarRestauranteAbierto(restaurantId, fecha, hora);
+      console.log(`🔍 Horarios check:`, horariosCheck);
+      
+      if (!horariosCheck.abierto) {
+        return {
+          disponible: false,
+          mensaje: horariosCheck.mensaje
+        };
+      }
+
+      // Usar la nueva función de disponibilidad futura
+      const resultado = await this.calcularDisponibilidadFutura(restaurantId, fecha, hora, personas, zona);
+      console.log(`🔍 Resultado disponibilidad:`, resultado);
+      return resultado;
+    } catch (error) {
+      console.error(`❌ Error verificando disponibilidad para ${restaurantId}:`, error);
       return {
         disponible: false,
         mensaje: 'Error verificando disponibilidad'
@@ -334,8 +621,61 @@ export class GoogleSheetsService {
   }
 
   // ✅ Crear reserva (alias para addReserva)
-  static async crearReserva(reservaData: Omit<Reserva, 'ID' | 'Creado'>, restaurantId: string): Promise<{ success: boolean; ID?: string }> {
+  static async crearReserva(reservaData: Omit<Reserva, 'ID' | 'Creado'>, restaurantId: string): Promise<{ success: boolean; ID?: string; error?: string }> {
     return this.addReserva(restaurantId, reservaData);
+  }
+
+  // ✅ Eliminar reserva completamente
+  static async eliminarReserva(restaurantId: string, id: string): Promise<{ success: boolean }> {
+    try {
+      const sheets = await this.getClient();
+      const sheetId = this.getSheetId(restaurantId);
+      
+      // Obtener todas las reservas para encontrar la fila
+      const reservas = await this.getReservas(restaurantId);
+      const reservaIndex = reservas.findIndex(r => r.ID === id);
+      
+      if (reservaIndex === -1) {
+        return { success: false };
+      }
+      
+      // La fila en Google Sheets es reservaIndex + 2 (porque empieza en fila 2 y es 0-indexed)
+      const rowNumber = reservaIndex + 2;
+      
+      // Obtener información de las hojas para encontrar el sheetId correcto
+      const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: sheetId });
+      const reservasSheet = spreadsheet.data.sheets?.find(sheet => 
+        sheet.properties?.title === 'Reservas'
+      );
+      
+      if (!reservasSheet?.properties?.sheetId) {
+        console.error('No se encontró la hoja "Reservas"');
+        return { success: false };
+      }
+      
+      // Eliminar la fila completa
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: sheetId,
+        requestBody: {
+          requests: [{
+            deleteDimension: {
+              range: {
+                sheetId: reservasSheet.properties.sheetId,
+                dimension: 'ROWS',
+                startIndex: rowNumber - 1, // 0-indexed
+                endIndex: rowNumber
+              }
+            }
+          }]
+        }
+      });
+      
+      console.log(`✅ Reserva ${id} eliminada completamente de Google Sheets`);
+      return { success: true };
+    } catch (error) {
+      console.error(`Error eliminando reserva ${id} para ${restaurantId}:`, error);
+      return { success: false };
+    }
   }
 
   // ✅ Actualizar estado de reserva por cliente y teléfono

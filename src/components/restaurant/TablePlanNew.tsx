@@ -29,7 +29,7 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
   console.log('⏳ Is loading:', isLoading);
   
   const [filteredTables, setFilteredTables] = useState(tables);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'available' | 'occupied' | 'reserved' | 'maintenance'>('all');
+  const [statusFilter, setStatusFilter] = useState<'available' | 'occupied' | 'reserved' | 'maintenance' | 'all'>('available');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Filtrar mesas cuando cambian los filtros o las mesas
@@ -168,7 +168,7 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
           </div>
           
           <div className="flex space-x-2">
-            {['all', 'available', 'occupied', 'reserved', 'maintenance'].map((status) => (
+            {['available', 'occupied', 'reserved', 'maintenance'].map((status) => (
               <Button
                 key={status}
                 onClick={() => setStatusFilter(status as any)}
@@ -176,8 +176,7 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
                 size="sm"
                 className={statusFilter === status ? 'bg-blue-500 text-white' : isDarkMode ? 'text-white border-gray-600 hover:bg-gray-700 bg-gray-800' : ''}
               >
-                {status === 'all' ? 'Todas' : 
-                 status === 'available' ? 'Libres' :
+                {status === 'available' ? 'Libres' :
                  status === 'occupied' ? 'Ocupadas' :
                  status === 'reserved' ? 'Reservadas' :
                  status === 'maintenance' ? 'Mantenimiento' : status}

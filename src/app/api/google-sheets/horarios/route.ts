@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleSheetsService } from '@/lib/googleSheetsService';
 
-// GET - Verificar disponibilidad de mesas
+// GET - Verificar si el restaurante está abierto
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const fecha = searchParams.get('fecha');
     const hora = searchParams.get('hora');
-    const personas = searchParams.get('personas');
-    const zona = searchParams.get('zona');
     const restaurantId = searchParams.get('restaurantId');
 
     if (!restaurantId) {
@@ -18,36 +16,29 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    if (!fecha || !hora || !personas) {
+    if (!fecha || !hora) {
       return NextResponse.json({
         success: false,
-        error: 'fecha, hora y personas son requeridos'
+        error: 'fecha y hora son requeridos'
       }, { status: 400 });
     }
 
-    const disponibilidad = await GoogleSheetsService.verificarDisponibilidad(
+    const status = await GoogleSheetsService.verificarRestauranteAbierto(
       restaurantId,
       fecha,
-      hora,
-      parseInt(personas),
-      zona || undefined
+      hora
     );
 
     return NextResponse.json({
       success: true,
-      disponible: disponibilidad.disponible,
-      mesa: disponibilidad.mesa,
-      mensaje: disponibilidad.mensaje,
-      alternativas: disponibilidad.alternativas,
+      status,
       restaurantId,
       fecha,
-      hora,
-      personas: parseInt(personas),
-      zona
+      hora
     });
 
   } catch (error) {
-    console.error('Error verificando disponibilidad:', error);
+    console.error('Error verificando horarios:', error);
     return NextResponse.json({
       success: false,
       error: 'Error interno del servidor'

@@ -6,19 +6,46 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     console.log('🔔 Retell Functions recibido:', JSON.stringify(body, null, 2));
+    console.log('🔍 Headers:', JSON.stringify(Object.fromEntries(request.headers.entries()), null, 2));
+    console.log('🔍 URL:', request.url);
+    console.log('🔍 Method:', request.method);
 
-    const { function_name, parameters } = body;
-    const restaurantId = getRestaurantId(body);
+    // Extraer function_name de diferentes posibles formatos
+    const function_name = body.function_name || body.name || body.tool_call?.function?.name;
+    const parameters = body.parameters || body.arguments || body.tool_call?.function?.arguments || {};
+    
+    console.log('🔍 Function name extraído:', function_name);
+    console.log('🔍 Parameters extraídos:', parameters);
+    
+    let restaurantId = getRestaurantId(body);
 
+    // Si no se puede determinar el restaurante, intentar extraer del URL o usar rest_003 por defecto
     if (!isValidRestaurantId(restaurantId)) {
-      console.warn('No se pudo determinar el restaurante', { 
-        metadata: body.metadata,
-        data_metadata: body.data?.metadata,
-        agent_id: body.agent_id
-      });
+      // Intentar extraer del URL de la request
+      const url = new URL(request.url);
+      const pathParts = url.pathname.split('/');
+      const urlRestaurantId = pathParts.find(part => part.startsWith('rest_'));
+      
+      if (urlRestaurantId && isValidRestaurantId(urlRestaurantId)) {
+        restaurantId = urlRestaurantId;
+        console.log(`📍 RestaurantId desde URL: ${restaurantId}`);
+      } else {
+        console.warn('No se pudo determinar el restaurante, usando rest_003 por defecto', { 
+          metadata: body.metadata,
+          data_metadata: body.data?.metadata,
+          agent_id: body.agent_id,
+          url: request.url
+        });
+        restaurantId = 'rest_003'; // La Gaviota por defecto
+      }
+    }
+
+    if (!function_name) {
+      console.error('❌ No se encontró function_name en el request:', body);
       return NextResponse.json({
         success: false,
-        error: 'No puedo determinar restaurantId válido. Usa metadata.restaurantId o agent_id con formato rest_XXX_agent.'
+        error: 'No se encontró function_name en el request',
+        received_body: body
       }, { status: 400 });
     }
 
@@ -135,6 +162,18 @@ export async function POST(request: NextRequest) {
           reservas: reservasDelDia,
           total: reservasDelDia.length,
           mensaje: `${reservasDelDia.length} reservas encontradas para ${parameters.fecha}`
+        };
+        break;
+
+      case 'obtener_horarios_y_dias_cerrados':
+        const diasCerrados = await GoogleSheetsService.getDiasCerrados(restaurantId);
+        const horarios = await GoogleSheetsService.getHorarios(restaurantId);
+        
+        result = {
+          success: true,
+          diasCerrados: diasCerrados,
+          horarios: horarios,
+          mensaje: `Días cerrados: ${diasCerrados.join(', ')}. Horarios disponibles.`
         };
         break;
 

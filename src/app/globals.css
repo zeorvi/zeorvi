@@ -119,4 +119,9 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Fix for Radix Dialog aria-hidden warning */
+  body[aria-hidden="true"] {
+    /* This is intentional for modal accessibility */
+  }
 }

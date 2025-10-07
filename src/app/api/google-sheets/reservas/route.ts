@@ -79,16 +79,17 @@ export async function POST(request: NextRequest) {
       Notas: reservaData.notas || ''
     }, restaurantId);
 
-    if (result) {
+    if (result.success) {
       return NextResponse.json({
         success: true,
-        mensaje: 'Reserva creada exitosamente'
+        mensaje: 'Reserva creada exitosamente',
+        ID: result.ID
       });
     } else {
       return NextResponse.json({
         success: false,
-        error: 'Error creando la reserva'
-      }, { status: 500 });
+        error: result.error || 'Error creando la reserva'
+      }, { status: 400 });
     }
 
   } catch (error) {
@@ -177,22 +178,17 @@ export async function DELETE(request: NextRequest) {
       }, { status: 404 });
     }
 
-    const result = await GoogleSheetsService.actualizarEstadoReserva(
-      reserva.Cliente,
-      reserva.Telefono,
-      'cancelada',
-      restaurantId
-    );
+    const result = await GoogleSheetsService.eliminarReserva(restaurantId, ID);
 
-    if (result) {
+    if (result.success) {
       return NextResponse.json({
         success: true,
-        mensaje: 'Reserva cancelada exitosamente'
+        mensaje: 'Reserva eliminada exitosamente'
       });
     } else {
       return NextResponse.json({
         success: false,
-        error: 'Error cancelando la reserva'
+        error: 'Error eliminando la reserva'
       }, { status: 500 });
     }
 

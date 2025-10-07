@@ -32,6 +32,7 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const monthNames = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -40,12 +41,48 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
 
   const dayNames = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
 
-  useEffect(() => {
+  // Función para cargar reservas desde Google Sheets
+  const loadReservations = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/google-sheets/reservas?restaurantId=${restaurantId}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          const formattedReservations = data.reservas.map((reserva: any) => ({
+            id: reserva.ID,
+            clientName: reserva.Cliente,
+            date: reserva.Fecha,
+            time: reserva.Hora,
+            partySize: reserva.Personas,
+            table: reserva.Mesa || 'Por asignar',
+            status: reserva.Estado === 'Confirmada' ? 'confirmed' : 
+                   reserva.Estado === 'Pendiente' ? 'pending' : 'cancelled',
+            phone: reserva.Telefono || '',
+            notes: reserva.Notas || ''
+          }));
+          
+          setReservations(formattedReservations);
+          console.log('📅 ReservationCalendar: Reservas cargadas desde Google Sheets:', formattedReservations);
+        }
+      }
+    } catch (error) {
+      console.error('Error cargando reservas:', error);
+      setReservations([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    // NO generar datos mock - Retell AI gestiona las reservas reales
-    console.log('📅 ReservationCalendar: No mock data - waiting for real reservations');
-    setReservations([]); // Calendario vacío hasta que lleguen reservas reales
-  }, [restaurantId, restaurantTables]);
+  // Cargar reservas al montar y auto-refresh
+  useEffect(() => {
+    loadReservations();
+    
+    // Auto-refresh cada 60 segundos
+    const interval = setInterval(loadReservations, 60000);
+    return () => clearInterval(interval);
+  }, [restaurantId]);
 
   const navigateMonth = (direction: 'prev' | 'next') => {
     setCurrentDate(prev => {
@@ -139,7 +176,19 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
       isDarkMode ? 'text-white' : 'text-gray-900'
     }`}>
       {/* Header del Calendario */}
-      <div className="flex items-center justify-center">
+      <div className="flex items-center justify-between">
+        <Button 
+          onClick={loadReservations}
+          disabled={loading}
+          className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+            isDarkMode 
+              ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+              : 'bg-blue-500 hover:bg-blue-600 text-white'
+          }`}
+        >
+          {loading ? 'Cargando...' : '🔄 Actualizar'}
+        </Button>
+        
         <div className={`flex items-center space-x-2 md:space-x-3 rounded-lg md:rounded-xl border shadow-sm px-3 md:px-4 py-1.5 md:py-2 transition-all duration-300 ${
           isDarkMode 
             ? 'bg-gradient-to-r from-gray-800 to-gray-700 border-gray-600' 
@@ -183,6 +232,12 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
             <option value={2025}>2025</option>
             <option value={2026}>2026</option>
           </select>
+        </div>
+        
+        <div className={`px-3 py-2 rounded-lg text-sm font-semibold ${
+          isDarkMode ? 'bg-gray-800 text-gray-300' : 'bg-purple-100 text-purple-900'
+        }`}>
+          {currentMonthReservations.length} reserva{currentMonthReservations.length !== 1 ? 's' : ''}
         </div>
       </div>
 
@@ -322,19 +377,6 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
                     )}
                   </div>
                   
-                  <div className="flex items-center space-x-2 mt-3">
-                    <button className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white text-sm font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
-                      ✏️ Editar
-                    </button>
-                    <button className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-100 to-blue-200 hover:from-blue-200 hover:to-blue-300 border border-blue-300 text-blue-700 hover:text-blue-800 text-sm font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
-                      📞 Llamar
-                    </button>
-                    {reservation.status === 'pending' && (
-                      <button className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-sm font-semibold transition-all duration-300 shadow-md hover:shadow-lg">
-                        ✅ Confirmar
-                      </button>
-                    )}
-                  </div>
                 </div>
               ))}
             </div>
