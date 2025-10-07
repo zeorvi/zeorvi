@@ -28,8 +28,8 @@ export async function POST(request: NextRequest) {
       );
 
       const canAccommodateNow = availableTables.length > 0;
-      const bestTableOption = availableTables.find(table => table.capacity === peopleCount) || 
-                             availableTables.find(table => table.capacity > peopleCount);
+      // const bestTableOption = availableTables.find(table => table.capacity === peopleCount) || 
+      //   availableTables.find(table => table.capacity > peopleCount);
 
       return NextResponse.json({
         success: true,

@@ -1,26 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { RetellGoogleSheetsFunctions } from '@/lib/retellGoogleSheetsFunctions';
+import { GoogleSheetsService } from '@/lib/googleSheetsService';
+import { getRestaurantId, isValidRestaurantId } from '@/lib/retellUtils';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     console.log('🔔 Retell Functions recibido:', JSON.stringify(body, null, 2));
 
-    const { function_name, parameters, agent_id, call_id } = body;
+    const { function_name, parameters } = body;
+    const restaurantId = getRestaurantId(body);
 
-    // Extraer información del restaurante del agent_id
-    const restaurantId = extractRestaurantIdFromAgentId(agent_id);
-    const restaurantName = getRestaurantNameFromAgentId(agent_id);
-
-    if (!restaurantId || !restaurantName) {
+    if (!isValidRestaurantId(restaurantId)) {
+      console.warn('No se pudo determinar el restaurante', { 
+        metadata: body.metadata,
+        data_metadata: body.data?.metadata,
+        agent_id: body.agent_id
+      });
       return NextResponse.json({
         success: false,
-        error: 'No se pudo identificar el restaurante del agent ID'
+        error: 'No puedo determinar restaurantId válido. Usa metadata.restaurantId o agent_id con formato rest_XXX_agent.'
       }, { status: 400 });
     }
-
-    // Obtener spreadsheet ID del restaurante
-    const spreadsheetId = `spreadsheet_${restaurantId}`;
 
     console.log(`🏪 Procesando función ${function_name} para restaurante ${restaurantId}`);
 
@@ -28,77 +28,114 @@ export async function POST(request: NextRequest) {
 
     switch (function_name) {
       case 'verificar_disponibilidad':
-        result = await RetellGoogleSheetsFunctions.verificarDisponibilidad(
-          {
-            fecha: parameters.fecha,
-            hora: parameters.hora,
-            personas: parameters.personas
-          },
+        result = await GoogleSheetsService.verificarDisponibilidad(
           restaurantId,
-          restaurantName,
-          spreadsheetId
+          parameters.fecha,
+          parameters.hora,
+          parameters.personas,
+          parameters.zona
         );
         break;
 
       case 'crear_reserva':
-        result = await RetellGoogleSheetsFunctions.crearReserva(
-          {
-            fecha: parameters.fecha,
-            hora: parameters.hora,
-            cliente: parameters.cliente,
-            telefono: parameters.telefono,
-            personas: parameters.personas,
-            notas: parameters.notas || ''
-          },
-          restaurantId,
-          restaurantName,
-          spreadsheetId
-        );
+        const reservaResult = await GoogleSheetsService.addReserva(restaurantId, {
+          Fecha: parameters.fecha,
+          Hora: parameters.hora,
+          Turno: parameters.turno || 'Cena',
+          Cliente: parameters.cliente,
+          Telefono: parameters.telefono,
+          Personas: parameters.personas,
+          Zona: parameters.zona,
+          Mesa: parameters.mesa,
+          Estado: 'confirmada',
+          Notas: parameters.notas || ''
+        });
+        
+        result = {
+          success: reservaResult.success,
+          mensaje: reservaResult.success ? 
+            `Reserva confirmada para ${parameters.cliente} en mesa ${parameters.mesa}` : 
+            'Error creando la reserva',
+          numeroReserva: reservaResult.ID
+        };
         break;
 
-      case 'buscar_reserva':
-        result = await RetellGoogleSheetsFunctions.buscarReserva(
-          {
-            cliente: parameters.cliente,
-            telefono: parameters.telefono
-          },
+      case 'modificar_reserva':
+        const updateResult = await GoogleSheetsService.updateReserva(
           restaurantId,
-          restaurantName,
-          spreadsheetId
+          parameters.ID,
+          {
+            Fecha: parameters.fecha,
+            Hora: parameters.hora,
+            Turno: parameters.turno,
+            Cliente: parameters.cliente,
+            Telefono: parameters.telefono,
+            Personas: parameters.personas,
+            Zona: parameters.zona,
+            Mesa: parameters.mesa,
+            Estado: parameters.estado,
+            Notas: parameters.notas
+          }
         );
+        
+        result = {
+          success: updateResult.success,
+          mensaje: updateResult.success ? 
+            `Reserva ${parameters.ID} actualizada correctamente` : 
+            'Error actualizando la reserva'
+        };
         break;
 
       case 'cancelar_reserva':
-        result = await RetellGoogleSheetsFunctions.cancelarReserva(
-          {
-            cliente: parameters.cliente,
-            telefono: parameters.telefono
-          },
+        const cancelResult = await GoogleSheetsService.updateReserva(
           restaurantId,
-          restaurantName,
-          spreadsheetId
+          parameters.ID,
+          { Estado: 'cancelada' }
         );
+        
+        result = {
+          success: cancelResult.success,
+          mensaje: cancelResult.success ? 
+            `Reserva ${parameters.ID} cancelada correctamente` : 
+            'Error cancelando la reserva'
+        };
         break;
 
-      case 'obtener_reservas_hoy':
-        const reservasHoy = await RetellGoogleSheetsFunctions.obtenerReservasHoy(
+      case 'buscar_reserva':
+        const reserva = await GoogleSheetsService.buscarReserva(
           restaurantId,
-          restaurantName,
-          spreadsheetId
+          parameters.cliente,
+          parameters.telefono
         );
+        
         result = {
-          reservas: reservasHoy,
-          total: reservasHoy.length
+          success: !!reserva,
+          reserva: reserva,
+          mensaje: reserva ? 
+            `Reserva encontrada para ${parameters.cliente}` : 
+            'No se encontró ninguna reserva'
         };
         break;
 
       case 'obtener_estadisticas':
-        const estadisticas = await RetellGoogleSheetsFunctions.obtenerEstadisticas(
-          restaurantId,
-          restaurantName,
-          spreadsheetId
-        );
-        result = estadisticas;
+        const estadisticas = await GoogleSheetsService.getEstadisticas(restaurantId);
+        result = {
+          success: true,
+          estadisticas: estadisticas,
+          mensaje: `Estadísticas del restaurante ${restaurantId}`
+        };
+        break;
+
+      case 'consultar_reservas_dia':
+        const reservas = await GoogleSheetsService.getReservas(restaurantId);
+        const reservasDelDia = reservas.filter(r => r.Fecha === parameters.fecha);
+        
+        result = {
+          success: true,
+          reservas: reservasDelDia,
+          total: reservasDelDia.length,
+          mensaje: `${reservasDelDia.length} reservas encontradas para ${parameters.fecha}`
+        };
         break;
 
       default:
@@ -113,6 +150,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       function_name,
+      restaurantId,
       result
     });
 
@@ -123,26 +161,4 @@ export async function POST(request: NextRequest) {
       error: 'Error interno del servidor'
     }, { status: 500 });
   }
-}
-
-function extractRestaurantIdFromAgentId(agentId: string): string | null {
-  // Extraer restaurant_id del agent_id
-  // Formato esperado: "rest_003_agent" o similar
-  const match = agentId.match(/rest_([a-zA-Z0-9_]+)_agent/);
-  return match ? `rest_${match[1]}` : null;
-}
-
-function getRestaurantNameFromAgentId(agentId: string): string | null {
-  // Extraer nombre del restaurante del agent_id
-  // Formato esperado: "rest_003_agent" -> "La Gaviota"
-  const restaurantId = extractRestaurantIdFromAgentId(agentId);
-  if (!restaurantId) return null;
-
-  // Mapeo de IDs a nombres (en producción esto vendría de una base de datos)
-  const restaurantNames: Record<string, string> = {
-    'rest_003': 'La Gaviota',
-    'rest_004': 'El Buen Sabor'
-  };
-
-  return restaurantNames[restaurantId] || `Restaurante ${restaurantId}`;
 }

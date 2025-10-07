@@ -3,7 +3,7 @@
  * Reemplaza completamente Firebase Firestore
  */
 
-import { Pool, PoolClient } from 'pg';
+import { Pool } from 'pg';
 import Redis from 'ioredis';
 import { WebSocketServer } from 'ws';
 import { config } from '../config';
@@ -400,6 +400,7 @@ class RestaurantDatabase {
 
   private setupWebSocket() {
     if (typeof window !== 'undefined') return; // Solo en servidor
+    if (this.wsServer) return; // Ya está inicializado
 
     // Intentar usar puerto disponible
     const port = config.websocket.port;

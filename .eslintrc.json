@@ -7,6 +7,7 @@
     "@typescript-eslint/no-unsafe-function-type": "off",
     "import/no-anonymous-default-export": "off",
     "react-hooks/exhaustive-deps": "off",
-    "react/display-name": "off"
+    "react/display-name": "off",
+    "@typescript-eslint/no-empty-object-type": "off"
   }
 }

@@ -137,92 +137,9 @@ export default function RestaurantDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Header del Dashboard */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">🍽️</span>
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-slate-900">{restaurantData.name}</h1>
-                  <p className="text-sm text-slate-500">Dashboard Independiente</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              {/* Estado de Google Sheets */}
-              <Badge variant={restaurantData.googleSheets.created ? "default" : "destructive"}>
-                {restaurantData.googleSheets.created ? "📊 Google Sheets" : "❌ Google Sheets"}
-              </Badge>
-              
-              {/* Estado de Retell AI */}
-              <Badge variant={restaurantData.retellAI.configured ? "default" : "destructive"}>
-                {restaurantData.retellAI.configured ? "🤖 Retell AI" : "❌ Retell AI"}
-              </Badge>
-              
-              {/* Botón para abrir Google Sheets */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open(restaurantData.googleSheets.spreadsheetUrl, '_blank')}
-              >
-                📊 Ver Google Sheets
-              </Button>
-              
-              {/* Botón para actualizar */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={loadRestaurantData}
-              >
-                🔄 Actualizar
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Información del Restaurante */}
+      {/* Dashboard del Restaurante */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Card className="p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <h3 className="font-semibold text-slate-900 mb-2">📋 Información</h3>
-              <div className="space-y-1 text-sm text-slate-600">
-                <p><strong>ID:</strong> {restaurantData.id}</p>
-                <p><strong>Dirección:</strong> {restaurantData.address}</p>
-                <p><strong>Teléfono:</strong> {restaurantData.phone}</p>
-                <p><strong>Capacidad:</strong> {restaurantData.capacity} personas</p>
-              </div>
-            </div>
-            
-            <div>
-              <h3 className="font-semibold text-slate-900 mb-2">🪑 Mesas</h3>
-              <div className="space-y-1 text-sm text-slate-600">
-                <p><strong>Total:</strong> {restaurantData.tables.length} mesas</p>
-                <p><strong>Interiores:</strong> {restaurantData.tables.filter(t => t.type === 'indoor').length}</p>
-                <p><strong>Terraza:</strong> {restaurantData.tables.filter(t => t.type === 'outdoor').length}</p>
-                <p><strong>Privadas:</strong> {restaurantData.tables.filter(t => t.type === 'private').length}</p>
-              </div>
-            </div>
-            
-            <div>
-              <h3 className="font-semibold text-slate-900 mb-2">⚙️ Configuración</h3>
-              <div className="space-y-1 text-sm text-slate-600">
-                <p><strong>Google Sheets:</strong> {restaurantData.googleSheets.created ? '✅' : '❌'}</p>
-                <p><strong>Retell AI:</strong> {restaurantData.retellAI.configured ? '✅' : '❌'}</p>
-                <p><strong>Dashboard:</strong> {restaurantData.dashboard.available ? '✅' : '❌'}</p>
-                <p><strong>Webhook:</strong> {restaurantData.retellAI.webhookUrl}</p>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* Dashboard del Restaurante */}
         <PremiumRestaurantDashboard
           restaurantId={restaurantData.id}
           restaurantName={restaurantData.name}

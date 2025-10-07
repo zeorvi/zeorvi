@@ -28,6 +28,15 @@ export interface RegisterData {
   role?: 'admin' | 'manager' | 'employee' | 'restaurant';
 }
 
+export interface LoginResponse {
+  user: AuthUser;
+  token: string;
+}
+
+export interface VerifyResponse {
+  user: AuthUser;
+}
+
 class ClientAuthService {
   private baseUrl: string;
 
@@ -36,10 +45,44 @@ class ClientAuthService {
   }
 
   // =============================================
+  // UTILIDADES DE RESPUESTA
+  // =============================================
+
+  private async handleJsonResponse(response: Response): Promise<unknown> {
+    // Verificar Content-Type
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      throw new Error(`Expected JSON response but got ${contentType}`);
+    }
+
+    try {
+      return await response.json();
+    } catch (jsonError) {
+      console.error('Failed to parse JSON response:', jsonError);
+      throw new Error('Error procesando respuesta del servidor');
+    }
+  }
+
+  private async handleErrorResponse(response: Response, defaultMessage: string): Promise<never> {
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.error || defaultMessage);
+      } catch (jsonError) {
+        console.error('Failed to parse error response:', jsonError);
+        throw new Error(`${defaultMessage} (status: ${response.status})`);
+      }
+    } else {
+      throw new Error(`${defaultMessage} (status: ${response.status})`);
+    }
+  }
+
+  // =============================================
   // LOGIN
   // =============================================
 
-  async login(credentials: LoginCredentials): Promise<{ user: AuthUser; token: string }> {
+  async login(credentials: LoginCredentials): Promise<LoginResponse> {
     try {
       const response = await fetch(`${this.baseUrl}/auth/login`, {
         method: 'POST',
@@ -50,11 +93,10 @@ class ClientAuthService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error en el login');
+        await this.handleErrorResponse(response, 'Error en el login');
       }
 
-      const data = await response.json();
+      const data = await this.handleJsonResponse(response) as LoginResponse;
       return data;
     } catch (error) {
       console.error('Login error:', error);
@@ -66,7 +108,7 @@ class ClientAuthService {
   // REGISTRO
   // =============================================
 
-  async register(data: RegisterData): Promise<{ user: AuthUser; token: string }> {
+  async register(data: RegisterData): Promise<LoginResponse> {
     try {
       const response = await fetch(`${this.baseUrl}/auth/register`, {
         method: 'POST',
@@ -77,11 +119,10 @@ class ClientAuthService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error en el registro');
+        await this.handleErrorResponse(response, 'Error en el registro');
       }
 
-      const result = await response.json();
+      const result = await this.handleJsonResponse(response) as LoginResponse;
       return result;
     } catch (error) {
       console.error('Registration error:', error);
@@ -95,6 +136,13 @@ class ClientAuthService {
 
   async verifyToken(token: string): Promise<AuthUser | null> {
     try {
+      // Validar token básico antes de verificar expiración
+      if (!token || typeof token !== 'string' || token.trim() === '') {
+        console.warn('Invalid token provided for verification');
+        this.clearToken();
+        return null;
+      }
+
       // Verificar si el token está expirado antes de hacer la llamada
       if (this.isTokenExpired(token)) {
         console.warn('Token is expired, clearing it');
@@ -112,12 +160,20 @@ class ClientAuthService {
 
       if (!response.ok) {
         // Si el token es inválido, limpiarlo
-        console.warn('Token verification failed, clearing token');
+        console.warn(`Token verification failed with status ${response.status}, clearing token`);
         this.clearToken();
         return null;
       }
 
-      const data = await response.json();
+      const data = await this.handleJsonResponse(response) as VerifyResponse;
+      
+      // Validar que la respuesta contenga un usuario válido
+      if (!data || !data.user) {
+        console.warn('Invalid response from token verification');
+        this.clearToken();
+        return null;
+      }
+
       return data.user;
     } catch (error) {
       console.error('Token verification error:', error);
@@ -188,12 +244,53 @@ class ClientAuthService {
 
   isTokenExpired(token: string): boolean {
     try {
-      // Decodificar el token sin verificar la firma (solo para obtener la fecha de expiración)
-      const payload = JSON.parse(atob(token.split('.')[1]));
+      // Validar que el token tenga el formato JWT correcto
+      if (!token || typeof token !== 'string') {
+        console.warn('Invalid token format: token is empty or not a string');
+        return true;
+      }
+
+      // Verificar que el token tenga al menos 3 partes separadas por puntos
+      const tokenParts = token.split('.');
+      if (tokenParts.length !== 3) {
+        console.warn('Invalid JWT format: token does not have 3 parts');
+        return true;
+      }
+
+      // Validar que la parte del payload no esté vacía
+      const payloadPart = tokenParts[1];
+      if (!payloadPart || payloadPart.trim() === '') {
+        console.warn('Invalid JWT format: payload part is empty');
+        return true;
+      }
+
+      // Intentar decodificar el payload
+      let payload: { exp?: number };
+      try {
+        // Asegurar que la cadena base64 esté correctamente formateada
+        const cleanPayload = payloadPart.replace(/[^A-Za-z0-9+/=]/g, '');
+        payload = JSON.parse(atob(cleanPayload));
+      } catch (decodeError) {
+        console.warn('Failed to decode JWT payload:', decodeError);
+        return true;
+      }
+
+      // Verificar que el payload tenga la propiedad exp
+      if (!payload || typeof payload.exp !== 'number') {
+        console.warn('Invalid JWT payload: missing or invalid exp field');
+        return true;
+      }
+
       const currentTime = Math.floor(Date.now() / 1000);
-      return payload.exp < currentTime;
+      const isExpired = payload.exp < currentTime;
+      
+      if (isExpired) {
+        console.info('Token is expired');
+      }
+      
+      return isExpired;
     } catch (error) {
-      console.error('Error checking token expiration:', error);
+      console.error('Unexpected error checking token expiration:', error);
       return true; // Si hay error, considerar como expirado
     }
   }

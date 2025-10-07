@@ -12,8 +12,14 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Obtener información del agente
-    const agentResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/retell/create-agent?restaurantId=${restaurantId}`);
+    // ✅ CORREGIDO: Usar POST para create-agent
+    const agentResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/retell/create-agent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ restaurantId }),
+    });
     const agentData = await agentResponse.json();
 
     if (!agentData.success) {

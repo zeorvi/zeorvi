@@ -19,16 +19,16 @@ export async function GET(request: NextRequest) {
     }
 
     const disponible = await GoogleSheetsService.verificarDisponibilidad(
+      restaurantId,
       fecha, 
       hora, 
       parseInt(personas),
-      restaurantId,
       restaurantName
     );
 
     // Obtener reservas existentes en esa fecha/hora
-    const reservasExistentes = await GoogleSheetsService.getReservasPorFecha(fecha, restaurantId, restaurantName);
-    const reservasEnEsaHora = reservasExistentes.filter(r => r.hora === hora);
+    const reservasExistentes = await GoogleSheetsService.getReservas(restaurantId);
+    const reservasEnEsaHora = reservasExistentes.filter(r => r.Fecha === fecha && r.Hora === hora);
 
     return NextResponse.json({
       success: true,
@@ -40,9 +40,9 @@ export async function GET(request: NextRequest) {
       restaurantName,
       reservasExistentes: reservasEnEsaHora.length,
       detalles: {
-        totalPersonasReservadas: reservasEnEsaHora.reduce((sum, r) => sum + r.personas, 0),
-        capacidadMaxima: 50, // Puedes ajustar esto
-        personasDisponibles: disponible ? 50 - reservasEnEsaHora.reduce((sum, r) => sum + r.personas, 0) : 0
+      totalPersonasReservadas: reservasEnEsaHora.reduce((sum, r) => sum + r.Personas, 0),
+      capacidadMaxima: 50, // Puedes ajustar esto
+      personasDisponibles: disponible ? 50 - reservasEnEsaHora.reduce((sum, r) => sum + r.Personas, 0) : 0
       }
     });
 

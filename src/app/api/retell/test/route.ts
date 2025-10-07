@@ -21,16 +21,13 @@ export async function GET(request: NextRequest) {
         personas: 4
       },
       testParams.restaurantId,
-      testParams.restaurantName,
-      testParams.spreadsheetId
+      testParams.restaurantName
     );
 
     // Test 2: Obtener estadísticas
     console.log('📊 Probando obtener_estadisticas...');
     const estadisticas = await RetellGoogleSheetsFunctions.obtenerEstadisticas(
-      testParams.restaurantId,
-      testParams.restaurantName,
-      testParams.spreadsheetId
+      testParams.restaurantId
     );
 
     return NextResponse.json({
@@ -85,8 +82,7 @@ export async function POST(request: NextRequest) {
         result = await RetellGoogleSheetsFunctions.verificarDisponibilidad(
           parameters,
           testParams.restaurantId,
-          testParams.restaurantName,
-          testParams.spreadsheetId
+          testParams.restaurantName
         );
         break;
 
@@ -97,8 +93,7 @@ export async function POST(request: NextRequest) {
             telefono: parameters.telefono || 'test_phone'
           },
           testParams.restaurantId,
-          testParams.restaurantName,
-          testParams.spreadsheetId
+          testParams.restaurantName
         );
         break;
 
@@ -108,9 +103,7 @@ export async function POST(request: NextRequest) {
             ...parameters,
             telefono: parameters.telefono || 'test_phone'
           },
-          testParams.restaurantId,
-          testParams.restaurantName,
-          testParams.spreadsheetId
+          testParams.restaurantId
         );
         break;
 
@@ -120,9 +113,7 @@ export async function POST(request: NextRequest) {
             ...parameters,
             telefono: parameters.telefono || 'test_phone'
           },
-          testParams.restaurantId,
-          testParams.restaurantName,
-          testParams.spreadsheetId
+          testParams.restaurantId
         );
         break;
 

@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
         nombre: restaurantData.name,
         tipo: 'Restaurante',
         telefono: restaurantData.phone,
-        email: restaurantData.email,
+        email: restaurantData.owner_email,
         direccion: restaurantData.address,
       },
       estadoActual: {

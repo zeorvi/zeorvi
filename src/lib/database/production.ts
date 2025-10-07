@@ -1,4 +1,4 @@
-import { Pool, PoolClient } from 'pg';
+import { Pool } from 'pg';
 import { logger } from '@/lib/logger';
 
 // Interfaces para el sistema de producción

@@ -53,30 +53,27 @@ export const otroRestauranteConfig: RestaurantLayout = {
   ]
 };
 
-// Configuración para La Gaviota (Marisquería)
+// Configuración para La Gaviota (Marisquería) - Actualizada según Google Sheet
 export const laGaviotaConfig: RestaurantLayout = {
   restaurantId: 'rest_003',
   restaurantName: 'La Gaviota',
-  locations: ['Salón Principal', 'Terraza', 'Barra'],
+  locations: ['Comedor 1', 'Comedor 2', 'Terraza', 'Salón Privado'],
   tables: [
-    // SALÓN PRINCIPAL
-    { id: 'S1', name: 'S1', capacity: 2, location: 'Salón Principal', position: { x: 1, y: 1 }, notes: 'Mesa romántica con vista al mar' },
-    { id: 'S2', name: 'S2', capacity: 4, location: 'Salón Principal', position: { x: 2, y: 1 }, notes: 'Mesa familiar interior' },
-    { id: 'S3', name: 'S3', capacity: 4, location: 'Salón Principal', position: { x: 3, y: 1 }, notes: 'Mesa familiar interior' },
-    { id: 'S4', name: 'S4', capacity: 6, location: 'Salón Principal', position: { x: 4, y: 1 }, notes: 'Mesa para grupos' },
-    { id: 'S5', name: 'S5', capacity: 8, location: 'Salón Principal', position: { x: 1, y: 2 }, notes: 'Mesa grande para celebraciones' },
+    // COMEDOR 1
+    { id: 'M1', name: 'M1', capacity: 2, location: 'Comedor 1', position: { x: 1, y: 1 }, notes: 'Mesa para 2 personas' },
+    { id: 'M2', name: 'M2', capacity: 2, location: 'Comedor 1', position: { x: 2, y: 1 }, notes: 'Mesa para 2 personas' },
+    { id: 'M3', name: 'M3', capacity: 4, location: 'Comedor 1', position: { x: 3, y: 1 }, notes: 'Mesa para 4 personas' },
+    
+    // COMEDOR 2
+    { id: 'M4', name: 'M4', capacity: 3, location: 'Comedor 2', position: { x: 1, y: 1 }, notes: 'Mesa para 3 personas' },
+    { id: 'M5', name: 'M5', capacity: 3, location: 'Comedor 2', position: { x: 2, y: 1 }, notes: 'Mesa para 3 personas' },
     
     // TERRAZA
-    { id: 'T1', name: 'T1', capacity: 2, location: 'Terraza', position: { x: 1, y: 1 }, notes: 'Mesa romántica con vista al mar' },
-    { id: 'T2', name: 'T2', capacity: 4, location: 'Terraza', position: { x: 2, y: 1 }, notes: 'Mesa familiar con vista' },
-    { id: 'T3', name: 'T3', capacity: 4, location: 'Terraza', position: { x: 3, y: 1 }, notes: 'Mesa familiar con vista' },
-    { id: 'T4', name: 'T4', capacity: 6, location: 'Terraza', position: { x: 4, y: 1 }, notes: 'Mesa para grupos con vista' },
+    { id: 'M6', name: 'M6', capacity: 4, location: 'Terraza', position: { x: 1, y: 1 }, notes: 'Mesa exterior para 4 personas' },
+    { id: 'M7', name: 'M7', capacity: 6, location: 'Terraza', position: { x: 2, y: 1 }, notes: 'Mesa exterior para 6 personas' },
     
-    // BARRA
-    { id: 'B1', name: 'B1', capacity: 1, location: 'Barra', position: { x: 1, y: 1 }, notes: 'Asiento individual en barra' },
-    { id: 'B2', name: 'B2', capacity: 1, location: 'Barra', position: { x: 2, y: 1 }, notes: 'Asiento individual en barra' },
-    { id: 'B3', name: 'B3', capacity: 1, location: 'Barra', position: { x: 3, y: 1 }, notes: 'Asiento individual en barra' },
-    { id: 'B4', name: 'B4', capacity: 1, location: 'Barra', position: { x: 4, y: 1 }, notes: 'Asiento individual en barra' }
+    // SALÓN PRIVADO
+    { id: 'M8', name: 'M8', capacity: 4, location: 'Salón Privado', position: { x: 1, y: 1 }, notes: 'Mesa privada para 4 personas' }
   ]
 };
 

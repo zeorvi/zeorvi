@@ -1,205 +1,151 @@
-# 📊 Configuración Google Sheets + Retell AI + Dashboard
+# Configuración de Google Sheets API - Estructura Completa
 
-## 🎯 **Objetivo**
-Configurar un sistema donde:
-1. **Retell AI** detecta reservas en las llamadas
-2. **Google Sheets** almacena las reservas automáticamente
-3. **Dashboard** muestra las reservas en tiempo real
+## 🏗️ Estructura de Google Sheets por Restaurante
 
----
+Cada restaurante tendrá un Google Sheet con **3 hojas**:
 
-## 📋 **Paso 1: Crear Google Sheets**
-
-### 1.1 Crear la Hoja
-1. Ve a [Google Sheets](https://sheets.google.com)
-2. Crea nueva hoja de cálculo
-3. Nómbrala (ej: "Reservas Restaurante")
-
-### 1.2 Configurar Columnas
-En la **primera fila (A1:G1)**:
-
-| A | B | C | D | E | F | G |
-|---|---|---|---|---|---|---|
-| **Fecha** | **Hora** | **Horario** | **Cliente** | **Teléfono** | **Personas** | **Estado** |
-
-### 1.3 Obtener ID
-- Copia la URL de tu Google Sheets
-- El ID es la parte entre `/d/` y `/edit`
-- Ejemplo: `1ABC123DEF456GHI789JKL`
-
----
-
-## 🔑 **Paso 2: Google Service Account**
-
-### 2.1 Crear Service Account
-1. Ve a [Google Cloud Console](https://console.cloud.google.com)
-2. Crea proyecto nuevo o selecciona existente
-3. Habilita **Google Sheets API**
-4. Ve a "Credenciales" → "Crear credenciales" → "Cuenta de servicio"
-5. Descarga archivo JSON
-6. Renómbralo como `google-credentials.json`
-
-### 2.2 Dar Permisos
-1. Copia el email del service account del archivo JSON
-2. Comparte tu Google Sheets con ese email
-3. Dale permisos de **"Editor"**
-
----
-
-## ⚙️ **Paso 3: Variables de Entorno**
-
-Crea archivo `.env.local` en la raíz del proyecto:
-
-```env
-# Google Sheets
-GOOGLE_SHEETS_ID=tu_id_de_la_hoja_aqui
-GOOGLE_CREDENTIALS_PATH=./google-credentials.json
-
-# Retell AI
-RETELL_API_KEY=tu_api_key_de_retell_aqui
-
-# Aplicación
-NEXT_PUBLIC_BASE_URL=http://localhost:3001
+### 📘 Google Sheets del restaurante "La Gaviota"
+```
+├── Mesas (infraestructura fija)
+├── Reservas (reservas confirmadas)  
+└── Turnos (horarios de servicio)
 ```
 
----
+## 🪑 Hoja 1: Mesas
 
-## 🧪 **Paso 4: Probar Configuración**
+Define la infraestructura fija del restaurante:
 
-Ejecuta el script de prueba:
+| ID | Zona | Capacidad | Turnos | Estado | Notas |
+|----|------|-----------|--------|--------|-------|
+| M1 | Comedor 1 | 2 | Comida, Cena | Libre | |
+| M2 | Comedor 1 | 2 | Comida, Cena | Libre | |
+| M3 | Comedor 1 | 4 | Comida | Libre | |
+| M4 | Comedor 2 | 3 | Comida, Cena | Libre | |
+| M5 | Comedor 2 | 3 | Comida, Cena | Libre | |
+| M6 | Terraza | 4 | Cena | Libre | |
+| M7 | Terraza | 6 | Cena | Libre | |
+| M8 | Salón Privado | 8 | Comida, Cena | Libre | |
+
+## 📆 Hoja 2: Reservas
+
+Donde el agente de Retell escribe y lee cada reserva:
+
+| ID | Fecha | Hora | Turno | Cliente | Teléfono | Personas | Zona | Mesa | Estado | Notas | Creado |
+|----|-------|------|-------|---------|----------|----------|------|------|--------|-------|--------|
+| R001 | 2024-01-20 | 21:00 | Cena | María García | +34 666 123 456 | 4 | Terraza | M6 | Confirmada | Mesa cerca ventana | 2024-01-20 17:35 |
+| R002 | 2024-01-21 | 13:30 | Comida | Juan López | +34 666 789 012 | 2 | Comedor 1 | M1 | Pendiente | Aniversario | 2024-01-20 18:10 |
+
+## ⏰ Hoja 3: Turnos
+
+Control de horarios de servicio:
+
+| Turno | Inicio | Fin |
+|-------|--------|-----|
+| Comida | 13:00 | 16:00 |
+| Cena | 20:00 | 23:30 |
+
+## 🚀 Configuración Automática
+
+### Paso 1: Configurar Google API
+
+1. Ve a [Google Cloud Console](https://console.cloud.google.com/)
+2. Crea un nuevo proyecto o selecciona uno existente
+3. Habilita la API de Google Sheets:
+   - Ve a "APIs y servicios" → "Biblioteca"
+   - Busca "Google Sheets API"
+   - Haz clic en "Habilitar"
+
+### Paso 2: Crear credenciales de servicio
+
+1. Ve a "APIs y servicios" → "Credenciales"
+2. Haz clic en "Crear credenciales" → "Cuenta de servicio"
+3. Completa los datos:
+   - Nombre: "restaurante-ai-sheets"
+   - Descripción: "Servicio para gestionar Google Sheets de restaurantes"
+4. Haz clic en "Crear y continuar"
+5. Asigna el rol "Editor" o "Propietario"
+6. Haz clic en "Listo"
+
+### Paso 3: Descargar clave JSON
+
+1. En la lista de cuentas de servicio, haz clic en la que acabas de crear
+2. Ve a la pestaña "Claves"
+3. Haz clic en "Agregar clave" → "Crear nueva clave"
+4. Selecciona "JSON" y haz clic en "Crear"
+5. Descarga el archivo JSON
+
+### Paso 4: Configurar el archivo de credenciales
+
+1. Renombra el archivo descargado a `google-credentials.json`
+2. Colócalo en la raíz de tu proyecto
+3. Agrega `google-credentials.json` a tu `.gitignore`
+
+### Paso 5: Configurar variables de entorno
+
+Agrega a tu archivo `.env`:
 
 ```bash
-node scripts/test-google-sheets.js
+GOOGLE_CREDENTIALS_PATH=google-credentials.json
+GOOGLE_PROJECT_ID=tu-project-id
 ```
 
-**Salida esperada:**
-```
-🧪 Probando conexión con Google Sheets...
+### Paso 6: Ejecutar el script de creación
 
-📖 Leyendo reservas existentes...
-✅ Encontradas 0 reservas
-
-📊 Obteniendo estadísticas...
-✅ Estadísticas: { totalReservas: 0, reservasHoy: 0, ... }
-
-🔍 Verificando disponibilidad...
-✅ Disponibilidad para 2024-01-15 a las 20:00 para 4 personas: SÍ
-
-➕ Creando reserva de prueba...
-✅ Reserva de prueba creada exitosamente
-
-🎉 ¡Todas las pruebas pasaron! Google Sheets está configurado correctamente.
-```
-
----
-
-## 🔄 **Paso 5: Configurar Retell AI**
-
-### 5.1 Webhook URL
-Configura en Retell AI el webhook:
-```
-http://tu-dominio.com/api/retell/webhook
-```
-
-### 5.2 Eventos a Capturar
-- `call_analyzed` - Cuando Retell analiza la llamada
-- `call_ended` - Cuando termina la llamada
-
----
-
-## 🎯 **Paso 6: Flujo Automático**
-
-### 6.1 Cuando llega una llamada:
-1. **Retell AI** responde automáticamente
-2. **Retell AI** analiza la conversación
-3. **Webhook** detecta si hay reserva
-4. **Sistema** extrae datos (nombre, teléfono, fecha, hora, personas)
-5. **Google Sheets** se actualiza automáticamente
-6. **Dashboard** se actualiza cada 30 segundos
-
-### 6.2 Datos que se extraen:
-- ✅ Nombre del cliente
-- ✅ Teléfono
-- ✅ Número de personas
-- ✅ Fecha de reserva
-- ✅ Hora de reserva
-- ✅ Solicitudes especiales
-- ✅ Estado (confirmada/pendiente/cancelada)
-
----
-
-## 📱 **Paso 7: Verificar en Dashboard**
-
-1. Inicia el servidor: `npm run dev`
-2. Ve a tu dashboard de restaurante
-3. Verás las reservas automáticamente
-4. Botón "🔄 Actualizar" para sincronización manual
-
----
-
-## 🔧 **Solución de Problemas**
-
-### Error: "Google Sheets API no habilitada"
 ```bash
-# Ve a Google Cloud Console
-# Habilita "Google Sheets API"
+node scripts/create-restaurant-sheets.js
 ```
 
-### Error: "Credenciales no válidas"
+Este script:
+- ✅ Creará automáticamente los Google Sheets para cada restaurante
+- ✅ Configurará las 3 hojas (Mesas, Reservas, Turnos) con las columnas correctas
+- ✅ Agregará datos de ejemplo para cada restaurante
+- ✅ Generará un archivo `.env.sheets` con los IDs reales
+- ✅ Formateará los encabezados con colores
+
+### Paso 7: Configurar en Vercel
+
+Copia las variables del archivo `.env.sheets` a las variables de entorno de Vercel:
+
 ```bash
-# Verifica que google-credentials.json esté en la raíz
-# Verifica que el Service Account tenga acceso al Sheets
+LA_GAVIOTA_SHEET_ID=1BvXyZ1234567890abcdefghijklmnop
+EL_BUEN_SABOR_SHEET_ID=1CwXyZ0987654321zyxwvutsrqponmlk
+RESTAURANT_001_SHEET_ID=1DxXyZ2468135790zyxwvutsrqponmlk
+RESTAURANT_002_SHEET_ID=1ExXyZ1357924680zyxwvutsrqponmlk
 ```
 
-### Error: "No se detectan reservas"
-```bash
-# Verifica que Retell AI esté enviando webhooks
-# Revisa los logs en la consola del navegador
+## 🧠 Cómo funciona el agente de Retell
+
+### Flujo de reserva:
+
+1. **Cliente**: "Quiero reservar para 4 personas a las 9 en terraza"
+2. **Agente**: Llama a `verificar_disponibilidad` con:
+   - Fecha: "2024-01-20"
+   - Hora: "21:00" 
+   - Personas: 4
+   - Zona: "Terraza"
+3. **Backend**: 
+   - Lee hoja "Mesas" → filtra por zona="Terraza", capacidad>=4, turnos incluye "Cena"
+   - Lee hoja "Reservas" → busca mesas ocupadas ese día/hora
+   - Encuentra mesa disponible (ej: M6)
+4. **Agente**: "Perfecto, tengo mesa M6 para 4 personas en terraza a las 21:00"
+5. **Cliente**: "Sí, confírmalo"
+6. **Agente**: Llama a `crear_reserva` con todos los datos
+7. **Backend**: Escribe en hoja "Reservas" con estado "Confirmada"
+
+## ✅ Verificación
+
+Después de ejecutar el script, deberías ver:
+
+```
+🏪 La Gaviota (rest_003):
+   ID: 1BvXyZ1234567890abcdefghijklmnop
+   URL: https://docs.google.com/spreadsheets/d/1BvXyZ1234567890abcdefghijklmnop/edit
+   ✅ Hojas: Mesas (8 mesas), Reservas (ejemplos), Turnos (2 turnos)
+
+🏪 El Buen Sabor (rest_004):
+   ID: 1CwXyZ0987654321zyxwvutsrqponmlk
+   URL: https://docs.google.com/spreadsheets/d/1CwXyZ0987654321zyxwvutsrqponmlk/edit
+   ✅ Hojas: Mesas (6 mesas), Reservas (ejemplos), Turnos (2 turnos)
 ```
 
-### Dashboard vacío
-```bash
-# Verifica que GOOGLE_SHEETS_ID esté correcto
-# Ejecuta: node scripts/test-google-sheets.js
-```
-
----
-
-## 📊 **Estructura de Datos**
-
-### Google Sheets:
-```
-A: Fecha (2024-01-15)
-B: Hora (20:00)
-C: Horario (20:00)
-D: Cliente (Juan Pérez)
-E: Teléfono (555-1234)
-F: Personas (4)
-G: Estado (confirmada)
-```
-
-### Dashboard:
-```json
-{
-  "id": "res_1234567890",
-  "time": "20:00",
-  "clientName": "Juan Pérez",
-  "partySize": 4,
-  "table": "Por asignar",
-  "status": "confirmed",
-  "notes": "Mesa cerca de la ventana",
-  "phone": "555-1234"
-}
-```
-
----
-
-## 🚀 **¡Listo!**
-
-Tu sistema está configurado para:
-- ✅ Detectar reservas automáticamente en llamadas
-- ✅ Guardarlas en Google Sheets
-- ✅ Mostrarlas en el dashboard en tiempo real
-- ✅ Sincronización automática cada 30 segundos
-
-**¡Las reservas de Retell AI aparecerán automáticamente en tu dashboard!** 🎉
+¡Y esos serán los IDs reales que necesitas usar!

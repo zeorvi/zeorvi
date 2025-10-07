@@ -96,11 +96,10 @@ export class RetellReservationFlow {
 
       // Verificar disponibilidad usando Google Sheets
       const disponible = await GoogleSheetsService.verificarDisponibilidad(
+        restaurantId,
         date,
         time,
-        people,
-        restaurantId,
-        restaurantName
+        people
       );
 
       if (disponible) {
@@ -113,12 +112,11 @@ export class RetellReservationFlow {
       // Si no hay disponibilidad, obtener reservas existentes para sugerir horarios alternativos
       const reservasExistentes = await GoogleSheetsService.getReservasPorFecha(
         date,
-        restaurantId,
-        restaurantName
+        restaurantId
       );
 
-      const reservasEnEsaHora = reservasExistentes.filter(r => r.hora === time);
-      const personasReservadas = reservasEnEsaHora.reduce((sum, r) => sum + r.personas, 0);
+      const reservasEnEsaHora = reservasExistentes.filter(r => r.Hora === time);
+      const personasReservadas = reservasEnEsaHora.reduce((sum, r) => sum + r.Personas, 0);
 
       // Generar horarios alternativos
       const suggestedTimes = this.generateAlternativeTimes(time, date);
@@ -150,14 +148,15 @@ export class RetellReservationFlow {
       console.log('➕ Creando reserva en Google Sheets:', request);
 
       const reserva = {
-        fecha: request.date,
-        hora: request.time,
-        horario: request.time,
-        cliente: request.customerName,
-        telefono: request.phone,
-        personas: request.people,
-        mesa: 'Por asignar', // Se asigna mesa cuando llegan
-        estado: 'confirmada' as const,
+        Fecha: request.date,
+        Hora: request.time,
+        Turno: request.time,
+        Cliente: request.customerName,
+        Telefono: request.phone,
+        Personas: request.people,
+        Mesa: 'Por asignar', // Se asigna mesa cuando llegan
+        Estado: 'confirmada' as const,
+        Zona: 'Por asignar',
         notas: request.specialRequests || '',
         restaurante: request.restaurantName,
         restauranteId: request.restaurantId,
@@ -272,10 +271,9 @@ export class RetellReservationFlow {
   ): Promise<any | null> {
     try {
       const reservation = await GoogleSheetsService.buscarReserva(
-        customerName,
-        phone,
         restaurantId,
-        restaurantName
+        customerName,
+        phone
       );
 
       return reservation;
@@ -361,8 +359,7 @@ export class RetellReservationFlow {
           customerName,
           phone,
           'cancelada',
-          restaurantId,
-          restaurantName
+          restaurantId
         );
 
         let confirmationMessage = `¡Perfecto! He modificado su reserva. `;

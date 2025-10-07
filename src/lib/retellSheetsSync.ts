@@ -30,11 +30,10 @@ export class RetellSheetsSync {
 
       // Verificar disponibilidad
       const disponible = await GoogleSheetsService.verificarDisponibilidad(
+        reservationData.restaurantId,
         reservationData.date,
         reservationData.time,
-        reservationData.people,
-        reservationData.restaurantId,
-        reservationData.restaurantName
+        reservationData.people
       );
 
       if (!disponible) {
@@ -44,20 +43,21 @@ export class RetellSheetsSync {
 
       // Crear la reserva en Google Sheets
       const reserva = {
-        fecha: reservationData.date,
-        hora: reservationData.time,
-        horario: reservationData.schedule || reservationData.time, // Usar schedule o time como fallback
-        cliente: reservationData.customerName,
-        telefono: reservationData.phone,
-        personas: reservationData.people,
-        mesa: reservationData.tableId || '',
-        estado: 'confirmada' as const,
+        Fecha: reservationData.date,
+        Hora: reservationData.time,
+        Turno: reservationData.schedule || reservationData.time, // Usar schedule o time como fallback
+        Cliente: reservationData.customerName,
+        Telefono: reservationData.phone,
+        Personas: reservationData.people,
+        Mesa: reservationData.tableId || '',
+        Estado: 'confirmada' as const,
+        Zona: 'Por asignar',
         notas: reservationData.specialRequests || '',
         restaurante: reservationData.restaurantName,
         restauranteId: reservationData.restaurantId
       };
 
-      const creada = await GoogleSheetsService.crearReserva(reserva);
+      const creada = await GoogleSheetsService.crearReserva(reserva, reservationData.restaurantId);
 
       if (creada) {
         console.log('✅ Reserva sincronizada exitosamente a Google Sheets');

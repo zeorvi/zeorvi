@@ -1,45 +1,120 @@
 'use client';
 
-import AgentDashboardTest from '@/components/admin/AgentDashboardTest';
+import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 export default function AgentTestPage() {
-  const router = useRouter();
+  const [testResults, setTestResults] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [testPhone, setTestPhone] = useState('+34698765432');
+  const [testMessage, setTestMessage] = useState('Quiero reservar una mesa para 4 personas mañana a las 20:00');
+
+  const runAgentTest = async () => {
+    setIsLoading(true);
+    setTestResults([]);
+    
+    try {
+      const response = await fetch('/api/retell/test-agent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: testPhone,
+          message: testMessage,
+          restaurantId: 'rest_003'
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setTestResults([
+          `✅ Agente de voz configurado correctamente`,
+          `📞 Número de prueba: ${testPhone}`,
+          `💬 Mensaje: ${testMessage}`,
+          `🏪 Restaurante: ${result.restaurantName || 'La Gaviota'}`,
+          `🤖 Respuesta del agente: ${result.agentResponse || 'Configuración exitosa'}`
+        ]);
+      } else {
+        setTestResults([
+          `❌ Error en la configuración del agente`,
+          `🔍 Detalles: ${result.error || 'Error desconocido'}`
+        ]);
+      }
+    } catch (error) {
+      setTestResults([
+        `❌ Error de conexión`,
+        `🔍 Detalles: ${error instanceof Error ? error.message : 'Error desconocido'}`
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
-      {/* Animated Background */}
-      <div className="absolute inset-0">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
-      </div>
-
-      <div className="relative z-10 p-6">
-        <div className="max-w-6xl mx-auto">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-center space-x-4 mb-4">
-              <Button
-                variant="outline"
-                onClick={() => router.push('/admin')}
-                className="bg-transparent border-cyan-400/50 text-cyan-300 hover:bg-cyan-400/20 hover:border-cyan-400 flex items-center space-x-2"
+    <div className="container mx-auto p-6">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold mb-6">Prueba de Agente de Voz</h1>
+        
+        <div className="grid gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configuración de Prueba</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="phone">Número de teléfono de prueba</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  placeholder="+34698765432"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="message">Mensaje de prueba</Label>
+                <Textarea
+                  id="message"
+                  value={testMessage}
+                  onChange={(e) => setTestMessage(e.target.value)}
+                  placeholder="Quiero reservar una mesa para 4 personas mañana a las 20:00"
+                  rows={3}
+                />
+              </div>
+              
+              <Button 
+                onClick={runAgentTest} 
+                disabled={isLoading}
+                className="w-full"
               >
-                <ArrowLeft className="h-4 w-4" />
-                <span>Volver al Panel Admin</span>
+                {isLoading ? 'Ejecutando prueba...' : 'Ejecutar Prueba del Agente'}
               </Button>
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                Prueba de Agentes IA
-              </h1>
-              <p className="text-gray-300 mt-2">Simulación de llamadas telefónicas con acceso al dashboard en tiempo real</p>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
-          {/* Test Component */}
-          <AgentDashboardTest />
+          {testResults.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Resultados de la Prueba</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {testResults.map((result, index) => (
+                    <div key={index} className="p-3 bg-gray-50 rounded-lg font-mono text-sm">
+                      {result}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

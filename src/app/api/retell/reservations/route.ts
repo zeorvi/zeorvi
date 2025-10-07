@@ -74,6 +74,38 @@ export async function GET(request: NextRequest) {
         specialRequests: 'Cumpleaños',
         createdAt: '2024-01-14T09:45:00Z',
         updatedAt: '2024-01-14T09:45:00Z'
+      },
+      {
+        id: 'res_1759770902491',
+        customerName: 'Prueba Dashboard Real',
+        phone: '+34698765432',
+        email: 'test@dashboard.com',
+        people: 4,
+        date: '2025-10-06',
+        time: '20:00',
+        status: 'confirmed',
+        tableId: 'S2',
+        tableName: 'S2',
+        location: 'Salón Principal',
+        specialRequests: 'Verificando actualización del dashboard en tiempo real',
+        createdAt: '2025-10-06T17:15:02.491Z',
+        updatedAt: '2025-10-06T17:15:02.491Z'
+      },
+      {
+        id: 'res_1759770902492',
+        customerName: 'Test Agente Retell',
+        phone: '+34698765433',
+        email: 'agente@test.com',
+        people: 2,
+        date: '2025-10-06',
+        time: '21:00',
+        status: 'confirmed',
+        tableId: 'T1',
+        tableName: 'T1',
+        location: 'Terraza',
+        specialRequests: 'Reserva creada por agente Retell AI',
+        createdAt: '2025-10-06T17:20:00.000Z',
+        updatedAt: '2025-10-06T17:20:00.000Z'
       }
     ];
 

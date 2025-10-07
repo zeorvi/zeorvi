@@ -5,10 +5,11 @@ import { useClientAuth } from '@/hooks/useClientAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { LogOut, Users, Plus, Settings, RefreshCw, Trash2, AlertTriangle, Phone, Bot, Database, Key } from 'lucide-react';
+import { LogOut, Users, Plus, Settings, RefreshCw, Trash2, AlertTriangle, Phone, Bot, Database, Key, ChevronDown, ChevronUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { getAllRestaurants, deleteRestaurant, updateRestaurantStatus, type RestaurantData } from '@/lib/restaurantServicePostgres';
 import UpdateCredentials from './UpdateCredentials';
+import RetellAgentsManager from './RetellAgentsManager';
 
 export default function SimpleAdminDashboard() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function SimpleAdminDashboard() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [showUpdateCredentials, setShowUpdateCredentials] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState<RestaurantData | null>(null);
+  const [showRetellAgents, setShowRetellAgents] = useState(false);
 
   const loadRestaurants = async (showToast = false) => {
     setIsLoading(true);
@@ -275,12 +277,13 @@ export default function SimpleAdminDashboard() {
                   Prueba Agentes IA
                 </Button>
                 <Button 
-                  onClick={() => router.push('/admin/retell-agents')}
+                  onClick={() => setShowRetellAgents(!showRetellAgents)}
                   variant="outline" 
                   className="w-full bg-transparent border-blue-400/50 text-blue-300 hover:bg-blue-400/20 hover:border-blue-400"
                 >
                   <Bot className="h-4 w-4 mr-2" />
                   Agentes Retell AI
+                  {showRetellAgents ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
                 </Button>
                 <Button 
                   onClick={handleSyncRestaurants}
@@ -427,6 +430,25 @@ export default function SimpleAdminDashboard() {
             </div>
           </div>
         </div>
+
+        {/* Sección de Gestión de Agentes Retell */}
+        {showRetellAgents && (
+          <div className="relative group mt-8">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+            <div className="relative bg-gradient-to-br from-slate-800/90 to-slate-900/90 backdrop-blur-xl rounded-2xl border border-blue-400/30 p-6 shadow-2xl shadow-blue-500/20">
+              <div className="flex items-center mb-6">
+                <div className="p-2 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl">
+                  <Bot className="h-6 w-6 text-white" />
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-xl font-bold text-white">Gestión de Agentes Retell AI</h3>
+                  <p className="text-sm text-gray-400">Configura y gestiona los agentes de voz para cada restaurante</p>
+                </div>
+              </div>
+              <RetellAgentsManager />
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Modal de Actualización de Credenciales */}

@@ -24,7 +24,7 @@ export interface BuscarReservaRequest {
 
 export class RetellGoogleSheetsFunctions {
   // Función 1: Verificar disponibilidad
-  static async verificarDisponibilidad(request: DisponibilidadRequest, restaurantId: string, restaurantName: string, spreadsheetId?: string): Promise<{
+  static async verificarDisponibilidad(request: DisponibilidadRequest, restaurantId: string, restaurantName: string): Promise<{
     disponible: boolean;
     mensaje: string;
     alternativas?: string[];
@@ -36,20 +36,19 @@ export class RetellGoogleSheetsFunctions {
       
       // 1. Verificar disponibilidad general (capacidad del restaurante)
       const disponibleGeneral = await GoogleSheetsService.verificarDisponibilidad(
+        restaurantId,
         request.fecha,
         request.hora,
-        request.personas,
-        restaurantId,
-        restaurantName
+        request.personas
       );
 
-      if (!disponibleGeneral) {
+      if (!disponibleGeneral.disponible) {
         // Generar alternativas del mismo día
         const alternativas = this.generarAlternativas(request.fecha, request.personas);
         return {
           disponible: false,
-          mensaje: `Para ${request.personas} personas el ${request.fecha} a las ${request.hora} no tengo disponibilidad.`,
-          alternativas
+          mensaje: disponibleGeneral.mensaje || `Para ${request.personas} personas el ${request.fecha} a las ${request.hora} no tengo disponibilidad.`,
+          alternativas: disponibleGeneral.alternativas || alternativas
         };
       }
 
@@ -94,7 +93,7 @@ export class RetellGoogleSheetsFunctions {
   }
 
   // Función 2: Crear reserva
-  static async crearReserva(request: ReservaRequest, restaurantId: string, restaurantName: string, spreadsheetId?: string): Promise<{
+  static async crearReserva(request: ReservaRequest, restaurantId: string, restaurantName: string): Promise<{
     exito: boolean;
     mensaje: string;
     numeroReserva?: string;
@@ -110,8 +109,7 @@ export class RetellGoogleSheetsFunctions {
           personas: request.personas
         },
         restaurantId,
-        restaurantName,
-        spreadsheetId
+        restaurantName
       );
 
       if (!disponibilidad.disponible) {
@@ -138,22 +136,21 @@ export class RetellGoogleSheetsFunctions {
 
       // Crear la reserva con mesa asignada
       const reserva = {
-        fecha: request.fecha,
-        hora: request.hora,
-        horario: this.obtenerHorario(request.hora),
-        cliente: request.cliente,
-        telefono: request.telefono,
-        personas: request.personas,
-        estado: 'confirmada' as const,
-        mesa: mesaAsignada,
-        notas: request.notas || '',
-        restaurante: restaurantName,
-        restauranteId: restaurantId
+        Fecha: request.fecha,
+        Hora: request.hora,
+        Turno: this.obtenerHorario(request.hora),
+        Cliente: request.cliente,
+        Telefono: request.telefono,
+        Personas: request.personas,
+        Estado: 'confirmada' as const,
+        Mesa: mesaAsignada,
+        Notas: request.notas || '',
+        Zona: 'Comedor 1'
       };
 
-      const exito = await GoogleSheetsService.crearReserva(reserva, spreadsheetId);
+      const resultado = await GoogleSheetsService.crearReserva(reserva, restaurantId);
 
-      if (exito) {
+      if (resultado.success) {
         const numeroReserva = `RES${Date.now().toString().slice(-6)}`;
         
         // 🔥 NOTIFICACIÓN EN TIEMPO REAL
@@ -191,25 +188,32 @@ export class RetellGoogleSheetsFunctions {
   }
 
   // Función 3: Buscar reserva
-  static async buscarReserva(request: BuscarReservaRequest, restaurantId: string, restaurantName: string, spreadsheetId?: string): Promise<{
+  static async buscarReserva(request: BuscarReservaRequest, restaurantId: string): Promise<{
     encontrada: boolean;
     mensaje: string;
-    reserva?: any;
+    reserva?: {
+      Fecha: string;
+      Hora: string;
+      Personas: number;
+      Cliente: string;
+      Telefono: string;
+      Estado: string;
+      Mesa: string;
+    };
   }> {
     try {
       console.log('🔍 Buscando reserva:', request);
       
       const reserva = await GoogleSheetsService.buscarReserva(
-        request.cliente,
-        request.telefono,
         restaurantId,
-        restaurantName
+        request.cliente,
+        request.telefono
       );
 
       if (reserva) {
         return {
           encontrada: true,
-          mensaje: `Reserva encontrada para ${request.cliente} el ${reserva.fecha} a las ${reserva.hora} para ${reserva.personas} personas.`,
+          mensaje: `Reserva encontrada para ${request.cliente} el ${reserva.Fecha} a las ${reserva.Hora} para ${reserva.Personas} personas.`,
           reserva
         };
       } else {
@@ -228,7 +232,7 @@ export class RetellGoogleSheetsFunctions {
   }
 
   // Función 4: Cancelar reserva
-  static async cancelarReserva(request: BuscarReservaRequest, restaurantId: string, restaurantName: string, spreadsheetId?: string): Promise<{
+  static async cancelarReserva(request: BuscarReservaRequest, restaurantId: string): Promise<{
     cancelada: boolean;
     mensaje: string;
   }> {
@@ -236,7 +240,7 @@ export class RetellGoogleSheetsFunctions {
       console.log('❌ Cancelando reserva:', request);
       
       // Primero buscar la reserva
-      const busqueda = await this.buscarReserva(request, restaurantId, restaurantName, spreadsheetId);
+      const busqueda = await this.buscarReserva(request, restaurantId);
       
       if (!busqueda.encontrada) {
         return {
@@ -250,8 +254,7 @@ export class RetellGoogleSheetsFunctions {
         request.cliente,
         request.telefono,
         'cancelada',
-        restaurantId,
-        restaurantName
+        restaurantId
       );
 
       if (exito) {
@@ -288,7 +291,7 @@ export class RetellGoogleSheetsFunctions {
   }
 
   // Función auxiliar: Generar alternativas de horarios
-  private static generarAlternativas(fecha: string, personas: number): string[] {
+  private static generarAlternativas(_fecha: string, _personas: number): string[] {
     const horarios = ['13:00', '14:00', '20:00', '22:00'];
     return horarios.map(hora => `${hora}`);
   }
@@ -305,10 +308,23 @@ export class RetellGoogleSheetsFunctions {
   }
 
   // Función auxiliar: Obtener reservas del día
-  static async obtenerReservasHoy(restaurantId: string, restaurantName: string, spreadsheetId?: string): Promise<any[]> {
+  static async obtenerReservasHoy(restaurantId: string): Promise<{
+    ID?: string;
+    Fecha: string;
+    Hora: string;
+    Turno: string;
+    Cliente: string;
+    Telefono: string;
+    Personas: number;
+    Zona: string;
+    Mesa: string;
+    Estado: string;
+    Notas?: string;
+    Creado: string;
+  }[]> {
     try {
       const hoy = new Date().toISOString().split('T')[0];
-      return await GoogleSheetsService.getReservasPorFecha(hoy, restaurantId, restaurantName);
+      return await GoogleSheetsService.getReservasPorFecha(hoy, restaurantId);
     } catch (error) {
       console.error('❌ Error obteniendo reservas de hoy:', error);
       return [];
@@ -316,9 +332,15 @@ export class RetellGoogleSheetsFunctions {
   }
 
   // Función auxiliar: Obtener estadísticas
-  static async obtenerEstadisticas(restaurantId: string, restaurantName: string, spreadsheetId?: string): Promise<any> {
+  static async obtenerEstadisticas(restaurantId: string): Promise<{
+    totalReservas: number;
+    reservasHoy: number;
+    reservasConfirmadas: number;
+    reservasPendientes: number;
+    reservasCanceladas: number;
+  } | null> {
     try {
-      return await GoogleSheetsService.getEstadisticas(restaurantId, restaurantName);
+      return await GoogleSheetsService.getEstadisticas(restaurantId);
     } catch (error) {
       console.error('❌ Error obteniendo estadísticas:', error);
       return null;
