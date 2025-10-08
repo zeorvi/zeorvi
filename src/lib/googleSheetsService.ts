@@ -450,9 +450,14 @@ export class GoogleSheetsService {
       
       // Filtrar por turno según la hora
       const turno = this.determinarTurno(hora);
-      mesasDisponibles = mesasDisponibles.filter(mesa => 
-        Array.isArray(mesa.Turnos) && mesa.Turnos.includes(turno)
-      );
+      mesasDisponibles = mesasDisponibles.filter(mesa => {
+        if (!mesa.Turnos) return false;
+        // Manejar tanto array como string separado por comas
+        const turnos = Array.isArray(mesa.Turnos) 
+          ? mesa.Turnos 
+          : String(mesa.Turnos).split(',').map(t => t.trim());
+        return turnos.includes(turno);
+      });
       
       // Verificar reservas existentes para esa fecha/hora
       const reservasExistentes = reservas.filter(reserva => 
