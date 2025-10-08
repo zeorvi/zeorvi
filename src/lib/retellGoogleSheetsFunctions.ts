@@ -135,20 +135,16 @@ export class RetellGoogleSheetsFunctions {
       }
 
       // Crear la reserva con mesa asignada
-      const reserva = {
-        Fecha: request.fecha,
-        Hora: request.hora,
-        Turno: this.obtenerHorario(request.hora),
-        Cliente: request.cliente,
-        Telefono: request.telefono,
-        Personas: request.personas,
-        Estado: 'confirmada' as const,
-        Mesa: mesaAsignada,
-        Notas: request.notas || '',
-        Zona: 'Comedor 1'
-      };
-
-      const resultado = await GoogleSheetsService.crearReserva(reserva, restaurantId);
+      const resultado = await GoogleSheetsService.crearReserva(
+        restaurantId,
+        request.fecha,
+        request.hora,
+        request.cliente,
+        request.telefono,
+        request.personas,
+        'Comedor 1',
+        request.notas || ''
+      );
 
       if (resultado.success) {
         const numeroReserva = `RES${Date.now().toString().slice(-6)}`;

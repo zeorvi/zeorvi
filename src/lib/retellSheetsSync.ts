@@ -42,24 +42,18 @@ export class RetellSheetsSync {
       }
 
       // Crear la reserva en Google Sheets
-      const reserva = {
-        Fecha: reservationData.date,
-        Hora: reservationData.time,
-        Turno: reservationData.schedule || reservationData.time, // Usar schedule o time como fallback
-        Cliente: reservationData.customerName,
-        Telefono: reservationData.phone,
-        Personas: reservationData.people,
-        Mesa: reservationData.tableId || '',
-        Estado: 'confirmada' as const,
-        Zona: 'Por asignar',
-        notas: reservationData.specialRequests || '',
-        restaurante: reservationData.restaurantName,
-        restauranteId: reservationData.restaurantId
-      };
+      const creada = await GoogleSheetsService.crearReserva(
+        reservationData.restaurantId,
+        reservationData.date,
+        reservationData.time,
+        reservationData.customerName,
+        reservationData.phone,
+        reservationData.people,
+        'Por asignar',
+        reservationData.specialRequests || ''
+      );
 
-      const creada = await GoogleSheetsService.crearReserva(reserva, reservationData.restaurantId);
-
-      if (creada) {
+      if (creada.success) {
         console.log('✅ Reserva sincronizada exitosamente a Google Sheets');
         return true;
       } else {

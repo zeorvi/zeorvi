@@ -66,18 +66,16 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const result = await GoogleSheetsService.crearReserva({
-      Fecha: reservaData.fecha,
-      Hora: reservaData.hora,
-      Turno: reservaData.turno || 'Cena',
-      Cliente: reservaData.cliente,
-      Telefono: reservaData.telefono,
-      Personas: reservaData.personas,
-      Zona: reservaData.zona || '',
-      Mesa: reservaData.mesa,
-      Estado: reservaData.estado || 'confirmada',
-      Notas: reservaData.notas || ''
-    }, restaurantId);
+    const result = await GoogleSheetsService.crearReserva(
+      restaurantId,
+      reservaData.fecha,
+      reservaData.hora,
+      reservaData.cliente,
+      reservaData.telefono,
+      reservaData.personas,
+      reservaData.zona || '',
+      reservaData.notas || ''
+    );
 
     if (result.success) {
       return NextResponse.json({

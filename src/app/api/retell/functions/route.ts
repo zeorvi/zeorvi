@@ -1,203 +1,138 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { GoogleSheetsService } from '@/lib/googleSheetsService';
-import { getRestaurantId, isValidRestaurantId } from '@/lib/retellUtils';
 
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const body = await request.json();
-    console.log('🔔 Retell Functions recibido:', JSON.stringify(body, null, 2));
-    console.log('🔍 Headers:', JSON.stringify(Object.fromEntries(request.headers.entries()), null, 2));
-    console.log('🔍 URL:', request.url);
-    console.log('🔍 Method:', request.method);
+    const body = await req.json();
+    const { name, parameters } = body;
+    const restaurantId = 'rest_003';
 
-    // Extraer function_name de diferentes posibles formatos
-    const function_name = body.function_name || body.name || body.tool_call?.function?.name;
-    const parameters = body.parameters || body.arguments || body.tool_call?.function?.arguments || {};
-    
-    console.log('🔍 Function name extraído:', function_name);
-    console.log('🔍 Parameters extraídos:', parameters);
-    
-    let restaurantId = getRestaurantId(body);
+    let result;
 
-    // Si no se puede determinar el restaurante, intentar extraer del URL o usar rest_003 por defecto
-    if (!isValidRestaurantId(restaurantId)) {
-      // Intentar extraer del URL de la request
-      const url = new URL(request.url);
-      const pathParts = url.pathname.split('/');
-      const urlRestaurantId = pathParts.find(part => part.startsWith('rest_'));
-      
-      if (urlRestaurantId && isValidRestaurantId(urlRestaurantId)) {
-        restaurantId = urlRestaurantId;
-        console.log(`📍 RestaurantId desde URL: ${restaurantId}`);
-      } else {
-        console.warn('No se pudo determinar el restaurante, usando rest_003 por defecto', { 
-          metadata: body.metadata,
-          data_metadata: body.data?.metadata,
-          agent_id: body.agent_id,
-          url: request.url
-        });
-        restaurantId = 'rest_003'; // La Gaviota por defecto
-      }
-    }
+    switch (name) {
+      // ✅ Obtener horarios y días cerrados
+      case 'obtener_horarios_y_dias_cerrados':
+        result = await GoogleSheetsService.obtenerHorariosYDiasCerrados(restaurantId);
+        break;
 
-    if (!function_name) {
-      console.error('❌ No se encontró function_name en el request:', body);
-      return NextResponse.json({
-        success: false,
-        error: 'No se encontró function_name en el request',
-        received_body: body
-      }, { status: 400 });
-    }
+      // ✅ Verificar disponibilidad
+      case 'verificar_disponibilidad': {
+        let { fecha } = parameters || {};
+        const { hora, personas, zona } = parameters || {};
+        const hoy = new Date();
 
-    console.log(`🏪 Procesando función ${function_name} para restaurante ${restaurantId}`);
+        // --- Si la fecha viene vacía o token ---
+        if (!fecha || typeof fecha !== 'string' || fecha === 'undefined' || fecha.includes('{{')) {
+          fecha = 'mañana';
+        }
 
-    let result: any;
+        // --- Normalización de fecha ---
+        const normalizarFecha = (texto: string): string => {
+          const t = texto.toLowerCase().trim();
 
-    switch (function_name) {
-      case 'verificar_disponibilidad':
+          if (t.includes('hoy') || t.includes('today')) return hoy.toISOString().split('T')[0];
+          if (t.includes('mañana') || t.includes('tomorrow') || t.includes('current_date_plus_1')) {
+            hoy.setDate(hoy.getDate() + 1);
+            return hoy.toISOString().split('T')[0];
+          }
+          if (t.includes('pasado mañana')) {
+            hoy.setDate(hoy.getDate() + 2);
+            return hoy.toISOString().split('T')[0];
+          }
+
+          const dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+          const idx = dias.findIndex(d => t.includes(d) || t.includes(d.replace('é','e')));
+          if (idx >= 0) {
+            let diff = idx - hoy.getDay();
+            if (diff <= 0) diff += 7;
+            hoy.setDate(hoy.getDate() + diff);
+            return hoy.toISOString().split('T')[0];
+          }
+
+          // fallback
+          hoy.setDate(hoy.getDate() + 1);
+          return hoy.toISOString().split('T')[0];
+        };
+
+        fecha = normalizarFecha(fecha);
+
+        // --- Validación hora ---
+        if (!hora || !/^\d{1,2}:\d{2}$/.test(hora)) {
+          return NextResponse.json([
+            { success: false, error: '1' },
+            'Hora inválida. Debe estar en formato HH:MM (ej: 20:00).'
+          ], { status: 400 });
+        }
+
+        const nPersonas = Number(personas) || 1;
+
         result = await GoogleSheetsService.verificarDisponibilidad(
           restaurantId,
-          parameters.fecha,
-          parameters.hora,
-          parameters.personas,
-          parameters.zona
+          fecha,
+          hora,
+          nPersonas,
+          zona
         );
-        break;
 
-      case 'crear_reserva':
-        const reservaResult = await GoogleSheetsService.addReserva(restaurantId, {
-          Fecha: parameters.fecha,
-          Hora: parameters.hora,
-          Turno: parameters.turno || 'Cena',
-          Cliente: parameters.cliente,
-          Telefono: parameters.telefono,
-          Personas: parameters.personas,
-          Zona: parameters.zona,
-          Mesa: parameters.mesa,
-          Estado: 'confirmada',
-          Notas: parameters.notas || ''
-        });
-        
-        result = {
-          success: reservaResult.success,
-          mensaje: reservaResult.success ? 
-            `Reserva confirmada para ${parameters.cliente} en mesa ${parameters.mesa}` : 
-            'Error creando la reserva',
-          numeroReserva: reservaResult.ID
-        };
         break;
+      }
 
-      case 'modificar_reserva':
-        const updateResult = await GoogleSheetsService.updateReserva(
+      // ✅ Crear reserva
+      case 'crear_reserva': {
+        const { fecha, hora, cliente, telefono, personas, zona, notas } = parameters || {};
+        result = await GoogleSheetsService.crearReserva(
           restaurantId,
-          parameters.ID,
-          {
-            Fecha: parameters.fecha,
-            Hora: parameters.hora,
-            Turno: parameters.turno,
-            Cliente: parameters.cliente,
-            Telefono: parameters.telefono,
-            Personas: parameters.personas,
-            Zona: parameters.zona,
-            Mesa: parameters.mesa,
-            Estado: parameters.estado,
-            Notas: parameters.notas
-          }
+          fecha,
+          hora,
+          cliente,
+          telefono,
+          personas,
+          zona,
+          notas
         );
-        
-        result = {
-          success: updateResult.success,
-          mensaje: updateResult.success ? 
-            `Reserva ${parameters.ID} actualizada correctamente` : 
-            'Error actualizando la reserva'
-        };
         break;
+      }
 
-      case 'cancelar_reserva':
-        const cancelResult = await GoogleSheetsService.updateReserva(
-          restaurantId,
-          parameters.ID,
-          { Estado: 'cancelada' }
-        );
-        
-        result = {
-          success: cancelResult.success,
-          mensaje: cancelResult.success ? 
-            `Reserva ${parameters.ID} cancelada correctamente` : 
-            'Error cancelando la reserva'
-        };
+      // ✅ Cancelar reserva
+      case 'cancelar_reserva': {
+        const { cliente, telefono } = parameters || {};
+        result = await GoogleSheetsService.cancelarReserva(restaurantId, cliente, telefono);
         break;
+      }
 
-      case 'buscar_reserva':
-        const reserva = await GoogleSheetsService.buscarReserva(
-          restaurantId,
-          parameters.cliente,
-          parameters.telefono
-        );
-        
-        result = {
-          success: !!reserva,
-          reserva: reserva,
-          mensaje: reserva ? 
-            `Reserva encontrada para ${parameters.cliente}` : 
-            'No se encontró ninguna reserva'
-        };
+      // ✅ Buscar reserva
+      case 'buscar_reserva': {
+        const { cliente, telefono } = parameters || {};
+        result = await GoogleSheetsService.buscarReserva(restaurantId, cliente, telefono);
         break;
+      }
 
-      case 'obtener_estadisticas':
-        const estadisticas = await GoogleSheetsService.getEstadisticas(restaurantId);
-        result = {
-          success: true,
-          estadisticas: estadisticas,
-          mensaje: `Estadísticas del restaurante ${restaurantId}`
-        };
+      // ✅ Transferir llamada
+      case 'transferir_llamada': {
+        const { motivo } = parameters || {};
+        console.log('🔄 Transferir llamada solicitada:', motivo);
+        result = { success: true, mensaje: `Llamada transferida por motivo: ${motivo}` };
         break;
-
-      case 'consultar_reservas_dia':
-        const reservas = await GoogleSheetsService.getReservas(restaurantId);
-        const reservasDelDia = reservas.filter(r => r.Fecha === parameters.fecha);
-        
-        result = {
-          success: true,
-          reservas: reservasDelDia,
-          total: reservasDelDia.length,
-          mensaje: `${reservasDelDia.length} reservas encontradas para ${parameters.fecha}`
-        };
-        break;
-
-      case 'obtener_horarios_y_dias_cerrados':
-        const diasCerrados = await GoogleSheetsService.getDiasCerrados(restaurantId);
-        const horarios = await GoogleSheetsService.getHorarios(restaurantId);
-        
-        result = {
-          success: true,
-          diasCerrados: diasCerrados,
-          horarios: horarios,
-          mensaje: `Días cerrados: ${diasCerrados.join(', ')}. Horarios disponibles.`
-        };
-        break;
+      }
 
       default:
-        return NextResponse.json({
-          success: false,
-          error: `Función ${function_name} no reconocida`
-        }, { status: 400 });
+        return NextResponse.json([
+          { success: false, error: '1' },
+          `Función ${name} no reconocida`
+        ], { status: 400 });
     }
-
-    console.log(`✅ Función ${function_name} ejecutada exitosamente:`, result);
 
     return NextResponse.json({
       success: true,
-      function_name,
+      function_name: name,
       restaurantId,
       result
     });
-
-  } catch (error) {
-    console.error('❌ Error en Retell Functions:', error);
-    return NextResponse.json({
-      success: false,
-      error: 'Error interno del servidor'
-    }, { status: 500 });
+  } catch (err: any) {
+    console.error('❌ Error en Retell Functions:', err);
+    return NextResponse.json([
+      { success: false, error: '1' },
+      err.message || 'Error interno del servidor'
+    ], { status: 500 });
   }
 }

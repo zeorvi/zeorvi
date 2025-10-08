@@ -147,31 +147,33 @@ export class RetellReservationFlow {
     try {
       console.log('➕ Creando reserva en Google Sheets:', request);
 
-      const reserva = {
-        Fecha: request.date,
-        Hora: request.time,
-        Turno: request.time,
-        Cliente: request.customerName,
-        Telefono: request.phone,
-        Personas: request.people,
-        Mesa: 'Por asignar', // Se asigna mesa cuando llegan
-        Estado: 'confirmada' as const,
-        Zona: 'Por asignar',
-        notas: request.specialRequests || '',
-        restaurante: request.restaurantName,
-        restauranteId: request.restaurantId,
-      };
+      const creada = await GoogleSheetsService.crearReserva(
+        request.restaurantId,
+        request.date,
+        request.time,
+        request.customerName,
+        request.phone,
+        request.people,
+        'Por asignar',
+        request.specialRequests || ''
+      );
 
-      const creada = await GoogleSheetsService.crearReserva(reserva, spreadsheetId);
-
-      if (creada) {
-        const reservationId = `res_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      if (creada.success) {
+        const reservationId = creada.ID || `res_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
         return {
           success: true,
           reservationId,
           reservation: {
-            ...reserva,
+            Fecha: request.date,
+            Hora: request.time,
+            Cliente: request.customerName,
+            Telefono: request.phone,
+            Personas: request.people,
+            Zona: 'Por asignar',
+            Mesa: 'Por asignar',
+            Estado: 'confirmada',
+            notas: request.specialRequests || '',
             id: reservationId,
             creado: new Date().toISOString(),
           },

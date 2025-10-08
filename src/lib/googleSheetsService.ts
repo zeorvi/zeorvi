@@ -354,8 +354,18 @@ export class GoogleSheetsService {
     hora: string
   ): Promise<{ abierto: boolean; mensaje: string; horarios?: Array<{ Turno: string; Inicio: string; Fin: string }> }> {
     try {
-      // PRIMERO: Verificar si el día está cerrado
-      const fechaObj = new Date(fecha);
+      // PRIMERO: Validar formato de fecha
+      const iso = /^\d{4}-\d{2}-\d{2}$/;
+      if (!iso.test(fecha)) {
+        return { abierto: false, mensaje: 'Fecha inválida (usa YYYY-MM-DD)' };
+      }
+      
+      // Convertir fecha con ancla de mediodía para evitar problemas de zona horaria
+      const fechaObj = new Date(`${fecha}T12:00:00`);
+      if (isNaN(fechaObj.getTime())) {
+        return { abierto: false, mensaje: 'Fecha inválida' };
+      }
+      
       const diaSemana = fechaObj.toLocaleDateString('es-ES', { weekday: 'long' });
       
       // Leer días cerrados desde Google Sheets
@@ -431,17 +441,17 @@ export class GoogleSheetsService {
       // Convertir fecha y hora a timestamp para cálculos
       const fechaHoraSolicitada = new Date(`${fecha}T${hora}:00`);
       
-      // Filtrar mesas por zona y capacidad
-      let mesasDisponibles = mesas.filter(mesa => 
-        mesa.Capacidad >= personas && 
-        mesa.Estado === 'Libre' &&
-        (!zona || mesa.Zona === zona)
-      );
+      // Filtrar mesas por zona y capacidad (tolerante a mayúsculas/minúsculas)
+      let mesasDisponibles = mesas.filter(mesa => {
+        const estadoOk = String(mesa.Estado || '').toLowerCase() === 'libre'; // tolera mayúsculas/minúsculas
+        const zonaOk = !zona || String(mesa.Zona || '').toLowerCase() === String(zona).toLowerCase();
+        return (mesa.Capacidad >= personas) && estadoOk && zonaOk;
+      });
       
       // Filtrar por turno según la hora
       const turno = this.determinarTurno(hora);
       mesasDisponibles = mesasDisponibles.filter(mesa => 
-        mesa.Turnos.includes(turno)
+        Array.isArray(mesa.Turnos) && mesa.Turnos.includes(turno)
       );
       
       // Verificar reservas existentes para esa fecha/hora
@@ -527,11 +537,12 @@ export class GoogleSheetsService {
           alternativas: alternativas.slice(0, 3) // Máximo 3 alternativas
         };
       }
-    } catch (error) {
-      console.error(`Error calculando disponibilidad futura para ${restaurantId}:`, error);
+    } catch (error: any) {
+      console.error(`❌ Error calculando disponibilidad futura para ${restaurantId}:`, error);
+      const reason = error?.message || String(error);
       return {
         disponible: false,
-        mensaje: 'Error calculando disponibilidad'
+        mensaje: `Error al consultar datos de Google Sheets (${reason})`
       };
     }
   }
@@ -543,9 +554,50 @@ export class GoogleSheetsService {
     hora: string, 
     personas: number, 
     zona?: string
-  ): Promise<{ disponible: boolean; mesa?: string; mensaje: string; alternativas?: string[] }> {
+  ): Promise<{ success: boolean; disponible: boolean; mesa?: string; mensaje: string; alternativas?: string[]; error?: string }> {
     try {
       console.log(`🔍 Verificando disponibilidad: ${restaurantId}, ${fecha}, ${hora}, ${personas}, ${zona}`);
+      
+      // Validaciones básicas
+      if (!fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+        console.warn('⚠️ Fecha inválida recibida:', fecha);
+        return {
+          success: false,
+          disponible: false,
+          error: 'Fecha inválida o no resuelta. Debe estar en formato YYYY-MM-DD.',
+          mensaje: 'Fecha inválida'
+        };
+      }
+
+      if (!hora || !/^\d{1,2}:\d{2}$/.test(hora)) {
+        console.warn('⚠️ Hora inválida recibida:', hora);
+        return {
+          success: false,
+          disponible: false,
+          error: 'Hora inválida. Debe estar en formato HH:MM (ej: 20:00).',
+          mensaje: 'Hora inválida'
+        };
+      }
+
+      if (!personas || isNaN(personas) || personas < 1) {
+        console.warn('⚠️ Número de personas inválido:', personas);
+        return {
+          success: false,
+          disponible: false,
+          error: 'Número de personas inválido.',
+          mensaje: 'Número de personas inválido'
+        };
+      }
+
+      // 🔴 Si son más de 6 personas, requerir gestión manual
+      if (personas > 6) {
+        console.warn('⚠️ Reserva grande detectada, requiere intervención humana:', personas);
+        return {
+          success: true,
+          disponible: false,
+          mensaje: `Para grupos de ${personas} personas, la reserva debe gestionarla un compañero.`,
+        };
+      }
       
       // PRIMERO: Verificar si el restaurante está abierto
       const horariosCheck = await this.verificarRestauranteAbierto(restaurantId, fecha, hora);
@@ -553,6 +605,7 @@ export class GoogleSheetsService {
       
       if (!horariosCheck.abierto) {
         return {
+          success: true,
           disponible: false,
           mensaje: horariosCheck.mensaje
         };
@@ -561,12 +614,18 @@ export class GoogleSheetsService {
       // Usar la nueva función de disponibilidad futura
       const resultado = await this.calcularDisponibilidadFutura(restaurantId, fecha, hora, personas, zona);
       console.log(`🔍 Resultado disponibilidad:`, resultado);
-      return resultado;
+      
+      return {
+        success: true,
+        ...resultado
+      };
     } catch (error) {
       console.error(`❌ Error verificando disponibilidad para ${restaurantId}:`, error);
       return {
+        success: false,
         disponible: false,
-        mensaje: 'Error verificando disponibilidad'
+        mensaje: 'Error verificando disponibilidad',
+        error: error instanceof Error ? error.message : 'Error desconocido'
       };
     }
   }
@@ -620,9 +679,38 @@ export class GoogleSheetsService {
     }
   }
 
-  // ✅ Crear reserva (alias para addReserva)
-  static async crearReserva(reservaData: Omit<Reserva, 'ID' | 'Creado'>, restaurantId: string): Promise<{ success: boolean; ID?: string; error?: string }> {
-    return this.addReserva(restaurantId, reservaData);
+  // ✅ Crear reserva (alias para addReserva con parámetros simplificados)
+  static async crearReserva(
+    restaurantId: string,
+    fecha: string,
+    hora: string,
+    cliente: string,
+    telefono: string,
+    personas: number,
+    zona?: string,
+    notas?: string
+  ): Promise<{ success: boolean; ID?: string; error?: string; mensaje?: string }> {
+    const reservaData = {
+      Fecha: fecha,
+      Hora: hora,
+      Turno: this.determinarTurno(hora),
+      Cliente: cliente,
+      Telefono: telefono,
+      Personas: personas,
+      Zona: zona || 'Salón Principal',
+      Mesa: '',
+      Estado: 'confirmada' as const,
+      Notas: notas || ''
+    };
+    
+    const result = await this.addReserva(restaurantId, reservaData);
+    
+    return {
+      ...result,
+      mensaje: result.success ? 
+        `Reserva confirmada para ${cliente} el ${fecha} a las ${hora}` :
+        'Error creando la reserva'
+    };
   }
 
   // ✅ Eliminar reserva completamente
@@ -725,6 +813,66 @@ export class GoogleSheetsService {
         reservasConfirmadas: 0,
         reservasPendientes: 0,
         reservasCanceladas: 0,
+      };
+    }
+  }
+
+  // ✅ Obtener horarios y días cerrados combinados
+  static async obtenerHorariosYDiasCerrados(restaurantId: string): Promise<{
+    success: boolean;
+    diasCerrados: string[];
+    horarios: Array<{ Dia: string; Inicio: string; Fin: string }>;
+    mensaje: string;
+  }> {
+    try {
+      const diasCerrados = await this.getDiasCerrados(restaurantId);
+      const horarios = await this.getHorarios(restaurantId);
+      
+      return {
+        success: true,
+        diasCerrados,
+        horarios,
+        mensaje: `Días cerrados: ${diasCerrados.join(', ')}. Horarios disponibles.`
+      };
+    } catch (error) {
+      console.error(`Error obteniendo horarios y días cerrados para ${restaurantId}:`, error);
+      return {
+        success: false,
+        diasCerrados: [],
+        horarios: [],
+        mensaje: 'Error obteniendo información del restaurante'
+      };
+    }
+  }
+
+  // ✅ Cancelar reserva por cliente y teléfono
+  static async cancelarReserva(restaurantId: string, cliente: string, telefono: string): Promise<{
+    success: boolean;
+    mensaje: string;
+  }> {
+    try {
+      const reserva = await this.buscarReserva(restaurantId, cliente, telefono);
+      
+      if (!reserva || !reserva.ID) {
+        return {
+          success: false,
+          mensaje: 'No se encontró ninguna reserva para cancelar'
+        };
+      }
+      
+      const updateResult = await this.updateReserva(restaurantId, reserva.ID, { Estado: 'cancelada' });
+      
+      return {
+        success: updateResult.success,
+        mensaje: updateResult.success ? 
+          `Reserva cancelada correctamente para ${cliente}` : 
+          'Error cancelando la reserva'
+      };
+    } catch (error) {
+      console.error(`Error cancelando reserva para ${restaurantId}:`, error);
+      return {
+        success: false,
+        mensaje: 'Error cancelando la reserva'
       };
     }
   }
