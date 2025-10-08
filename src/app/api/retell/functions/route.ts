@@ -57,10 +57,22 @@ export async function POST(req: Request) {
         fecha = normalizarFecha(fecha);
 
         // --- Validación hora ---
-        if (!hora || !/^\d{1,2}:\d{2}$/.test(hora)) {
+        if (!hora || typeof hora !== "string") {
           return NextResponse.json({
             success: false,
-            error: 'Hora inválida. Debe estar en formato HH:MM (ej: 20:00).'
+            error: "Hora no proporcionada o inválida."
+          }, { status: 400 });
+        }
+
+        // Permitir "8:00", "08:00", "20:00"
+        const horaNormalizada = hora.trim();
+        const patronHora = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+
+        if (!patronHora.test(horaNormalizada)) {
+          console.warn("⚠️ Hora inválida recibida:", horaNormalizada);
+          return NextResponse.json({
+            success: false,
+            error: "Hora inválida. Debe estar en formato HH:MM (ej: 20:00)."
           }, { status: 400 });
         }
 
