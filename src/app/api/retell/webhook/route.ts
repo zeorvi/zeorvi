@@ -39,12 +39,13 @@ export async function POST(request: NextRequest) {
 
     const { event, call_id, agent_id, data } = body;
 
-    // Validar datos requeridos
+    // Validar datos requeridos (pero devolver 200 para evitar reintentos)
     if (!event || !agent_id) {
+      logger.warn('⚠️ Webhook sin event o agent_id:', body);
       return NextResponse.json({ 
-        success: false, 
-        error: 'Missing required fields: event, agent_id' 
-      }, { status: 400 });
+        success: true, 
+        info: 'Campos faltantes, ignorado' 
+      }, { status: 200 });
     }
 
     // ✅ NUEVA FUNCIÓN: Extraer restaurante desde metadata o agent_id
@@ -55,10 +56,11 @@ export async function POST(request: NextRequest) {
         metadata: body.metadata,
         data_metadata: body.data?.metadata 
       });
+      // Devolver 200 igualmente para evitar reintentos
       return NextResponse.json({ 
-        success: false, 
-        error: 'No puedo determinar restaurantId. Usa metadata.restaurantId o el patrón rest_*_agent en agent_id.' 
-      }, { status: 400 });
+        success: true, 
+        info: 'No se pudo determinar restaurantId, evento ignorado' 
+      }, { status: 200 });
     }
 
     logger.info('Restaurante identificado', { 

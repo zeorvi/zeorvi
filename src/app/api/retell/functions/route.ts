@@ -58,10 +58,10 @@ export async function POST(req: Request) {
 
         // --- Validación hora ---
         if (!hora || !/^\d{1,2}:\d{2}$/.test(hora)) {
-          return NextResponse.json([
-            { success: false, error: '1' },
-            'Hora inválida. Debe estar en formato HH:MM (ej: 20:00).'
-          ], { status: 400 });
+          return NextResponse.json({
+            success: false,
+            error: 'Hora inválida. Debe estar en formato HH:MM (ej: 20:00).'
+          }, { status: 400 });
         }
 
         const nPersonas = Number(personas) || 1;
@@ -116,10 +116,10 @@ export async function POST(req: Request) {
       }
 
       default:
-        return NextResponse.json([
-          { success: false, error: '1' },
-          `Función ${name} no reconocida`
-        ], { status: 400 });
+        return NextResponse.json({
+          success: false,
+          error: `Función ${name} no reconocida`
+        }, { status: 400 });
     }
 
     return NextResponse.json({
@@ -130,9 +130,9 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error('❌ Error en Retell Functions:', err);
-    return NextResponse.json([
-      { success: false, error: '1' },
-      err.message || 'Error interno del servidor'
-    ], { status: 500 });
+    return NextResponse.json({
+      success: false,
+      error: err.message || 'Error interno del servidor'
+    }, { status: 500 });
   }
 }
