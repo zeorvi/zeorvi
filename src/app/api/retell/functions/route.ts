@@ -4,8 +4,15 @@ import { GoogleSheetsService } from '@/lib/googleSheetsService';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, parameters } = body;
+    
+    // Algunos modelos de Retell envían el cuerpo como { name, parameters }
+    // Otros como { function: { name, arguments } }
+    // Este bloque cubre ambos casos
+    const name = body.name || body.function?.name || body.tool_name || '';
+    const parameters = body.parameters || body.args || body.arguments || body.function?.arguments || {};
     const restaurantId = 'rest_003';
+
+    console.log("📞 Llamada recibida:", name, "Parámetros:", parameters);
 
     let result;
 
@@ -20,6 +27,8 @@ export async function POST(req: Request) {
         let { fecha } = parameters || {};
         const { hora, personas, zona } = parameters || {};
         const hoy = new Date();
+
+        console.log("➡️ Datos recibidos:", { fecha, hora, personas, zona });
 
         // --- Si la fecha viene vacía o token ---
         if (!fecha || typeof fecha !== 'string' || fecha === 'undefined' || fecha.includes('{{')) {
