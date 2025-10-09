@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import { sqliteDb } from '../database/sqlite';
 import { memoryCache } from '../cache/memory';
 import { config } from '../config';
+import { findUserByEmail, verifyPassword, HARDCODED_USERS } from './hardcodedUsers';
 
 export interface AuthUser {
   id: string;
@@ -123,68 +124,95 @@ export class AuthService {
 
   async login(credentials: LoginCredentials): Promise<{ user: AuthUser; token: string }> {
     try {
-      // Usar SQLite para desarrollo
-      console.log('🔧 Using SQLite authentication system');
-      
+      let user: AuthUser;
+      let dbUser: any = null;
       let restaurantId: string;
-      let dbUser: any;
 
-      // Si se proporciona slug del restaurante, buscar por slug
-      if (credentials.restaurantSlug) {
-        const restaurant = await sqliteDb.getRestaurantBySlug(credentials.restaurantSlug);
-        if (!restaurant) {
-          throw new Error('Restaurante no encontrado');
-        }
-        restaurantId = restaurant.id;
-        dbUser = await sqliteDb.getUserByEmail(credentials.email, restaurantId);
-      } else {
-        // Buscar usuario en SQLite (en todos los restaurantes)
-        dbUser = await sqliteDb.getUserByEmail(credentials.email);
+      // Intentar primero con SQLite (desarrollo local)
+      try {
+        console.log('🔧 Trying SQLite authentication...');
         
-        if (!dbUser) {
+        if (credentials.restaurantSlug) {
+          const restaurant = await sqliteDb.getRestaurantBySlug(credentials.restaurantSlug);
+          if (restaurant) {
+            restaurantId = restaurant.id;
+            dbUser = await sqliteDb.getUserByEmail(credentials.email, restaurantId);
+          }
+        } else {
+          dbUser = await sqliteDb.getUserByEmail(credentials.email);
+          if (dbUser) {
+            restaurantId = dbUser.restaurant_id;
+          }
+        }
+
+        if (dbUser) {
+          // Verificar contraseña
+          const isValidPassword = await bcrypt.compare(credentials.password, dbUser.password_hash);
+          if (!isValidPassword) {
+            throw new Error('Credenciales inválidas');
+          }
+
+          // Obtener datos del restaurante
+          const restaurant = await sqliteDb.getRestaurant(restaurantId!);
+          if (!restaurant) {
+            throw new Error('Restaurante no encontrado');
+          }
+
+          // Actualizar último login
+          await sqliteDb.updateLastLogin(dbUser.id);
+
+          // Crear objeto de usuario autenticado
+          user = {
+            id: dbUser.id,
+            email: dbUser.email,
+            name: dbUser.name,
+            role: dbUser.role,
+            restaurantId: restaurantId!,
+            restaurantName: restaurant.name,
+            permissions: dbUser.permissions || []
+          };
+          
+          console.log('✅ SQLite authentication successful');
+        }
+      } catch (sqliteError) {
+        console.log('⚠️  SQLite not available, trying hardcoded users...');
+      }
+
+      // Si SQLite falló, usar usuarios hardcoded (producción)
+      if (!dbUser) {
+        console.log('🔐 Using hardcoded authentication for production');
+        
+        const hardcodedUser = await findUserByEmail(credentials.email);
+        if (!hardcodedUser) {
           throw new Error('Credenciales inválidas');
         }
+
+        // Verificar contraseña
+        const isValidPassword = await verifyPassword(credentials.password, hardcodedUser.passwordHash);
+        if (!isValidPassword) {
+          throw new Error('Credenciales inválidas');
+        }
+
+        user = {
+          id: hardcodedUser.id,
+          email: hardcodedUser.email,
+          name: hardcodedUser.name,
+          role: hardcodedUser.role,
+          restaurantId: hardcodedUser.restaurantId,
+          restaurantName: hardcodedUser.restaurantName,
+          permissions: hardcodedUser.permissions
+        };
         
-        restaurantId = dbUser.restaurant_id;
+        console.log('✅ Hardcoded authentication successful');
       }
-
-      if (!dbUser) {
-        throw new Error('Credenciales inválidas');
-      }
-
-      // Verificar contraseña
-      const isValidPassword = await bcrypt.compare(credentials.password, dbUser.password_hash);
-      if (!isValidPassword) {
-        throw new Error('Credenciales inválidas');
-      }
-
-      // Obtener datos del restaurante
-      const restaurant = await sqliteDb.getRestaurant(restaurantId);
-      if (!restaurant) {
-        throw new Error('Restaurante no encontrado');
-      }
-
-      // Actualizar último login
-      await sqliteDb.updateLastLogin(dbUser.id);
-
-      // Crear objeto de usuario autenticado
-      const user: AuthUser = {
-        id: dbUser.id,
-        email: dbUser.email,
-        name: dbUser.name,
-        role: dbUser.role,
-        restaurantId: restaurantId,
-        restaurantName: restaurant.name,
-        permissions: dbUser.permissions || []
-      };
 
       // Generar JWT token
-      const token = this.generateToken(user);
+      const token = this.generateToken(user!);
 
       // Guardar sesión en cache (memoria)
-      await memoryCache.setex(`session:${user.id}`, 7 * 24 * 60 * 60, user);
+      await memoryCache.setex(`session:${user!.id}`, 7 * 24 * 60 * 60, user!);
 
-      return { user, token };
+      return { user: user!, token };
     } catch (error) {
       console.error('Error en login:', error);
       throw error;
