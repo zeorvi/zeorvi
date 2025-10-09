@@ -122,41 +122,27 @@ export async function POST(req: Request) {
 
       // ✅ Crear reserva
       case 'crear_reserva': {
-        let { fecha } = parameters || {};
-        const { hora, cliente, telefono, personas, zona, notas } = parameters || {};
-        
-        // Validar que el teléfono no contenga tokens sin resolver
-        let telefonoFinal = telefono;
+        const { fecha, hora, cliente, telefono, personas, zona, notas } = parameters || {};
+        const fechaReal = normalizarFecha(fecha || 'mañana');
 
-        // Si Retell no lo resuelve, intenta leerlo del campo especial del body
-        if (!telefonoFinal || telefonoFinal.includes("{{")) {
+        // --- Teléfono seguro ---
+        let telefonoFinal = telefono;
+        if (!telefonoFinal || telefonoFinal.includes("{{") || telefonoFinal === "caller_phone_number") {
           telefonoFinal =
             body?.caller_phone_number ||
             body?.metadata?.caller_phone_number ||
+            body?.caller ||
             null;
-
-          console.warn("⚠️ Teléfono no resuelto, asignando:", telefonoFinal);
-        }
-        
-        // Normalizar fecha (igual que en verificar_disponibilidad)
-        fecha = normalizarFecha(fecha || 'mañana');
-        
-        console.log("📅 Crear reserva - Fecha procesada:", fecha);
-
-        if (!fecha) {
-          return NextResponse.json({
-            success: false,
-            error: "Fecha inválida o no reconocida"
-          }, { status: 400 });
+          console.warn("⚠️ Teléfono sustituido automáticamente:", telefonoFinal);
         }
 
         result = await GoogleSheetsService.crearReserva(
           restaurantId,
-          fecha,
+          fechaReal,
           hora,
           cliente,
           telefonoFinal,
-          personas,
+          Number(personas),
           zona,
           notas
         );
