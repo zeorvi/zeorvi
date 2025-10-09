@@ -1,6 +1,55 @@
 import { NextResponse } from 'next/server';
 import { GoogleSheetsService } from '@/lib/googleSheetsService';
 
+// --- Función auxiliar para normalizar fechas ---
+function normalizarFecha(texto: string): string {
+  if (!texto || typeof texto !== 'string') {
+    const manana = new Date();
+    manana.setDate(manana.getDate() + 1);
+    return manana.toISOString().split('T')[0];
+  }
+
+  // Si viene un token, tratarlo como mañana
+  if (texto.includes('{{')) {
+    const manana = new Date();
+    manana.setDate(manana.getDate() + 1);
+    return manana.toISOString().split('T')[0];
+  }
+
+  const hoy = new Date();
+  const t = texto.toLowerCase().trim();
+
+  if (t.includes('hoy') || t === 'today') return hoy.toISOString().split('T')[0];
+  
+  if (t.includes('mañana') || t === 'tomorrow' || t.includes('current_date_plus_1')) {
+    hoy.setDate(hoy.getDate() + 1);
+    return hoy.toISOString().split('T')[0];
+  }
+  
+  if (t.includes('pasado mañana')) {
+    hoy.setDate(hoy.getDate() + 2);
+    return hoy.toISOString().split('T')[0];
+  }
+
+  const dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  const idx = dias.findIndex(d => t.includes(d) || t.includes(d.replace('é','e')));
+  if (idx >= 0) {
+    let diff = idx - hoy.getDay();
+    if (diff <= 0) diff += 7;
+    hoy.setDate(hoy.getDate() + diff);
+    return hoy.toISOString().split('T')[0];
+  }
+
+  // Si ya viene en formato ISO (YYYY-MM-DD), devolverlo
+  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+    return texto;
+  }
+
+  // fallback: mañana
+  hoy.setDate(hoy.getDate() + 1);
+  return hoy.toISOString().split('T')[0];
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -26,44 +75,11 @@ export async function POST(req: Request) {
       case 'verificar_disponibilidad': {
         let { fecha } = parameters || {};
         const { hora, personas, zona } = parameters || {};
-        const hoy = new Date();
 
         console.log("➡️ Datos recibidos:", { fecha, hora, personas, zona });
 
-        // --- Si la fecha viene vacía o token ---
-        if (!fecha || typeof fecha !== 'string' || fecha === 'undefined' || fecha.includes('{{')) {
-          fecha = 'mañana';
-        }
-
-        // --- Normalización de fecha ---
-        const normalizarFecha = (texto: string): string => {
-          const t = texto.toLowerCase().trim();
-
-          if (t.includes('hoy') || t.includes('today')) return hoy.toISOString().split('T')[0];
-          if (t.includes('mañana') || t.includes('tomorrow') || t.includes('current_date_plus_1')) {
-            hoy.setDate(hoy.getDate() + 1);
-            return hoy.toISOString().split('T')[0];
-          }
-          if (t.includes('pasado mañana')) {
-            hoy.setDate(hoy.getDate() + 2);
-            return hoy.toISOString().split('T')[0];
-          }
-
-          const dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
-          const idx = dias.findIndex(d => t.includes(d) || t.includes(d.replace('é','e')));
-          if (idx >= 0) {
-            let diff = idx - hoy.getDay();
-            if (diff <= 0) diff += 7;
-            hoy.setDate(hoy.getDate() + diff);
-            return hoy.toISOString().split('T')[0];
-          }
-
-          // fallback
-          hoy.setDate(hoy.getDate() + 1);
-          return hoy.toISOString().split('T')[0];
-        };
-
-        fecha = normalizarFecha(fecha);
+        // --- Normalizar fecha ---
+        fecha = normalizarFecha(fecha || 'mañana');
 
         // --- Validación hora ---
         if (!hora || typeof hora !== "string") {
@@ -100,7 +116,21 @@ export async function POST(req: Request) {
 
       // ✅ Crear reserva
       case 'crear_reserva': {
-        const { fecha, hora, cliente, telefono, personas, zona, notas } = parameters || {};
+        let { fecha } = parameters || {};
+        const { hora, cliente, telefono, personas, zona, notas } = parameters || {};
+        
+        // Normalizar fecha (igual que en verificar_disponibilidad)
+        fecha = normalizarFecha(fecha || 'mañana');
+        
+        console.log("📅 Crear reserva - Fecha procesada:", fecha);
+
+        if (!fecha) {
+          return NextResponse.json({
+            success: false,
+            error: "Fecha inválida o no reconocida"
+          }, { status: 400 });
+        }
+
         result = await GoogleSheetsService.crearReserva(
           restaurantId,
           fecha,
