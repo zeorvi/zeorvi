@@ -4,19 +4,19 @@ import { GoogleSheetsService } from '@/lib/googleSheetsService';
 // --- Función auxiliar para normalizar fechas ---
 function normalizarFecha(texto: string): string {
   if (!texto || typeof texto !== 'string') {
-    const manana = new Date();
+    const manana = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Madrid" }));
     manana.setDate(manana.getDate() + 1);
     return manana.toISOString().split('T')[0];
   }
 
   // Si viene un token, tratarlo como mañana
   if (texto.includes('{{')) {
-    const manana = new Date();
+    const manana = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Madrid" }));
     manana.setDate(manana.getDate() + 1);
     return manana.toISOString().split('T')[0];
   }
 
-  const hoy = new Date();
+  const hoy = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Madrid" }));
   const t = texto.toLowerCase().trim();
 
   if (t.includes('hoy') || t === 'today') return hoy.toISOString().split('T')[0];
@@ -118,6 +118,15 @@ export async function POST(req: Request) {
       case 'crear_reserva': {
         let { fecha } = parameters || {};
         const { hora, cliente, telefono, personas, zona, notas } = parameters || {};
+        
+        // Validar que el teléfono no contenga tokens sin resolver
+        if (telefono && telefono.includes("{{")) {
+          console.warn("⚠️ Teléfono no resuelto, reemplazando por valor nulo:", telefono);
+          return NextResponse.json({
+            success: false,
+            error: "Teléfono no válido o no resuelto correctamente."
+          }, { status: 400 });
+        }
         
         // Normalizar fecha (igual que en verificar_disponibilidad)
         fecha = normalizarFecha(fecha || 'mañana');
