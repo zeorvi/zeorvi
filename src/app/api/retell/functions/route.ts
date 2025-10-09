@@ -127,9 +127,15 @@ export async function POST(req: Request) {
         
         // Validar que el teléfono no contenga tokens sin resolver
         let telefonoFinal = telefono;
+
+        // Si Retell no lo resuelve, intenta leerlo del campo especial del body
         if (!telefonoFinal || telefonoFinal.includes("{{")) {
-          telefonoFinal = null;
-          console.warn("⚠️ Teléfono no resuelto, se guardará como null temporalmente.");
+          telefonoFinal =
+            body?.caller_phone_number ||
+            body?.metadata?.caller_phone_number ||
+            null;
+
+          console.warn("⚠️ Teléfono no resuelto, asignando:", telefonoFinal);
         }
         
         // Normalizar fecha (igual que en verificar_disponibilidad)
