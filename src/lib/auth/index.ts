@@ -197,7 +197,7 @@ export class AuthService {
 
   async verifyToken(token: string): Promise<AuthUser | null> {
     try {
-      // Verificar JWT
+      // Verificar JWT (esto es rápido, no necesita BD)
       const decoded = jwt.verify(token, this.jwtSecret) as any;
       
       // Obtener usuario desde cache (memoria)
@@ -206,25 +206,16 @@ export class AuthService {
         return cachedUser;
       }
 
-      // Si no está en cache, obtener desde SQLite
-      const dbUser = await sqliteDb.getUserByEmail(decoded.email, decoded.restaurantId);
-      if (!dbUser) {
-        return null;
-      }
-
-      const restaurant = await sqliteDb.getRestaurant(decoded.restaurantId);
-      if (!restaurant) {
-        return null;
-      }
-
+      // Si no está en cache, construir usuario desde el token decodificado
+      // Esto evita consultas innecesarias a la BD en cada verificación
       const user: AuthUser = {
-        id: dbUser.id,
-        email: dbUser.email,
-        name: dbUser.name,
-        role: dbUser.role,
+        id: decoded.userId,
+        email: decoded.email,
+        name: decoded.name || '',
+        role: decoded.role,
         restaurantId: decoded.restaurantId,
-        restaurantName: restaurant.name,
-        permissions: dbUser.permissions || []
+        restaurantName: decoded.restaurantName || 'Restaurant',
+        permissions: decoded.permissions || []
       };
 
       // Guardar en cache para próximas verificaciones
@@ -276,8 +267,11 @@ export class AuthService {
     const payload = {
       userId: user.id,
       email: user.email,
+      name: user.name,
       role: user.role,
-      restaurantId: user.restaurantId
+      restaurantId: user.restaurantId,
+      restaurantName: user.restaurantName,
+      permissions: user.permissions
     };
 
     return jwt.sign(payload, this.jwtSecret, { expiresIn: '7d' });
