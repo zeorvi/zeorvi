@@ -14,6 +14,7 @@ try {
 }
 import { logger } from '@/lib/logger';
 import authService from '@/lib/auth';
+import { getHardcodedRestaurant } from '@/lib/hardcodedRestaurants';
 
 export async function PUT(
   request: NextRequest,
@@ -154,51 +155,72 @@ export async function GET(
     const restaurantId = resolvedParams.id;
     console.log('🏪 Fetching restaurant:', restaurantId);
 
-    // Obtener restaurante usando SQLite
+    // Detectar entorno
+    const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
     let restaurant;
     
-    try {
-      restaurant = await db.getRestaurant(restaurantId);
+    if (isProduction) {
+      // PRODUCCIÓN: Usar datos hardcoded directamente
+      console.log('🔐 Production environment - using hardcoded restaurant data');
+      restaurant = getHardcodedRestaurant(restaurantId);
       
       if (!restaurant) {
-        // Si no existe el restaurante, crear uno por defecto para rest_003
-        if (restaurantId === 'rest_003') {
-          console.log('🔧 Creando restaurante rest_003 (La Gaviota) automáticamente...');
-          
-          restaurant = await db.createRestaurant({
-            id: 'rest_003',
-            name: 'La Gaviota',
-            slug: 'la-gaviota',
-            owner_email: 'info@lagaviota.com',
-            owner_name: 'María García',
-            phone: '+34 912 345 678',
-            address: 'Paseo Marítimo, 123',
-            city: 'Valencia',
-            country: 'España',
-            config: { theme: 'maritime', features: ['reservations', 'tables', 'menu'] },
-            plan: 'premium',
-            status: 'active'
-          });
-          
-          console.log('✅ Restaurante rest_003 creado automáticamente');
-        } else {
+        return NextResponse.json(
+          { success: false, error: 'Restaurante no encontrado' },
+          { status: 404 }
+        );
+      }
+      
+      console.log('✅ Hardcoded restaurant data loaded:', restaurant.name);
+    } else {
+      // DESARROLLO: Usar SQLite
+      try {
+        restaurant = await db.getRestaurant(restaurantId);
+        
+        if (!restaurant) {
+          // Si no existe el restaurante, crear uno por defecto para rest_003
+          if (restaurantId === 'rest_003') {
+            console.log('🔧 Creando restaurante rest_003 (La Gaviota) automáticamente...');
+            
+            restaurant = await db.createRestaurant({
+              id: 'rest_003',
+              name: 'La Gaviota',
+              slug: 'la-gaviota',
+              owner_email: 'info@lagaviota.com',
+              owner_name: 'María García',
+              phone: '+34 912 345 678',
+              address: 'Paseo Marítimo, 123',
+              city: 'Valencia',
+              country: 'España',
+              config: { theme: 'maritime', features: ['reservations', 'tables', 'menu'] },
+              plan: 'premium',
+              status: 'active'
+            });
+            
+            console.log('✅ Restaurante rest_003 creado automáticamente');
+          } else {
+            return NextResponse.json(
+              { success: false, error: 'Restaurante no encontrado' },
+              { status: 404 }
+            );
+          }
+        }
+        
+        // Contar usuarios del restaurante
+        const user_count = await db.getUserCount(restaurantId);
+        restaurant.user_count = user_count;
+        
+      } catch (sqliteError) {
+        console.error('SQLite error, falling back to hardcoded data:', sqliteError);
+        restaurant = getHardcodedRestaurant(restaurantId);
+        
+        if (!restaurant) {
           return NextResponse.json(
             { success: false, error: 'Restaurante no encontrado' },
             { status: 404 }
           );
         }
       }
-      
-      // Contar usuarios del restaurante
-      const user_count = await db.getUserCount(restaurantId);
-      restaurant.user_count = user_count;
-      
-    } catch (sqliteError) {
-      console.error('SQLite error:', sqliteError);
-      return NextResponse.json(
-        { success: false, error: 'Error accediendo a la base de datos' },
-        { status: 500 }
-      );
     }
 
     logger.info('Restaurant retrieved', { 
