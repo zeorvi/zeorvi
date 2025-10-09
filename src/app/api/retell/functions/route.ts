@@ -57,13 +57,19 @@ export async function POST(req: Request) {
     // Algunos modelos de Retell envían el cuerpo como { name, parameters }
     // Otros como { function: { name, arguments } }
     // Este bloque cubre ambos casos
-    const name = body.name || body.function?.name || body.tool_name || '';
+    const name =
+      body.name ||
+      body.function_name ||
+      body.function?.name ||
+      body.tool_name ||
+      body?.request?.function_name ||
+      '';
     const parameters = body.parameters || body.args || body.arguments || body.function?.arguments || {};
     const restaurantId = 'rest_003';
 
     console.log("📞 Llamada recibida:", name, "Parámetros:", parameters);
 
-    let result;
+    let result: unknown;
 
     switch (name) {
       // ✅ Obtener horarios y días cerrados
@@ -120,12 +126,10 @@ export async function POST(req: Request) {
         const { hora, cliente, telefono, personas, zona, notas } = parameters || {};
         
         // Validar que el teléfono no contenga tokens sin resolver
-        if (telefono && telefono.includes("{{")) {
-          console.warn("⚠️ Teléfono no resuelto, reemplazando por valor nulo:", telefono);
-          return NextResponse.json({
-            success: false,
-            error: "Teléfono no válido o no resuelto correctamente."
-          }, { status: 400 });
+        let telefonoFinal = telefono;
+        if (!telefonoFinal || telefonoFinal.includes("{{")) {
+          telefonoFinal = null;
+          console.warn("⚠️ Teléfono no resuelto, se guardará como null temporalmente.");
         }
         
         // Normalizar fecha (igual que en verificar_disponibilidad)
@@ -145,7 +149,7 @@ export async function POST(req: Request) {
           fecha,
           hora,
           cliente,
-          telefono,
+          telefonoFinal,
           personas,
           zona,
           notas
@@ -188,11 +192,11 @@ export async function POST(req: Request) {
       restaurantId,
       result
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error('❌ Error en Retell Functions:', err);
     return NextResponse.json({
       success: false,
-      error: err.message || 'Error interno del servidor'
+      error: err instanceof Error ? err.message : 'Error interno del servidor'
     }, { status: 500 });
   }
 }

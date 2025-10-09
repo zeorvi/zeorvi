@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`🏪 Procesando función ${function_name} para restaurante ${restaurantId}`);
 
-    let result: any;
+    let result: unknown;
 
     switch (function_name) {
       case 'verificar_disponibilidad':
