@@ -444,7 +444,7 @@ export class GoogleSheetsService {
       // Filtrar mesas por zona y capacidad (tolerante a mayúsculas/minúsculas)
       let mesasDisponibles = mesas.filter(mesa => {
         const estadoOk = String(mesa.Estado || '').toLowerCase() === 'libre'; // tolera mayúsculas/minúsculas
-        const zonaOk = !zona || String(mesa.Zona || '').toLowerCase() === String(zona).toLowerCase();
+        const zonaOk = !zona || zona.trim() === '' || String(mesa.Zona || '').toLowerCase() === String(zona).toLowerCase();
         return (mesa.Capacidad >= personas) && estadoOk && zonaOk;
       });
       
@@ -702,7 +702,7 @@ export class GoogleSheetsService {
       Cliente: cliente,
       Telefono: telefono,
       Personas: personas,
-      Zona: zona || 'Salón Principal',
+      Zona: zona || '', // Sin zona por defecto, el sistema elegirá automáticamente
       Mesa: '',
       Estado: 'confirmada' as const,
       Notas: notas || ''
