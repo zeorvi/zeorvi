@@ -17,7 +17,7 @@ export interface HardcodedUser {
 }
 
 // Contraseña: admin123
-const DEFAULT_PASSWORD_HASH = '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5/Z4QJ3L8Hvzq';
+const DEFAULT_PASSWORD_HASH = '$2b$12$mgwC.JbdWLwf5fEit7lSeOLfLncb/CpZg4ty3/BvGBHitLK9DkQLe';
 
 export const HARDCODED_USERS: HardcodedUser[] = [
   {
