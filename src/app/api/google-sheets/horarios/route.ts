@@ -33,12 +33,9 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    if (!fecha || !hora) {
-      return NextResponse.json({
-        success: false,
-        error: 'fecha y hora son requeridos'
-      }, { status: 400 });
-    }
+    // Usar fecha y hora actuales si no se proporcionan
+    const fechaFinal = fecha || new Date().toISOString().split('T')[0];
+    const horaFinal = hora || new Date().toTimeString().slice(0, 5);
 
     // Detectar entorno
     const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
@@ -59,7 +56,7 @@ export async function GET(request: NextRequest) {
         };
       } else {
         // Verificar SOLO el día de la semana (NO la hora)
-        const fechaObj = new Date(`${fecha}T12:00:00`);
+        const fechaObj = new Date(`${fechaFinal}T12:00:00`);
         const diaSemana = fechaObj.toLocaleDateString('es-ES', { weekday: 'long' }).toLowerCase();
         
         console.log(`📅 Día de la semana: ${diaSemana}, Días cerrados: ${config.diasCerrados.join(', ')}`);
@@ -88,8 +85,8 @@ export async function GET(request: NextRequest) {
       console.log('🔧 Development environment - using Google Sheets');
       status = await GoogleSheetsService.verificarRestauranteAbierto(
         restaurantId,
-        fecha,
-        hora
+        fechaFinal,
+        horaFinal
       );
     }
 
@@ -97,8 +94,8 @@ export async function GET(request: NextRequest) {
       success: true,
       status,
       restaurantId,
-      fecha,
-      hora
+      fecha: fechaFinal,
+      hora: horaFinal
     });
 
   } catch (error) {

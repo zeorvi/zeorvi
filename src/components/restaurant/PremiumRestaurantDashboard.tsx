@@ -102,11 +102,10 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
         if (statusData.success) {
           setRestaurantStatus(statusData.status);
           
-          // Si el restaurante está cerrado, no mostrar reservas
+          // Si el restaurante está cerrado, mostrar mensaje pero seguir cargando datos
           if (!statusData.status.abierto) {
-            console.log('🏪 Restaurante cerrado, no cargando reservas');
-            setReservations([]);
-            return;
+            console.log('🏪 Restaurante cerrado, pero cargando datos de todas formas');
+            // No return aquí - continuar cargando reservas y mesas
           }
         }
       }

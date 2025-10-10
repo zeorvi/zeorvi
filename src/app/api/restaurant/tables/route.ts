@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { logger } from '@/lib/logger';
-import { productionDb } from '@/lib/database/production';
+import { GoogleSheetsService } from '@/lib/googleSheetsService';
 
 // GET /api/restaurant/tables - Obtener mesas del restaurante
 export async function GET(request: NextRequest) {
@@ -15,9 +14,12 @@ export async function GET(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const tables = await productionDb.getTableStates(restaurantId);
+    console.log('📊 [Restaurant Tables] Obteniendo mesas para:', restaurantId);
     
-    logger.info(`Retrieved ${tables.length} tables for restaurant ${restaurantId}`);
+    // En producción, usar Google Sheets
+    const tables = await GoogleSheetsService.getMesas(restaurantId);
+    
+    console.log(`✅ [Restaurant Tables] ${tables.length} mesas obtenidas para ${restaurantId}`);
 
     return NextResponse.json({
       success: true,
@@ -25,7 +27,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    logger.error('Error getting restaurant tables', error);
+    console.error('❌ [Restaurant Tables] Error:', error);
     return NextResponse.json({
       success: false,
       error: 'Error al obtener mesas del restaurante'

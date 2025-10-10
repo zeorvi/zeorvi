@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getRestaurantById } from '@/lib/restaurantServicePostgres';
 import { toast } from 'sonner';
-import { laGaviotaConfig, otroRestauranteConfig } from '@/lib/restaurantConfigs';
 
 // Definir el tipo TableState localmente
 export interface TableState {
@@ -28,7 +26,7 @@ export function useRestaurantTables(restaurantId: string) {
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
-  // Cargar mesas iniciales desde configuración predefinida o base de datos
+  // Cargar mesas desde el endpoint /api/restaurant/tables
   const loadTables = useCallback(async () => {
     if (!restaurantId) {
       console.log('❌ No restaurantId provided');
@@ -37,69 +35,43 @@ export function useRestaurantTables(restaurantId: string) {
     
     setIsLoading(true);
     try {
-      console.log('🔍 Loading tables for restaurant:', restaurantId);
-      const restaurantData = await getRestaurantById(restaurantId);
-      console.log('📊 Restaurant data received:', restaurantData);
+      console.log('🔍 [useRestaurantTables] Loading tables for restaurant:', restaurantId);
       
-      // Verificar si hay configuración de mesas en el restaurante
-      const tablesConfig = restaurantData?.config?.tables;
+      // Llamar al endpoint /api/restaurant/tables
+      const response = await fetch(`/api/restaurant/tables?restaurantId=${restaurantId}`);
       
-      if (tablesConfig && Array.isArray(tablesConfig)) {
-        console.log('✅ Tables found in database config:', tablesConfig);
-        
-        // Convertir las mesas del restaurante al formato con estado
-        const tablesWithStatus: TableStatus[] = tablesConfig.map((table: any) => ({
-          id: table.id || `table-${Math.random().toString(36).substr(2, 9)}`,
-          name: table.name || `Mesa ${table.id}`,
-          capacity: table.capacity || 4,
-          location: table.location || 'Sala principal',
-          status: 'available', // Por defecto todas libres
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      console.log('📊 [useRestaurantTables] API response:', result);
+      
+      if (result.success && result.data) {
+        // Convertir las mesas de Google Sheets al formato esperado
+        const tablesWithStatus: TableStatus[] = result.data.map((table: any) => ({
+          id: table.ID || `table-${Math.random().toString(36).substr(2, 9)}`,
+          name: table.ID || `Mesa ${table.ID}`,
+          capacity: table.Capacidad || 4,
+          location: table.Zona || 'Sala principal',
+          status: table.Estado === 'Libre' ? 'available' : 
+                  table.Estado === 'Ocupada' ? 'occupied' : 
+                  table.Estado === 'Reservada' ? 'reserved' : 'available',
           lastUpdated: new Date().toISOString(),
           updatedBy: 'system'
         }));
         
+        console.log('✅ [useRestaurantTables] Tables converted:', tablesWithStatus);
         setTables(tablesWithStatus);
         setLastUpdate(new Date());
       } else {
-        // Si no hay configuración en la base de datos, usar configuraciones predefinidas
-        console.log('⚠️ No tables configuration found in database, using predefined configs');
-        
-        let predefinedConfig;
-        if (restaurantId === 'rest_003' || restaurantData?.name?.toLowerCase().includes('gaviota')) {
-          predefinedConfig = laGaviotaConfig;
-          console.log('🏖️ Using La Gaviota predefined config');
-        } else if (restaurantId === 'rest_001' || restaurantData?.name?.toLowerCase().includes('buen sabor') || restaurantData?.name?.toLowerCase().includes('parrilla')) {
-          predefinedConfig = otroRestauranteConfig;
-          console.log('🍽️ Using El Buen Sabor/La Parrilla predefined config');
-        }
-        
-        if (predefinedConfig && predefinedConfig.tables) {
-          console.log('✅ Tables found in predefined config:', predefinedConfig.tables.length);
-          console.log('📋 Predefined tables:', predefinedConfig.tables);
-          
-          // Convertir las mesas predefinidas al formato con estado
-          const tablesWithStatus: TableStatus[] = predefinedConfig.tables.map((table: any) => ({
-            id: table.id || `table-${Math.random().toString(36).substr(2, 9)}`,
-            name: table.name || `Mesa ${table.id}`,
-            capacity: table.capacity || 4,
-            location: table.location || 'Sala principal',
-            status: 'available', // Por defecto todas libres
-            lastUpdated: new Date().toISOString(),
-            updatedBy: 'system'
-          }));
-          
-          console.log('🔄 Converted tables:', tablesWithStatus);
-          setTables(tablesWithStatus);
-          setLastUpdate(new Date());
-          console.log('✅ Tables set successfully');
-        } else {
-          console.log('❌ No predefined config found for restaurant');
-          setTables([]);
-        }
+        console.log('⚠️ [useRestaurantTables] No tables data in response');
+        setTables([]);
       }
     } catch (error) {
-      console.error('❌ Error loading tables:', error);
+      console.error('❌ [useRestaurantTables] Error loading tables:', error);
       toast.error('Error al cargar las mesas');
+      setTables([]);
     } finally {
       setIsLoading(false);
     }
