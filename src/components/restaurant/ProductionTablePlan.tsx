@@ -413,12 +413,12 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 pt-4 sm:pt-6">
       {/* Header con estado de conexión */}
       <div className="flex flex-col gap-3 sm:gap-4">
         {/* Título principal */}
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
             Control de Mesas
           </h2>
         </div>
