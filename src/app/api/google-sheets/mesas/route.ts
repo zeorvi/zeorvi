@@ -34,10 +34,10 @@ function getHardcodedMesas(restaurantId: string) {
 
 // GET - Obtener mesas del restaurante
 export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const restaurantId = searchParams.get('restaurantId');
+  
   try {
-    const { searchParams } = new URL(request.url);
-    const restaurantId = searchParams.get('restaurantId');
-
     if (!restaurantId) {
       return NextResponse.json({
         success: false,
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
       success: false,
       error: 'Error conectando con Google Sheets',
       details: error instanceof Error ? error.message : 'Error desconocido',
-      restaurantId
+      restaurantId: restaurantId || 'unknown'
     }, { status: 500 });
   }
 }
