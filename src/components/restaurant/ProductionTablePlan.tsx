@@ -418,7 +418,7 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
       <div className="flex flex-col gap-3 sm:gap-4">
         {/* Título principal */}
         <div className="flex items-center justify-between">
-          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
+          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white ml-3 sm:ml-4">
             Control de Mesas
           </h2>
         </div>
