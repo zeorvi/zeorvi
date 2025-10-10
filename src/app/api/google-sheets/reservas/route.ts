@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleSheetsService, Reserva } from '@/lib/googleSheetsService';
 
-// Helper para timeout rápido
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
-  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
-  return Promise.race([promise, timeout]);
-}
-
 // GET - Obtener reservas
 export async function GET(request: NextRequest) {
   try {

@@ -1,36 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleSheetsService } from '@/lib/googleSheetsService';
-import { laGaviotaConfig, otroRestauranteConfig } from '@/lib/restaurantConfigs';
-
-// Helper para timeout rápido
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
-  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
-  return Promise.race([promise, timeout]);
-}
-
-// Mesas hardcoded para fallback cuando Google Sheets falle
-function getHardcodedMesas(restaurantId: string) {
-  if (restaurantId === 'rest_003') {
-    return laGaviotaConfig.tables.map(table => ({
-      ID: table.id,
-      Zona: table.location,
-      Capacidad: table.capacity,
-      Turnos: 'Almuerzo,Cena',
-      Estado: 'Libre',
-      Notas: table.notes || ''
-    }));
-  } else if (restaurantId === 'rest_001') {
-    return otroRestauranteConfig.tables.map(table => ({
-      ID: table.id,
-      Zona: table.location,
-      Capacidad: table.capacity,
-      Turnos: 'Almuerzo,Cena',
-      Estado: 'Libre',
-      Notas: table.notes || ''
-    }));
-  }
-  return [];
-}
 
 // GET - Obtener mesas del restaurante
 export async function GET(request: NextRequest) {
