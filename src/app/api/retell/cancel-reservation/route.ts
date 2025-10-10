@@ -99,11 +99,15 @@ export async function GET(request: NextRequest) {
       people: res.people,
       tableId: res.tableId,
       status: res.status,
-      date: new Date(res.date).toLocaleDateString('es-ES', { 
-        weekday: 'long', 
-        day: 'numeric', 
-        month: 'long' 
-      }),
+      date: (() => {
+        const fecha = new Date(`${res.date}T00:00:00`);
+        return fecha.toLocaleDateString('es-ES', { 
+          weekday: 'long', 
+          day: 'numeric', 
+          month: 'long',
+          timeZone: 'Europe/Madrid'
+        });
+      })(),
       notes: res.notes
     }));
 
@@ -238,7 +242,15 @@ export async function PUT(request: NextRequest) {
     });
 
     const changes = [];
-    if (newDate) changes.push(`fecha a ${new Date(newDate).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}`);
+    if (newDate) changes.push(`fecha a ${(() => {
+      const fecha = new Date(`${newDate}T00:00:00`);
+      return fecha.toLocaleDateString('es-ES', { 
+        weekday: 'long', 
+        day: 'numeric', 
+        month: 'long',
+        timeZone: 'Europe/Madrid'
+      });
+    })()}`);
     if (newTime) changes.push(`hora a las ${newTime}`);
     if (newPeople) changes.push(`${newPeople} personas`);
 

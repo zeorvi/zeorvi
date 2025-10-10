@@ -108,42 +108,80 @@ export async function POST(req: Request) {
 
       // ✅ Crear reserva
       case 'crear_reserva': {
-        const { fecha, hora, cliente, telefono, personas, zona, notas } = parameters || {};
-        
-        // 📅 Usar nueva función de fecha con zona horaria española
-        const fechaISO = obtenerFecha(fecha || 'mañana');
-        console.log("📅 Fecha normalizada:", fechaISO, "desde:", fecha);
+        // 🧩 1️⃣ Detecta si viene call_id o call.from_number
+        const call = body.call || {};
+        const args = parameters || body || {};
 
-        // 🔍 1️⃣ Intentamos obtener el número de teléfono de TODAS las formas posibles
-        const telefonoFinal =
-          telefono ||
-          body.phone ||
-          body.caller_phone_number ||
-          body.call?.from_number ||
-          body.call?.caller_number ||
-          body.session?.caller_phone ||
-          body.session?.from ||
-          body?.caller ||
-          body?.metadata?.caller_phone_number ||
-          "no_disponible";
+        // 🧠 2️⃣ Recupera el teléfono directamente del objeto de llamada
+        const telefono =
+          args.telefono && args.telefono !== "caller_phone_number"
+            ? args.telefono
+            : call.from_number ||
+              body.caller_phone_number ||
+              body.metadata?.caller_number ||
+              body.call?.caller_number ||
+              body.session?.caller_phone ||
+              body.session?.from ||
+              body?.caller ||
+              body?.metadata?.caller_phone_number ||
+              "no_disponible";
 
-        // 🧩 2️⃣ Si no hay número pero hay cliente con nombre, añade algo identificativo
-        const telefonoSeguro = telefonoFinal === "no_disponible"
-          ? `sin_numero_${Date.now()}`
-          : telefonoFinal;
+        // 📅 3️⃣ Corrige fecha (por si usa "mañana" / "hoy")
+        const zona = "Europe/Madrid";
+        const fechaBase = new Date();
+        let fechaFinal;
 
-        console.log("📞 Teléfono procesado:", telefonoSeguro, "original:", telefono);
+        if (args.fecha === "mañana" || args.fecha === "tomorrow") {
+          const manana = new Date(fechaBase.getTime() + 24 * 60 * 60 * 1000);
+          fechaFinal = manana.toLocaleDateString("es-ES", { timeZone: zona });
+        } else if (args.fecha === "hoy" || args.fecha === "today") {
+          fechaFinal = fechaBase.toLocaleDateString("es-ES", { timeZone: zona });
+        } else {
+          // Si viene en formato ISO, convertir a formato español
+          if (/^\d{4}-\d{2}-\d{2}$/.test(args.fecha)) {
+            const fecha = new Date(`${args.fecha}T00:00:00`);
+            fechaFinal = fecha.toLocaleDateString("es-ES", { timeZone: zona });
+          } else {
+            fechaFinal = args.fecha;
+          }
+        }
 
+        // 💾 4️⃣ Construye la reserva final
+        const reserva = {
+          call_id: call.id || body.call_id || "sin_id",
+          cliente: args.cliente || "Desconocido",
+          telefono,
+          fecha: fechaFinal,
+          hora: args.hora,
+          personas: args.personas,
+          zona: args.zona || "",
+          notas: args.notas || "",
+          estado: "confirmada",
+          creado_en: new Date().toISOString(),
+          restaurantId
+        };
+
+        console.log("✅ Reserva construida:", reserva);
+
+        // 🔥 5️⃣ Guarda en Google Sheets
         result = await GoogleSheetsService.crearReserva(
           restaurantId,
-          fechaISO,
-          hora,
-          cliente || "Desconocido",
-          telefonoSeguro,
-          Number(personas) || 1,
-          zona,
-          notas
+          fechaFinal,
+          args.hora,
+          args.cliente || "Desconocido",
+          telefono,
+          Number(args.personas) || 1,
+          args.zona || "",
+          args.notas || ""
         );
+
+        // Añadir información adicional al resultado
+        if (result && typeof result === 'object' && 'success' in result && result.success) {
+          (result as { [key: string]: unknown }).reserva = reserva;
+          (result as { [key: string]: unknown }).call_id = reserva.call_id;
+        }
+
+        console.log("✅ Reserva guardada:", result);
         break;
       }
 

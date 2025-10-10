@@ -49,24 +49,34 @@ export default function DailyAgenda({ restaurantId, restaurantTables }: DailyAge
           if (data.success) {
             // Convertir formato de Google Sheets al formato del dashboard
             const formattedReservations = data.reservas.map((reserva: {
+              ID?: string;
+              Fecha?: string;
+              Hora?: string;
+              Cliente?: string;
+              Telefono?: string;
+              Personas?: number;
+              Mesa?: string;
+              Estado?: string;
+              Notas?: string;
+              // Campos alternativos (minúsculas)
               id?: string;
-              hora: string;
-              cliente: string;
-              personas: number;
+              hora?: string;
+              cliente?: string;
+              personas?: number;
               mesa?: string;
-              estado: string;
+              estado?: string;
               notas?: string;
               telefono?: string;
             }) => ({
-              id: reserva.id || `res_${Date.now()}_${Math.random()}`,
-              time: reserva.hora,
-              clientName: reserva.cliente,
-              partySize: reserva.personas,
-              table: reserva.mesa || 'Por asignar',
-              status: reserva.estado === 'confirmada' ? 'confirmed' : 
-                     reserva.estado === 'pendiente' ? 'pending' : 'cancelled',
-              notes: reserva.notas || '',
-              phone: reserva.telefono || ''
+              id: reserva.ID || reserva.id || `res_${Date.now()}_${Math.random()}`,
+              time: reserva.Hora || reserva.hora || '',
+              clientName: reserva.Cliente || reserva.cliente || 'Sin nombre',
+              partySize: reserva.Personas || reserva.personas || 1,
+              table: reserva.Mesa || reserva.mesa || 'Por asignar',
+              status: (reserva.Estado || reserva.estado || '').toLowerCase() === 'confirmada' ? 'confirmed' : 
+                     (reserva.Estado || reserva.estado || '').toLowerCase() === 'pendiente' ? 'pending' : 'cancelled',
+              notes: reserva.Notas || reserva.notas || '',
+              phone: reserva.Telefono || reserva.telefono || ''
             }));
             
             setReservations(formattedReservations);
@@ -205,7 +215,7 @@ export default function DailyAgenda({ restaurantId, restaurantTables }: DailyAge
                       <div className="flex items-center space-x-3 text-xs">
                         <span className="text-slate-600 font-medium">{reservation.partySize} personas</span>
                         <span className="text-slate-400">•</span>
-                        <span className="text-slate-500 font-medium">{reservation.phone}</span>
+                        <span className="text-slate-500 font-medium">{reservation.phone || "No disponible"}</span>
                       </div>
                       {reservation.notes && (
                         <p className="text-slate-500 italic text-xs max-w-md">{reservation.notes}</p>
@@ -215,9 +225,18 @@ export default function DailyAgenda({ restaurantId, restaurantTables }: DailyAge
                   
                   {/* Status y Acciones más compactas */}
                   <div className="flex items-center space-x-3">
-                    <Badge className={`px-2 py-1 text-xs font-semibold rounded-md ${getStatusColor(reservation.status)}`}>
-                      {getStatusText(reservation.status)}
-                    </Badge>
+                    <span
+                      className={
+                        reservation.status === "confirmed"
+                          ? "text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-semibold"
+                          : reservation.status === "pending"
+                          ? "text-amber-600 bg-amber-50 px-2 py-1 rounded-full text-xs font-semibold"
+                          : "text-red-600 bg-red-50 px-2 py-1 rounded-full text-xs font-semibold"
+                      }
+                    >
+                      {reservation.status === "confirmed" ? "Confirmada" : 
+                       reservation.status === "pending" ? "Pendiente" : "Cancelada"}
+                    </span>
                     
                     <div className="flex space-x-2">
                       {reservation.status === 'pending' && (

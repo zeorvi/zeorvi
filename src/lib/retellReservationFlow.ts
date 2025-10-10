@@ -241,11 +241,13 @@ export class RetellReservationFlow {
    * Generar mensaje de confirmación
    */
   private static generateConfirmationMessage(request: ReservationRequest, reservation: any): string {
-    const dateFormatted = new Date(request.date).toLocaleDateString('es-ES', {
+    const fecha = new Date(`${request.date}T00:00:00`);
+    const dateFormatted = fecha.toLocaleDateString('es-ES', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
+      timeZone: 'Europe/Madrid'
     });
 
     let message = `¡Perfecto! Su reserva ha sido confirmada. `;

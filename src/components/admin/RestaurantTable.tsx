@@ -306,7 +306,17 @@ export default function RestaurantTable({
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-medium text-gray-900">
-                      {new Date(reservation.date).toLocaleDateString('es-ES')} a las {reservation.time}
+                      {(() => {
+                        const fecha = new Date(`${reservation.date}T00:00:00`);
+                        const fechaLocal = fecha.toLocaleDateString("es-ES", {
+                          weekday: "long",
+                          day: "2-digit",
+                          month: "long",
+                          year: "numeric",
+                          timeZone: "Europe/Madrid"
+                        });
+                        return fechaLocal;
+                      })()} a las {reservation.time}
                     </div>
                     <div className="text-sm text-gray-500">
                       {reservation.partySize} personas • {reservation.tableName}

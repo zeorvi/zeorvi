@@ -396,7 +396,16 @@ EJEMPLOS DE USO COMPLETO:
 
 RECONOCIMIENTO DE FECHAS INTELIGENTE:
 ✅ Cliente: "Quiero una mesa para mañana"
-   → Agente: "Perfecto, para mañana ${new Date(Date.now() + 86400000).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}. ¿Para cuántas personas?"
+   → Agente: "Perfecto, para mañana ${(() => {
+     const fecha = new Date(Date.now() + 86400000);
+     fecha.setHours(0, 0, 0, 0);
+     return fecha.toLocaleDateString('es-ES', { 
+       weekday: 'long', 
+       day: 'numeric', 
+       month: 'long',
+       timeZone: 'Europe/Madrid'
+     });
+   })()}. ¿Para cuántas personas?"
 
 ✅ Cliente: "El viernes por la noche"
    → Agente: "Excelente, el viernes. ¿A qué hora prefiere? ¿8 de la noche, 8:30?"

@@ -447,7 +447,17 @@ export default function ReservedTablesManagement({ restaurantId }: { restaurantI
 
                 <div className="flex items-center space-x-2 text-sm text-gray-600">
                   <Calendar className="h-4 w-4" />
-                  <span>{new Date(table.reservation.date).toLocaleDateString('es-ES')} a las {table.reservation.time}</span>
+                  <span>{(() => {
+                    const fecha = new Date(`${table.reservation.date}T00:00:00`);
+                    const fechaLocal = fecha.toLocaleDateString("es-ES", {
+                      weekday: "long",
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                      timeZone: "Europe/Madrid"
+                    });
+                    return fechaLocal;
+                  })()} a las {table.reservation.time}</span>
                 </div>
 
                 {table.reservation.notes && (

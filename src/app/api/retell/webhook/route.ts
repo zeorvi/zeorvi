@@ -276,26 +276,73 @@ async function extractReservationRequest(
       return null;
     }
 
+    // ✅ NORMALIZAR ZONA HORARIA
+    const zona = "Europe/Madrid";
+    const fechaBase = new Date();
+    let fechaReserva;
+
+    const fechaTexto = String(analysis?.date || analysis?.fecha || 'mañana');
+    
+    if (fechaTexto === "mañana" || fechaTexto === "tomorrow") {
+      const manana = new Date(fechaBase.getTime() + 24 * 60 * 60 * 1000);
+      fechaReserva = manana.toLocaleDateString("es-ES", { timeZone: zona });
+    } else if (fechaTexto === "hoy" || fechaTexto === "today") {
+      fechaReserva = fechaBase.toLocaleDateString("es-ES", { timeZone: zona });
+    } else {
+      // Si viene en formato ISO, convertir a formato español
+      if (/^\d{4}-\d{2}-\d{2}$/.test(fechaTexto)) {
+        const fecha = new Date(`${fechaTexto}T00:00:00`);
+        fechaReserva = fecha.toLocaleDateString("es-ES", { timeZone: zona });
+      } else {
+        fechaReserva = fechaTexto;
+      }
+    }
+
+    // ✅ GARANTIZAR QUE EL TELÉFONO SE CAPTURE SIEMPRE
+    const telefono =
+      callPhoneNumbers.get(callId) || // Prioridad 1: número de la llamada
+      String(analysis?.phone || analysis?.telefono || '') ||
+      String(analysis?.caller_phone_number || '') ||
+      String((analysis?.call as any)?.from_number || '') ||
+      String((analysis?.call as any)?.caller_number || '') ||
+      String((analysis?.session as any)?.caller_phone || '') ||
+      String((analysis?.session as any)?.from || '') ||
+      "no_disponible";
+
+    // ✅ NORMALIZAR ESTADO
+    const estado = (analysis?.estado || "confirmada").toString().toLowerCase();
+
     // Extraer información de la reserva
     const customerName = String(analysis?.customer_name || analysis?.name || 'Cliente');
-    // Obtener el número de teléfono del cliente automáticamente desde la llamada
-    const phone = callPhoneNumbers.get(callId) || String(analysis?.phone || analysis?.telefono || '');
     const people = analysis?.people || analysis?.personas || analysis?.guests || 2;
-    const date = String(analysis?.date || analysis?.fecha || new Date().toISOString().split('T')[0]);
     const time = String(analysis?.time || analysis?.hora || '20:00');
     const specialRequests = String(analysis?.requests || analysis?.solicitudes || analysis?.notes || '');
 
-    console.log(`📞 Teléfono obtenido automáticamente para restaurante ${restaurantId}: ${phone}`);
+    console.log(`📞 Teléfono obtenido para restaurante ${restaurantId}: ${telefono}`);
+    console.log(`📅 Fecha normalizada para restaurante ${restaurantId}: ${fechaReserva}`);
 
-    // Obtener spreadsheet ID del restaurante
-    const spreadsheetId = `spreadsheet_${restaurantId}`;
+    // ✅ CREAR OBJETO DE RESERVA NORMALIZADO
+    const reserva = {
+      cliente: customerName,
+      fecha: fechaReserva,
+      hora: time,
+      personas: parseInt(people.toString()),
+      mesa: String(analysis?.mesa || analysis?.table || ''),
+      telefono,
+      estado,
+      creado_en: new Date().toISOString(),
+      restaurantId,
+      callId
+    };
+
+    console.log("✅ Reserva normalizada:", reserva);
 
     // Procesar la reserva usando las nuevas funciones específicas
     try {
       // 1. Verificar disponibilidad
       const disponibilidad = await RetellGoogleSheetsFunctions.verificarDisponibilidad(
         {
-          fecha: date,
+          fecha: fechaReserva,
           hora: time,
           personas: parseInt(people.toString())
         },
@@ -309,10 +356,10 @@ async function extractReservationRequest(
       if (disponibilidad.disponible) {
         const reservaResult = await RetellGoogleSheetsFunctions.crearReserva(
           {
-            fecha: date,
+            fecha: fechaReserva,
             hora: time,
             cliente: customerName,
-            telefono: phone,
+            telefono: telefono,
             personas: parseInt(people.toString()),
             notas: specialRequests
           },
@@ -324,21 +371,24 @@ async function extractReservationRequest(
         return {
           success: true,
           message: reservaResult.mensaje,
-          numeroReserva: reservaResult.numeroReserva
+          numeroReserva: reservaResult.numeroReserva,
+          reserva: reserva
         };
       } else {
         console.log('❌ No hay disponibilidad para', restaurantId, ':', disponibilidad.mensaje);
         return {
           success: false,
           message: disponibilidad.mensaje,
-          alternativas: disponibilidad.alternativas
+          alternativas: disponibilidad.alternativas,
+          reserva: reserva
         };
       }
     } catch (functionError) {
       console.error('❌ Error en funciones de Google Sheets para', restaurantId, ':', functionError);
       return {
         success: false,
-        message: 'Error procesando la reserva. Por favor, inténtelo de nuevo.'
+        message: 'Error procesando la reserva. Por favor, inténtelo de nuevo.',
+        reserva: reserva
       };
     }
 
