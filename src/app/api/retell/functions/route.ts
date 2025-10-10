@@ -106,82 +106,92 @@ export async function POST(req: Request) {
         break;
       }
 
-      // ✅ Crear reserva
+      // ✅ Crear reserva - A PRUEBA DE TODO
       case 'crear_reserva': {
-        // 🧩 1️⃣ Detecta si viene call_id o call.from_number
-        const call = body.call || {};
-        const args = parameters || body || {};
+        try {
+          const args = parameters || body || {};
+          const call = body.call || {};
 
-        // 🧠 2️⃣ Recupera el teléfono directamente del objeto de llamada
-        const telefono =
-          args.telefono && args.telefono !== "caller_phone_number"
-            ? args.telefono
-            : call.from_number ||
-              body.caller_phone_number ||
-              body.metadata?.caller_number ||
-              body.call?.caller_number ||
-              body.session?.caller_phone ||
-              body.session?.from ||
-              body?.caller ||
-              body?.metadata?.caller_phone_number ||
-              "no_disponible";
+          // 🧭 Zona horaria correcta
+          const zona = "Europe/Madrid";
 
-        // 📅 3️⃣ Corrige fecha (por si usa "mañana" / "hoy")
-        const zona = "Europe/Madrid";
-        const fechaBase = new Date();
-        let fechaFinal;
-
-        if (args.fecha === "mañana" || args.fecha === "tomorrow") {
-          const manana = new Date(fechaBase.getTime() + 24 * 60 * 60 * 1000);
-          fechaFinal = manana.toLocaleDateString("es-ES", { timeZone: zona });
-        } else if (args.fecha === "hoy" || args.fecha === "today") {
-          fechaFinal = fechaBase.toLocaleDateString("es-ES", { timeZone: zona });
-        } else {
-          // Si viene en formato ISO, convertir a formato español
-          if (/^\d{4}-\d{2}-\d{2}$/.test(args.fecha)) {
-            const fecha = new Date(`${args.fecha}T00:00:00`);
-            fechaFinal = fecha.toLocaleDateString("es-ES", { timeZone: zona });
+          // ✅ 1️⃣ Normalizar fecha con luxon
+          let fechaFinal: string;
+          const fechaInput = args.fecha || "mañana";
+          
+          if (fechaInput === "mañana" || fechaInput === "tomorrow") {
+            fechaFinal = DateTime.now().setZone(zona).plus({ days: 1 }).toISODate() || '';
+          } else if (fechaInput === "hoy" || fechaInput === "today") {
+            fechaFinal = DateTime.now().setZone(zona).toISODate() || '';
           } else {
-            fechaFinal = args.fecha;
+            // Si viene "2025-10-11" o similar, lo validamos
+            const f = DateTime.fromISO(fechaInput, { zone: zona });
+            if (f.isValid) {
+              fechaFinal = f.toISODate() || '';
+            } else {
+              throw new Error(`Fecha inválida: ${fechaInput}`);
+            }
           }
+
+          // ✅ 2️⃣ Recuperar número de teléfono
+          const telefono =
+            args.telefono && args.telefono !== "" && args.telefono !== "caller_phone_number"
+              ? args.telefono
+              : call.from_number ||
+                body.caller_phone_number ||
+                body.metadata?.caller_number ||
+                (body.call as { from_number?: string })?.from_number ||
+                (body.session as { caller_phone?: string })?.caller_phone ||
+                "no_disponible";
+
+          // ✅ 3️⃣ Construir la reserva
+          const reserva = {
+            cliente: args.cliente || "Desconocido",
+            fecha: fechaFinal,
+            hora: args.hora || "",
+            personas: Number(args.personas) || 1,
+            telefono,
+            mesa: args.mesa || "",
+            zona: args.zona || "",
+            notas: args.notas || "",
+            estado: "confirmada",
+            call_id: call.id || body.call_id || "",
+            creado_en: new Date().toISOString(),
+            restaurantId
+          };
+
+          console.log("✅ Reserva construida:", reserva);
+
+          // 💾 4️⃣ Guardar en Google Sheets
+          const sheetResult = await GoogleSheetsService.crearReserva(
+            restaurantId,
+            fechaFinal,
+            reserva.hora,
+            reserva.cliente,
+            telefono,
+            reserva.personas,
+            reserva.zona,
+            reserva.notas
+          );
+
+          console.log("✅ Reserva guardada en Sheets:", sheetResult);
+
+          // 🟢 5️⃣ Respuesta para Retell
+          result = {
+            success: true,
+            mensaje: `Reserva confirmada para ${reserva.cliente} el ${reserva.fecha} a las ${reserva.hora}`,
+            reserva,
+            call_id: reserva.call_id
+          };
+
+        } catch (err) {
+          console.error("❌ Error creando reserva:", err);
+          result = {
+            success: false,
+            error: err instanceof Error ? err.message : "Error creando la reserva",
+            mensaje: "No se pudo crear la reserva"
+          };
         }
-
-        // 💾 4️⃣ Construye la reserva final
-        const reserva = {
-          call_id: call.id || body.call_id || "sin_id",
-          cliente: args.cliente || "Desconocido",
-          telefono,
-          fecha: fechaFinal,
-          hora: args.hora,
-          personas: args.personas,
-          zona: args.zona || "",
-          notas: args.notas || "",
-          estado: "confirmada",
-          creado_en: new Date().toISOString(),
-          restaurantId
-        };
-
-        console.log("✅ Reserva construida:", reserva);
-
-        // 🔥 5️⃣ Guarda en Google Sheets
-        result = await GoogleSheetsService.crearReserva(
-          restaurantId,
-          fechaFinal,
-          args.hora,
-          args.cliente || "Desconocido",
-          telefono,
-          Number(args.personas) || 1,
-          args.zona || "",
-          args.notas || ""
-        );
-
-        // Añadir información adicional al resultado
-        if (result && typeof result === 'object' && 'success' in result && result.success) {
-          (result as { [key: string]: unknown }).reserva = reserva;
-          (result as { [key: string]: unknown }).call_id = reserva.call_id;
-        }
-
-        console.log("✅ Reserva guardada:", result);
         break;
       }
 
