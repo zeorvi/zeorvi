@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { Clock, Users, Search, Filter, Calendar, Settings, Sun, Moon, Wifi, WifiOff, MapPin } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { useRestaurantTables } from '@/hooks/useRestaurantTables';
 
 // Interfaces para el sistema de producción
 interface TableState {
@@ -63,8 +64,35 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
   const { theme } = useTheme();
   const isDark = isDarkMode || theme === 'dark';
   
-  // Estados principales
-  const [tables, setTables] = useState<TableState[]>([]);
+  // Usar el hook de mesas
+  const { 
+    tables: hookTables, 
+    isLoading: hookIsLoading,
+    getMetrics: getHookMetrics,
+    updateTableStatus
+  } = useRestaurantTables(restaurantId);
+  
+  // Convertir las mesas del hook al formato esperado
+  const tables: TableState[] = hookTables.map(table => ({
+    id: table.id,
+    restaurantId: restaurantId,
+    tableId: table.id,
+    tableName: table.name,
+    capacity: table.capacity,
+    location: table.location || 'Sala principal',
+    status: table.status === 'available' ? 'libre' : 
+            table.status === 'occupied' ? 'ocupada' :
+            table.status === 'reserved' ? 'reservada' : 'libre',
+    currentReservationId: undefined,
+    clientName: table.client?.name,
+    clientPhone: table.client?.phone,
+    partySize: table.client?.partySize,
+    notes: undefined,
+    occupiedAt: undefined,
+    lastUpdated: new Date(table.lastUpdated || Date.now()),
+    createdAt: new Date()
+  }));
+  
   const [schedule, setSchedule] = useState<RestaurantSchedule[]>([]);
   const [restaurantStatus, setRestaurantStatus] = useState<{
     abierto: boolean;
@@ -73,14 +101,24 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
   }>({ abierto: true, mensaje: 'Verificando estado...' });
   const [diasCerrados, setDiasCerrados] = useState<string[]>([]);
   const [selectedDiasCerrados, setSelectedDiasCerrados] = useState<string[]>([]);
-  const [metrics, setMetrics] = useState<RestaurantMetrics>({
-    totalTables: 0,
-    occupiedTables: 0,
-    reservedTables: 0,
-    freeTables: 0,
-    occupancyRate: 0
-  });
-  const [isLoading, setIsLoading] = useState(true);
+  // Calcular métricas desde las mesas del hook
+  const metrics = useMemo(() => {
+    const totalTables = tables.length;
+    const occupiedTables = tables.filter(t => t.status === 'ocupada').length;
+    const reservedTables = tables.filter(t => t.status === 'reservada').length;
+    const freeTables = tables.filter(t => t.status === 'libre').length;
+    const occupancyRate = totalTables > 0 ? Math.round(((occupiedTables + reservedTables) / totalTables) * 100) : 0;
+    
+    return {
+      totalTables,
+      occupiedTables,
+      reservedTables,
+      freeTables,
+      occupancyRate
+    };
+  }, [tables]);
+  
+  const isLoading = hookIsLoading;
   const [isConnected, setIsConnected] = useState(false);
   
   // Estados de filtros y búsqueda
@@ -109,35 +147,23 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
     applyFilters();
   }, [tables, statusFilter, searchTerm]);
 
-  // Inicializar datos del restaurante
+  // Inicializar datos del restaurante (solo horarios y estado, las mesas vienen del hook)
   const initializeData = async () => {
     try {
-      setIsLoading(true);
-      
       // Obtener fecha y hora actual para verificar horarios
       const today = new Date().toISOString().split('T')[0];
       const currentHour = new Date().getHours();
       const currentTime = `${currentHour.toString().padStart(2, '0')}:00`;
       
-      // Cargar datos iniciales incluyendo estado del restaurante
-      const [tablesData, scheduleData, metricsData, statusData, diasCerradosData] = await Promise.all([
-        fetch(`/api/restaurant/tables?restaurantId=${restaurantId}`).then(res => res.json()),
+      // Cargar solo datos que no vienen del hook
+      const [scheduleData, statusData, diasCerradosData] = await Promise.all([
         fetch(`/api/restaurant/schedule?restaurantId=${restaurantId}`).then(res => res.json()),
-        fetch(`/api/restaurant/metrics?restaurantId=${restaurantId}`).then(res => res.json()),
         fetch(`/api/google-sheets/horarios?restaurantId=${restaurantId}&fecha=${today}&hora=${currentTime}`).then(res => res.json()),
         fetch(`/api/google-sheets/dias-cerrados?restaurantId=${restaurantId}`).then(res => res.json())
       ]);
-
-      if (tablesData.success) {
-        setTables(tablesData.data);
-      }
       
       if (scheduleData.success) {
         setSchedule(scheduleData.data);
-      }
-      
-      if (metricsData.success) {
-        setMetrics(metricsData.data);
       }
       
       if (statusData.success) {
@@ -150,15 +176,13 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
       }
 
       // Si no hay mesas, inicializar con datos por defecto
-      if (tablesData.success && tablesData.data.length === 0) {
+      if (tables.length === 0) {
         await initializeDefaultTables();
       }
 
     } catch (error) {
       console.error('Error initializing restaurant data:', error);
       toast.error('Error al cargar datos del restaurante');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -208,34 +232,20 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
           updateTableInState(message.data.tableId, message.data.status, message.data.clientData);
           break;
         case 'initial_state':
-          if (message.data.tableStates) setTables(message.data.tableStates);
-          if (message.data.metrics) setMetrics(message.data.metrics);
+          // Las mesas y métricas ahora vienen del hook useRestaurantTables
           if (message.data.schedule) setSchedule(message.data.schedule);
           break;
         case 'metrics_updated':
-          if (message.data.metrics) setMetrics(message.data.metrics);
+          // Las métricas ahora se calculan automáticamente desde las mesas del hook
           break;
       }
     }
   };
 
-  // Actualizar mesa en el estado local
+  // Actualizar mesa en el estado local (ya no se usa, las mesas vienen del hook)
   const updateTableInState = (tableId: string, status: TableStatus, clientData?: any) => {
-    setTables(prevTables => 
-      prevTables.map(table => 
-        table.tableId === tableId 
-          ? {
-              ...table,
-              status,
-              clientName: clientData?.name || table.clientName,
-              clientPhone: clientData?.phone || table.clientPhone,
-              partySize: clientData?.partySize || table.partySize,
-              notes: clientData?.notes || table.notes,
-              lastUpdated: new Date()
-            }
-          : table
-      )
-    );
+    // Esta función ya no se usa porque las mesas vienen del hook useRestaurantTables
+    console.log('updateTableInState called but not used - tables come from hook');
   };
 
   // Aplicar filtros
@@ -260,31 +270,18 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
   // Manejar cambio de estado de mesa
   const handleTableStatusChange = async (tableId: string, newStatus: TableStatus, clientData?: any) => {
     try {
-      const response = await fetch('/api/restaurant/update-table-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          restaurantId,
-          tableId,
-          status: newStatus,
-          clientData
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          updateTableInState(tableId, newStatus, clientData);
-          toast.success(`Mesa ${tableId} actualizada a ${newStatus}`);
-        } else {
-          toast.error(result.error || 'Error al actualizar mesa');
-        }
-      } else {
-        toast.error('Error al actualizar mesa');
-      }
+      // Convertir el status al formato del hook
+      const hookStatus = newStatus === 'libre' ? 'available' : 
+                        newStatus === 'ocupada' ? 'occupied' :
+                        newStatus === 'reservada' ? 'reserved' : 'available';
+      
+      // Usar el hook para actualizar el estado
+      await updateTableStatus(tableId, hookStatus, clientData);
+      
+      toast.success(`Mesa ${tableId} actualizada a ${newStatus}`);
     } catch (error) {
       console.error('Error updating table status:', error);
-      toast.error('Error al actualizar mesa');
+      toast.error('Error al actualizar el estado de la mesa');
     }
   };
 
@@ -418,38 +415,42 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header con estado de conexión */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <h2 className="text-lg sm:text-xl font-semibold">Control de Mesas</h2>
+      <div className="flex flex-col gap-3 sm:gap-4">
+        {/* Título principal */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Control de Mesas</h2>
         </div>
         
-        <div className="flex items-center gap-2 sm:gap-3">
-          <Button
-            onClick={() => setShowScheduleDialog(true)}
-            variant="outline"
-            size="sm"
-            className="h-8 w-auto px-3 sm:h-9 sm:px-4 md:h-10 md:px-5"
-          >
-            <Calendar className="h-4 w-4 mr-1 sm:mr-2" />
-            <span className="text-sm sm:text-base">Horario</span>
-          </Button>
-          
-          <Button
-            onClick={() => {
-              const allTables = filteredTables;
-              allTables.forEach(table => {
-                handleTableStatusChange(table.tableId, 'ocupada');
-              });
-            }}
-            variant="outline"
-            size="sm"
-            className={`h-8 w-auto px-3 sm:h-9 sm:px-4 md:h-10 md:px-5 bg-red-500 hover:bg-red-600 text-white font-semibold border-red-500 ${
-              !isRestaurantOpen ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-            disabled={!isRestaurantOpen}
-          >
-            <span className="text-sm sm:text-base">🔴 Día Completo</span>
-          </Button>
+        {/* Botones de acción - responsive */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setShowScheduleDialog(true)}
+              variant="outline"
+              size="sm"
+              className="flex-1 sm:flex-none h-9 px-3 sm:px-4 border-blue-300 text-blue-700 hover:bg-blue-50"
+            >
+              <Calendar className="h-4 w-4 mr-2" />
+              <span className="text-sm">Horario</span>
+            </Button>
+            
+            <Button
+              onClick={() => {
+                const allTables = filteredTables;
+                allTables.forEach(table => {
+                  handleTableStatusChange(table.tableId, 'ocupada');
+                });
+              }}
+              variant="outline"
+              size="sm"
+              className={`flex-1 sm:flex-none h-9 px-3 sm:px-4 bg-red-500 hover:bg-red-600 text-white font-semibold border-red-500 ${
+                !isRestaurantOpen ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+              disabled={!isRestaurantOpen}
+            >
+              <span className="text-sm">🔴 Día Completo</span>
+            </Button>
+          </div>
         </div>
       </div>
 
