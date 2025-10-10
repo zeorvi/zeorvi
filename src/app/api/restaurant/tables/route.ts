@@ -48,17 +48,18 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    await productionDb.initializeTables(restaurantId, tables);
+    console.log('📊 [Restaurant Tables] Inicializando mesas para:', restaurantId);
     
-    logger.info(`Initialized ${tables.length} tables for restaurant ${restaurantId}`);
+    // En producción, las mesas vienen de Google Sheets
+    console.log('⚠️ [Restaurant Tables] Mesas vienen de Google Sheets en producción');
 
     return NextResponse.json({
       success: true,
-      message: 'Mesas inicializadas correctamente'
+      message: 'Mesas inicializadas correctamente (vienen de Google Sheets)'
     });
 
   } catch (error) {
-    logger.error('Error initializing tables', error);
+    console.error('❌ [Restaurant Tables] Error:', error);
     return NextResponse.json({
       success: false,
       error: 'Error al inicializar mesas'

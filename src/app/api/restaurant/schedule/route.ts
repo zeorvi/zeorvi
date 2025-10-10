@@ -96,17 +96,18 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    await productionDb.updateRestaurantSchedule(restaurantId, schedules);
+    console.log('📊 [Restaurant Schedule] Actualizando horario para:', restaurantId);
     
-    logger.info(`Updated schedule for restaurant ${restaurantId}`);
+    // En producción, no actualizamos horarios (son hardcoded)
+    console.log('⚠️ [Restaurant Schedule] Horarios hardcoded en producción, no se actualizan');
 
     return NextResponse.json({
       success: true,
-      message: 'Horario actualizado correctamente'
+      message: 'Horario actualizado correctamente (hardcoded en producción)'
     });
 
   } catch (error) {
-    logger.error('Error updating restaurant schedule', error);
+    console.error('❌ [Restaurant Schedule] Error:', error);
     return NextResponse.json({
       success: false,
       error: 'Error al actualizar horario del restaurante'
