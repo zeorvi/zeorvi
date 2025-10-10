@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleSheetsService, Reserva } from '@/lib/googleSheetsService';
 
+// Helper para timeout rápido
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
+  return Promise.race([promise, timeout]);
+}
+
 // GET - Obtener reservas
 export async function GET(request: NextRequest) {
   try {
@@ -18,16 +24,17 @@ export async function GET(request: NextRequest) {
     }
 
     let reservas: Reserva[] = [];
+    const startTime = Date.now();
+    console.log(`📊 Obteniendo reservas de Google Sheets...`);
     
     if (restaurantId) {
-      // Obtener reservas de un restaurante específico
+      // Obtener reservas de Google Sheets (sin timeout artificial)
       reservas = await GoogleSheetsService.getReservas(restaurantId);
       
       if (fecha) {
         reservas = reservas.filter(r => r.Fecha === fecha);
       }
     } else if (all === 'true') {
-      // Obtener todas las reservas de todos los restaurantes
       reservas = await GoogleSheetsService.getAllReservas();
     }
 
@@ -35,20 +42,28 @@ export async function GET(request: NextRequest) {
       reservas = reservas.filter((r) => r.Estado === estado);
     }
 
+    const duration = Date.now() - startTime;
+    console.log(`✅ Reservas obtenidas de Google Sheets en ${duration}ms (${reservas.length} reservas)`);
+
     return NextResponse.json({
       success: true,
       reservas,
       total: reservas.length,
       fecha: fecha || 'todas',
       estado: estado || 'todos',
-      restaurantId: restaurantId || 'all'
+      restaurantId: restaurantId || 'all',
+      source: 'google_sheets',
+      duration
     });
 
   } catch (error) {
-    console.error('Error obteniendo reservas:', error);
+    console.error('❌ Error obteniendo reservas de Google Sheets:', error);
+    console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
+    
     return NextResponse.json({
       success: false,
-      error: 'Error interno del servidor'
+      error: 'Error conectando con Google Sheets',
+      details: error instanceof Error ? error.message : 'Error desconocido'
     }, { status: 500 });
   }
 }
