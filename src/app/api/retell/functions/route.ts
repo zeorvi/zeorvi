@@ -1,53 +1,39 @@
 import { NextResponse } from 'next/server';
 import { GoogleSheetsService } from '@/lib/googleSheetsService';
+import { DateTime } from 'luxon';
 
-// --- Función auxiliar para normalizar fechas ---
-function normalizarFecha(texto: string): string {
-  if (!texto || typeof texto !== 'string') {
-    const manana = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Madrid" }));
-    manana.setDate(manana.getDate() + 1);
-    return manana.toISOString().split('T')[0];
+// --- Función auxiliar para obtener fecha con zona horaria española ---
+function obtenerFecha(fechaTexto: string): string {
+  const zona = "Europe/Madrid";
+
+  if (fechaTexto === "mañana" || fechaTexto === "tomorrow" || fechaTexto.includes('{{')) {
+    return DateTime.now().setZone(zona).plus({ days: 1 }).toISODate() || '';
+  } else if (fechaTexto === "hoy" || fechaTexto === "today") {
+    return DateTime.now().setZone(zona).toISODate() || '';
+  } else if (fechaTexto === "pasado mañana") {
+    return DateTime.now().setZone(zona).plus({ days: 2 }).toISODate() || '';
+  } else {
+    // Si ya viene en formato ISO (YYYY-MM-DD), devolverlo
+    if (/^\d{4}-\d{2}-\d{2}$/.test(fechaTexto)) {
+      return fechaTexto;
+    }
+    
+    // Buscar días de la semana
+    const dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+    const textoLower = fechaTexto.toLowerCase().trim();
+    const idx = dias.findIndex(d => textoLower.includes(d) || textoLower.includes(d.replace('é','e')));
+    
+    if (idx >= 0) {
+      const hoy = DateTime.now().setZone(zona);
+      const diaSemana = hoy.weekday === 7 ? 0 : hoy.weekday; // Convertir domingo de 7 a 0
+      let diff = idx - diaSemana;
+      if (diff <= 0) diff += 7;
+      return hoy.plus({ days: diff }).toISODate() || '';
+    }
+    
+    // Fallback: mañana
+    return DateTime.now().setZone(zona).plus({ days: 1 }).toISODate() || '';
   }
-
-  // Si viene un token, tratarlo como mañana
-  if (texto.includes('{{')) {
-    const manana = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Madrid" }));
-    manana.setDate(manana.getDate() + 1);
-    return manana.toISOString().split('T')[0];
-  }
-
-  const hoy = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Madrid" }));
-  const t = texto.toLowerCase().trim();
-
-  if (t.includes('hoy') || t === 'today') return hoy.toISOString().split('T')[0];
-  
-  if (t.includes('mañana') || t === 'tomorrow' || t.includes('current_date_plus_1')) {
-    hoy.setDate(hoy.getDate() + 1);
-    return hoy.toISOString().split('T')[0];
-  }
-  
-  if (t.includes('pasado mañana')) {
-    hoy.setDate(hoy.getDate() + 2);
-    return hoy.toISOString().split('T')[0];
-  }
-
-  const dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
-  const idx = dias.findIndex(d => t.includes(d) || t.includes(d.replace('é','e')));
-  if (idx >= 0) {
-    let diff = idx - hoy.getDay();
-    if (diff <= 0) diff += 7;
-    hoy.setDate(hoy.getDate() + diff);
-    return hoy.toISOString().split('T')[0];
-  }
-
-  // Si ya viene en formato ISO (YYYY-MM-DD), devolverlo
-  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
-    return texto;
-  }
-
-  // fallback: mañana
-  hoy.setDate(hoy.getDate() + 1);
-  return hoy.toISOString().split('T')[0];
 }
 
 export async function POST(req: Request) {
@@ -79,13 +65,13 @@ export async function POST(req: Request) {
 
       // ✅ Verificar disponibilidad
       case 'verificar_disponibilidad': {
-        let { fecha } = parameters || {};
-        const { hora, personas, zona } = parameters || {};
+        const { fecha, hora, personas, zona } = parameters || {};
 
         console.log("➡️ Datos recibidos:", { fecha, hora, personas, zona });
 
-        // --- Normalizar fecha ---
-        fecha = normalizarFecha(fecha || 'mañana');
+        // 📅 Usar nueva función de fecha con zona horaria española
+        const fechaISO = obtenerFecha(fecha || 'mañana');
+        console.log("📅 Fecha normalizada:", fechaISO, "desde:", fecha);
 
         // --- Validación hora ---
         if (!hora || typeof hora !== "string") {
@@ -111,7 +97,7 @@ export async function POST(req: Request) {
 
         result = await GoogleSheetsService.verificarDisponibilidad(
           restaurantId,
-          fecha,
+          fechaISO,
           hora,
           nPersonas,
           zona
@@ -123,26 +109,38 @@ export async function POST(req: Request) {
       // ✅ Crear reserva
       case 'crear_reserva': {
         const { fecha, hora, cliente, telefono, personas, zona, notas } = parameters || {};
-        const fechaReal = normalizarFecha(fecha || 'mañana');
+        
+        // 📅 Usar nueva función de fecha con zona horaria española
+        const fechaISO = obtenerFecha(fecha || 'mañana');
+        console.log("📅 Fecha normalizada:", fechaISO, "desde:", fecha);
 
-        // --- Teléfono seguro ---
-        let telefonoFinal = telefono;
-        if (!telefonoFinal || telefonoFinal.includes("{{") || telefonoFinal === "caller_phone_number") {
-          telefonoFinal =
-            body?.caller_phone_number ||
-            body?.metadata?.caller_phone_number ||
-            body?.caller ||
-            null;
-          console.warn("⚠️ Teléfono sustituido automáticamente:", telefonoFinal);
-        }
+        // 🔍 1️⃣ Intentamos obtener el número de teléfono de TODAS las formas posibles
+        const telefonoFinal =
+          telefono ||
+          body.phone ||
+          body.caller_phone_number ||
+          body.call?.from_number ||
+          body.call?.caller_number ||
+          body.session?.caller_phone ||
+          body.session?.from ||
+          body?.caller ||
+          body?.metadata?.caller_phone_number ||
+          "no_disponible";
+
+        // 🧩 2️⃣ Si no hay número pero hay cliente con nombre, añade algo identificativo
+        const telefonoSeguro = telefonoFinal === "no_disponible"
+          ? `sin_numero_${Date.now()}`
+          : telefonoFinal;
+
+        console.log("📞 Teléfono procesado:", telefonoSeguro, "original:", telefono);
 
         result = await GoogleSheetsService.crearReserva(
           restaurantId,
-          fechaReal,
+          fechaISO,
           hora,
-          cliente,
-          telefonoFinal,
-          Number(personas),
+          cliente || "Desconocido",
+          telefonoSeguro,
+          Number(personas) || 1,
           zona,
           notas
         );
