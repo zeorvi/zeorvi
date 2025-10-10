@@ -582,7 +582,7 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
                     onClick={() => handleTableStatusChange(table.tableId, 'libre')}
                     size="sm"
                     variant={table.status === 'libre' ? 'default' : 'outline'}
-                    className="text-sm px-3 py-2 sm:px-4 sm:py-2.5 bg-green-500 hover:bg-green-600 text-white font-semibold"
+                    className="text-sm px-3 py-2 sm:px-4 sm:py-2.5 bg-green-500 hover:bg-green-600 text-white font-semibold border-2 border-white shadow-md"
                     disabled={!isRestaurantOpen}
                   >
                     Libre
@@ -591,7 +591,7 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
                     onClick={() => handleTableStatusChange(table.tableId, 'ocupada')}
                     size="sm"
                     variant={table.status === 'ocupada' ? 'default' : 'outline'}
-                    className="text-sm px-3 py-2 sm:px-4 sm:py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold"
+                    className="text-sm px-3 py-2 sm:px-4 sm:py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold border-2 border-white shadow-md"
                     disabled={!isRestaurantOpen}
                   >
                     Ocupar
@@ -600,7 +600,7 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
                     onClick={() => handleTableStatusChange(table.tableId, 'reservada')}
                     size="sm"
                     variant={table.status === 'reservada' ? 'default' : 'outline'}
-                    className="text-sm px-3 py-2 sm:px-4 sm:py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold"
+                    className="text-sm px-3 py-2 sm:px-4 sm:py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold border-2 border-white shadow-md"
                     disabled={!isRestaurantOpen}
                   >
                     Reservar
