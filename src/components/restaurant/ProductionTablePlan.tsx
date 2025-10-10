@@ -418,7 +418,9 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
       <div className="flex flex-col gap-3 sm:gap-4">
         {/* Título principal */}
         <div className="flex items-center justify-between">
-          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Control de Mesas</h2>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            Control de Mesas
+          </h2>
         </div>
         
         {/* Botones de acción - responsive */}
@@ -451,25 +453,6 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
               <span className="text-sm">🔴 Día Completo</span>
             </Button>
           </div>
-        </div>
-      </div>
-
-      {/* Estado del restaurante */}
-      <div className={`p-3 sm:p-4 rounded-lg sm:rounded-xl border ${
-        isRestaurantOpen 
-          ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' 
-          : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'
-      }`}>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className={`w-3 h-3 rounded-full ${isRestaurantOpen ? 'bg-green-500' : 'bg-red-500'}`}></div>
-          <span className="text-sm sm:text-base font-medium">
-            {isRestaurantOpen ? 'Restaurante Abierto' : 'Restaurante Cerrado'}
-          </span>
-          {restaurantStatus.mensaje && (
-            <span className="text-xs text-gray-500 ml-2">
-              ({restaurantStatus.mensaje.split('.')[0]})
-            </span>
-          )}
         </div>
       </div>
 
@@ -529,7 +512,7 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
             onClick={() => setStatusFilter('libre')}
             variant={statusFilter === 'libre' ? 'default' : 'outline'}
             size="sm"
-            className="h-9 sm:h-10 px-3 sm:px-4 bg-green-500 hover:bg-green-600 text-white"
+            className="h-9 sm:h-10 px-3 sm:px-4 bg-green-500 hover:bg-green-600 text-white border-2 border-white shadow-md"
           >
             Libre
           </Button>
@@ -537,7 +520,7 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
             onClick={() => setStatusFilter('ocupada')}
             variant={statusFilter === 'ocupada' ? 'default' : 'outline'}
             size="sm"
-            className="h-9 sm:h-10 px-3 sm:px-4 bg-red-500 hover:bg-red-600 text-white"
+            className="h-9 sm:h-10 px-3 sm:px-4 bg-red-500 hover:bg-red-600 text-white border-2 border-white shadow-md"
           >
             Ocupada
           </Button>
@@ -545,7 +528,7 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
             onClick={() => setStatusFilter('reservada')}
             variant={statusFilter === 'reservada' ? 'default' : 'outline'}
             size="sm"
-            className="h-9 sm:h-10 px-3 sm:px-4 bg-yellow-500 hover:bg-yellow-600 text-white"
+            className="h-9 sm:h-10 px-3 sm:px-4 bg-yellow-500 hover:bg-yellow-600 text-white border-2 border-white shadow-md"
           >
             Reservada
           </Button>
