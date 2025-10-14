@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -146,16 +146,17 @@ export default function ReservedTablesManagement({ restaurantId }: { restaurantI
     loadTables();
   }, [restaurantId]);
 
-  // Filtrar y ordenar mesas
-  useEffect(() => {
+  // Filtrar y ordenar mesas (memoizado para mejor rendimiento)
+  const filteredAndSortedTables = useMemo(() => {
     let filtered = tables;
 
     // Filtrar por búsqueda
     if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
       filtered = filtered.filter(table =>
-        table.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        table.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        table.reservation.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        table.name.toLowerCase().includes(searchLower) ||
+        table.location.toLowerCase().includes(searchLower) ||
+        table.reservation.clientName.toLowerCase().includes(searchLower) ||
         table.reservation.phone.includes(searchTerm)
       );
     }
@@ -165,7 +166,8 @@ export default function ReservedTablesManagement({ restaurantId }: { restaurantI
       if (capacityFilter === '8+') {
         filtered = filtered.filter(table => table.capacity >= 8);
       } else {
-        filtered = filtered.filter(table => table.capacity === parseInt(capacityFilter));
+        const capacity = parseInt(capacityFilter);
+        filtered = filtered.filter(table => table.capacity === capacity);
       }
     }
 
@@ -176,21 +178,21 @@ export default function ReservedTablesManagement({ restaurantId }: { restaurantI
 
     // Filtrar por fecha
     const today = new Date();
-    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
-    const weekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const todayStr = today.toISOString().split('T')[0];
     
     if (dateFilter === 'today') {
-      const todayStr = today.toISOString().split('T')[0];
       filtered = filtered.filter(table => table.reservation.date === todayStr);
     } else if (dateFilter === 'tomorrow') {
+      const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
       const tomorrowStr = tomorrow.toISOString().split('T')[0];
       filtered = filtered.filter(table => table.reservation.date === tomorrowStr);
     } else if (dateFilter === 'week') {
+      const weekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
       filtered = filtered.filter(table => new Date(table.reservation.date) <= weekFromNow);
     }
 
     // Ordenar
-    filtered.sort((a, b) => {
+    const sorted = [...filtered].sort((a, b) => {
       let comparison = 0;
       
       switch (sortBy) {
@@ -211,8 +213,13 @@ export default function ReservedTablesManagement({ restaurantId }: { restaurantI
       return sortOrder === 'asc' ? comparison : -comparison;
     });
 
-    setFilteredTables(filtered);
+    return sorted;
   }, [tables, searchTerm, capacityFilter, locationFilter, dateFilter, sortBy, sortOrder]);
+
+  // Actualizar filteredTables cuando cambien los filtros
+  useEffect(() => {
+    setFilteredTables(filteredAndSortedTables);
+  }, [filteredAndSortedTables]);
 
   const getCapacityColor = (capacity: number) => {
     if (capacity <= 2) return 'bg-blue-100 text-blue-800';
@@ -230,11 +237,12 @@ export default function ReservedTablesManagement({ restaurantId }: { restaurantI
     }
   };
 
-  const getUniqueLocations = () => {
+  // Memoizar ubicaciones únicas
+  const uniqueLocations = useMemo(() => {
     return Array.from(new Set(tables.map(table => table.location)));
-  };
+  }, [tables]);
 
-  const getTimeUntilReservation = (date: string, time: string) => {
+  const getTimeUntilReservation = useCallback((date: string, time: string) => {
     const reservationDateTime = new Date(`${date}T${time}`);
     const now = new Date();
     const diffMs = reservationDateTime.getTime() - now.getTime();
@@ -252,9 +260,10 @@ export default function ReservedTablesManagement({ restaurantId }: { restaurantI
     } else {
       return `En ${diffMinutes}m`;
     }
-  };
+  }, []);
 
-  const getReservationStats = () => {
+  // Memoizar estadísticas de reservas
+  const stats = useMemo(() => {
     const total = tables.length;
     const today = new Date().toISOString().split('T')[0];
     const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -264,9 +273,7 @@ export default function ReservedTablesManagement({ restaurantId }: { restaurantI
     const totalGuests = tables.reduce((sum, table) => sum + table.reservation.partySize, 0);
 
     return { total, todayReservations, tomorrowReservations, totalGuests };
-  };
-
-  const stats = getReservationStats();
+  }, [tables]);
 
   return (
     <div className="space-y-6">
@@ -357,7 +364,7 @@ export default function ReservedTablesManagement({ restaurantId }: { restaurantI
                 className="px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
               >
                 <option value="all">Todas las ubicaciones</option>
-                {getUniqueLocations().map(location => (
+                {uniqueLocations.map(location => (
                   <option key={location} value={location}>{location}</option>
                 ))}
               </select>

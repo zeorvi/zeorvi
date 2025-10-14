@@ -1,19 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 // import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 
 interface DailyAgendaProps {
   restaurantId: string;
-  restaurantTables?: Array<{
-    id: string;
-    name: string;
-    capacity: number;
-    location: string;
-  }>;
 }
 
 interface Reservation {
@@ -22,12 +15,12 @@ interface Reservation {
   clientName: string;
   partySize: number;
   table: string;
-  status: 'confirmed' | 'pending' | 'cancelled';
+  status: 'reserved' | 'occupied' | 'completed' | 'cancelled';
   notes?: string;
   phone?: string;
 }
 
-export default function DailyAgenda({ restaurantId, restaurantTables }: DailyAgendaProps) {
+export default function DailyAgenda({ restaurantId }: DailyAgendaProps) {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate] = useState(new Date());
@@ -35,101 +28,221 @@ export default function DailyAgenda({ restaurantId, restaurantTables }: DailyAge
   // 🔥 NOTIFICACIONES EN TIEMPO REAL (comentado temporalmente)
   // const { notifications: _notifications, isConnected: _isConnected, lastUpdate: _lastUpdate } = useRealtimeNotifications(restaurantId);
 
-  useEffect(() => {
-    const loadReservations = async () => {
-      try {
-        setLoading(true);
+  // Función para cambiar el estado de una reserva (memoizada)
+  const handleStatusChange = useCallback(async (reservationId: string, newStatus: Reservation['status']) => {
+    try {
+      // Actualizar estado local inmediatamente
+      setReservations(prev => 
+        prev.map(reservation => 
+          reservation.id === reservationId 
+            ? { ...reservation, status: newStatus }
+            : reservation
+        )
+      );
+
+      // Actualizar en Google Sheets
+      const response = await fetch('/api/google-sheets/update-reservation-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          restaurantId,
+          reservationId,
+          newStatus,
+          fecha: new Date().toISOString().split('T')[0]
+        }),
+      });
+
+      console.log('📡 Respuesta de API:', response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('❌ Error actualizando estado de reserva:', response.status, errorData);
         
-        // Obtener reservas desde Google Sheets
-        const today = new Date().toISOString().split('T')[0];
-        const response = await fetch(`/api/google-sheets/reservas?restaurantId=${restaurantId}&restaurantName=${encodeURIComponent('Restaurante')}&fecha=${today}&spreadsheetId=${restaurantId}_spreadsheet`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            // Convertir formato de Google Sheets al formato del dashboard
-            const formattedReservations = data.reservas.map((reserva: {
-              ID?: string;
-              Fecha?: string;
-              Hora?: string;
-              Cliente?: string;
-              Telefono?: string;
-              Personas?: number;
-              Mesa?: string;
-              Estado?: string;
-              Notas?: string;
-              // Campos alternativos (minúsculas)
-              id?: string;
-              hora?: string;
-              cliente?: string;
-              personas?: number;
-              mesa?: string;
-              estado?: string;
-              notas?: string;
-              telefono?: string;
-            }) => ({
-              id: reserva.ID || reserva.id || `res_${Date.now()}_${Math.random()}`,
-              time: reserva.Hora || reserva.hora || '',
-              clientName: reserva.Cliente || reserva.cliente || 'Sin nombre',
-              partySize: reserva.Personas || reserva.personas || 1,
-              table: reserva.Mesa || reserva.mesa || 'Por asignar',
-              status: (reserva.Estado || reserva.estado || '').toLowerCase() === 'confirmada' ? 'confirmed' : 
-                     (reserva.Estado || reserva.estado || '').toLowerCase() === 'pendiente' ? 'pending' : 'cancelled',
-              notes: reserva.Notas || reserva.notas || '',
-              phone: reserva.Telefono || reserva.telefono || ''
-            }));
+        // NO revertir cambio local - mantener el estado seleccionado
+        console.log('⚠️ Manteniendo cambio local aunque falle la actualización en Google Sheets');
+      } else {
+        const result = await response.json();
+        console.log(`✅ Estado de reserva ${reservationId} actualizado a ${newStatus}:`, result);
+      }
+    } catch (error) {
+      console.error('Error cambiando estado de reserva:', error);
+    }
+  }, [restaurantId]);
+
+  // Auto-actualización DESHABILITADA - El usuario controla manualmente los estados
+  // useEffect(() => {
+  //   const autoCompleteInterval = setInterval(() => {
+  //     const now = new Date();
+  //     const currentHour = now.getHours();
+      
+  //     console.log('🕐 Verificando reservas para auto-completar...');
+      
+  //     setReservations(prevReservations => {
+  //       const updatedReservations = prevReservations.map(reservation => {
+  //         if (reservation.status === 'reserved') {
+  //           const reservationHour = parseInt(reservation.time.split(':')[0]);
+  //           const timeDifference = currentHour - reservationHour;
             
-            setReservations(formattedReservations);
-            console.log('📅 DailyAgenda: Reservas cargadas desde Google Sheets:', formattedReservations);
-          } else {
-            console.error('Error cargando reservas:', data.error);
+  //           // Si han pasado 2 horas o más, cambiar a completada
+  //           if (timeDifference >= 2) {
+  //             console.log(`✅ Auto-completando reserva ${reservation.id} (${reservation.time} → ${currentHour}:00)`);
+              
+  //             // Actualizar en Google Sheets en segundo plano
+  //             handleStatusChange(reservation.id, 'completed');
+              
+  //             return { ...reservation, status: 'completed' as const };
+  //           }
+  //         }
+  //         return reservation;
+  //       });
+        
+  //       return updatedReservations;
+  //     });
+  //   }, 300000); // Cada 5 minutos verifica
+
+  //   return () => clearInterval(autoCompleteInterval);
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, []);
+
+  // Cargar reservas (memoizado)
+  const loadReservations = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      // PRIMERO: Verificar si el restaurante está abierto
+      const today = new Date().toISOString().split('T')[0];
+      const currentHour = new Date().getHours();
+      const currentTime = `${currentHour.toString().padStart(2, '0')}:00`;
+      
+      console.log('🔍 DailyAgenda: Verificando estado del restaurante:', { restaurantId, today, currentTime });
+      const statusResponse = await fetch(`/api/google-sheets/horarios?restaurantId=${restaurantId}&fecha=${today}&hora=${currentTime}`);
+      
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        console.log('📊 DailyAgenda: Respuesta de estado:', statusData);
+        
+        if (statusData.success) {
+          const isOpen = statusData.status.abierto;
+          
+          // Si el restaurante está cerrado, limpiar reservas y no cargar más
+          if (!isOpen) {
+            console.log('🏪 DailyAgenda: Restaurante cerrado, limpiando agenda. Estado:', statusData.status);
             setReservations([]);
+            setLoading(false);
+            return; // Salir sin cargar reservas
+          } else {
+            console.log('✅ DailyAgenda: Restaurante abierto, cargando reservas');
           }
+        }
+      } else {
+        console.error('❌ DailyAgenda: Error en la respuesta de estado del restaurante:', statusResponse.status);
+      }
+      
+      // Solo cargar reservas si el restaurante está abierto
+      const response = await fetch(`/api/google-sheets/reservas?restaurantId=${restaurantId}&restaurantName=${encodeURIComponent('Restaurante')}&fecha=${today}&spreadsheetId=${restaurantId}_spreadsheet`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          // Convertir formato de Google Sheets al formato del dashboard
+          console.log('📊 Datos de reservas desde Google Sheets:', data.reservas);
+          const formattedReservations = data.reservas.map((reserva: {
+            ID?: string;
+            Fecha?: string;
+            Hora?: string;
+            Cliente?: string;
+            Telefono?: string;
+            Personas?: number;
+            Mesa?: string;
+            Estado?: string;
+            Notas?: string;
+            // Campos alternativos (minúsculas)
+            id?: string;
+            hora?: string;
+            cliente?: string;
+            personas?: number;
+            mesa?: string;
+            estado?: string;
+            notas?: string;
+            telefono?: string;
+          }) => ({
+            id: reserva.ID || reserva.id || `res_${Date.now()}_${Math.random()}`,
+            time: reserva.Hora || reserva.hora || '',
+            clientName: reserva.Cliente || reserva.cliente || 'Sin nombre',
+            partySize: reserva.Personas || reserva.personas || 1,
+            table: reserva.Mesa || reserva.mesa || 'Por asignar',
+            status: (() => {
+              const estado = (reserva.Estado || reserva.estado || '').toLowerCase().trim();
+              
+              // Mapear todos los posibles estados
+              switch (estado) {
+                case 'ocupada':
+                  return 'occupied';
+                case 'completada':
+                  return 'completed';
+                case 'cancelada':
+                  return 'cancelled';
+                case 'confirmada':
+                  return 'reserved';
+                case 'reservada':
+                  return 'reserved';
+                case '':
+                case 'pendiente':
+                  return 'reserved'; // Por defecto siempre reservada
+                default:
+                  return 'reserved';
+              }
+            })(),
+            notes: reserva.Notas || reserva.notas || '',
+            phone: reserva.Telefono || reserva.telefono || ''
+          }));
+          
+          console.log('📋 Reservas formateadas para mostrar:', formattedReservations);
+          setReservations(formattedReservations);
+          console.log('📅 DailyAgenda: Reservas cargadas desde Google Sheets:', formattedReservations);
         } else {
-          console.error('Error en la respuesta de la API');
+          console.error('Error cargando reservas:', data.error);
           setReservations([]);
         }
-      } catch (error) {
-        console.error('Error cargando reservas:', error);
+      } else {
+        console.error('Error en la respuesta de la API');
         setReservations([]);
-      } finally {
-        setLoading(false);
       }
-    };
+    } catch (error) {
+      console.error('Error cargando reservas:', error);
+      setReservations([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [restaurantId]);
 
+  useEffect(() => {
     loadReservations();
     
-    // Recargar cada 10 segundos para mantener sincronización en tiempo real
-    const interval = setInterval(loadReservations, 10000);
+    // Recargar cada 30 segundos (reducido de 10 para mejor rendimiento)
+    const interval = setInterval(loadReservations, 30000);
     
     return () => clearInterval(interval);
-  }, [restaurantId, restaurantTables]);
+  }, [loadReservations]);
 
-  const formatDate = (date: Date) => {
+  // Memoizar formato de fecha
+  const formattedDate = useMemo(() => {
     const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
                    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     
-    return `${days[date.getDay()]}, ${date.getDate()} De ${months[date.getMonth()]} De ${date.getFullYear()}`;
-  };
+    return `${days[selectedDate.getDay()]}, ${selectedDate.getDate()} De ${months[selectedDate.getMonth()]} De ${selectedDate.getFullYear()}`;
+  }, [selectedDate]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'confirmed': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-      case 'pending': return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'cancelled': return 'bg-rose-100 text-rose-800 border-rose-200';
-      default: return 'bg-slate-100 text-slate-800 border-slate-200';
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'confirmed': return 'Confirmada';
-      case 'pending': return 'Pendiente';
-      case 'cancelled': return 'Cancelada';
-      default: return status;
-    }
-  };
+  // Memoizar estadísticas de reservas
+  const reservationStats = useMemo(() => ({
+    reserved: reservations.filter(r => r.status === 'reserved').length,
+    occupied: reservations.filter(r => r.status === 'occupied').length,
+    completed: reservations.filter(r => r.status === 'completed').length,
+    totalGuests: reservations.reduce((sum, r) => sum + r.partySize, 0)
+  }), [reservations]);
 
   if (loading) {
     return (
@@ -153,7 +266,7 @@ export default function DailyAgenda({ restaurantId, restaurantTables }: DailyAge
         <div className="flex items-center justify-between">
           <div className="space-y-4">
             <h1 className="text-4xl font-bold text-slate-900 tracking-tight">
-              Agenda De {formatDate(selectedDate)}
+              Agenda De {formattedDate}
             </h1>
             <p className="text-xl text-slate-600 font-medium">
               {reservations.length} reservas programadas para hoy
@@ -163,9 +276,11 @@ export default function DailyAgenda({ restaurantId, restaurantTables }: DailyAge
           <div className="flex items-center space-x-6">
             <Button 
               variant="outline" 
-              className="px-6 py-3 rounded-2xl border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-semibold"
+              onClick={loadReservations}
+              disabled={loading}
+              className="px-6 py-3 rounded-2xl border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-semibold disabled:opacity-50"
             >
-              Actualizar
+              {loading ? 'Cargando...' : '🔄 Actualizar'}
             </Button>
             <Button className="px-8 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold shadow-lg">
               Nueva Reserva
@@ -223,39 +338,29 @@ export default function DailyAgenda({ restaurantId, restaurantTables }: DailyAge
                     </div>
                   </div>
                   
-                  {/* Status y Acciones más compactas */}
+                  {/* Status y Acciones */}
                   <div className="flex items-center space-x-3">
-                    <span
-                      className={
-                        reservation.status === "confirmed"
-                          ? "text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-semibold"
-                          : reservation.status === "pending"
-                          ? "text-amber-600 bg-amber-50 px-2 py-1 rounded-full text-xs font-semibold"
-                          : "text-red-600 bg-red-50 px-2 py-1 rounded-full text-xs font-semibold"
-                      }
+                    <select
+                      value={reservation.status}
+                      onChange={(e) => handleStatusChange(reservation.id, e.target.value as Reservation['status'])}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold border-2 cursor-pointer transition-colors ${
+                        reservation.status === "reserved"
+                          ? "text-orange-700 bg-orange-100 border-orange-300 hover:bg-orange-200"
+                          : reservation.status === "occupied"
+                          ? "text-red-700 bg-red-100 border-red-300 hover:bg-red-200"
+                          : reservation.status === "completed"
+                          ? "text-gray-700 bg-gray-100 border-gray-300 hover:bg-gray-200"
+                          : "text-rose-700 bg-rose-100 border-rose-300 hover:bg-rose-200"
+                      }`}
                     >
-                      {reservation.status === "confirmed" ? "Confirmada" : 
-                       reservation.status === "pending" ? "Pendiente" : "Cancelada"}
-                    </span>
+                      <option value="reserved">Reservada</option>
+                      <option value="occupied">Ocupada</option>
+                      <option value="completed">Completada</option>
+                      <option value="cancelled">Cancelada</option>
+                    </select>
                     
                     <div className="flex space-x-2">
-                      {reservation.status === 'pending' && (
-                        <>
-                          <Button 
-                            size="sm" 
-                            className="px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-md font-semibold text-xs"
-                          >
-                            Confirmar
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            className="px-3 py-1 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-md font-semibold text-xs"
-                          >
-                            Cancelar
-                          </Button>
-                        </>
-                      )}
+                      {/* Botones de acción removidos - ahora se usa el selector */}
                     </div>
                   </div>
                 </div>
@@ -273,8 +378,8 @@ export default function DailyAgenda({ restaurantId, restaurantTables }: DailyAge
               <div className="w-8 h-8 bg-white rounded-lg"></div>
             </div>
             <div>
-              <div className="text-3xl font-bold text-emerald-700">{reservations.filter(r => r.status === 'confirmed').length}</div>
-              <div className="text-emerald-600 font-semibold text-lg">Confirmadas</div>
+              <div className="text-3xl font-bold text-orange-700">{reservationStats.reserved}</div>
+              <div className="text-orange-600 font-semibold text-lg">Reservadas</div>
             </div>
           </div>
         </Card>
@@ -285,8 +390,20 @@ export default function DailyAgenda({ restaurantId, restaurantTables }: DailyAge
               <div className="w-8 h-8 bg-white rounded-lg"></div>
             </div>
             <div>
-              <div className="text-3xl font-bold text-amber-700">{reservations.filter(r => r.status === 'pending').length}</div>
-              <div className="text-amber-600 font-semibold text-lg">Pendientes</div>
+              <div className="text-3xl font-bold text-red-700">{reservationStats.occupied}</div>
+              <div className="text-red-600 font-semibold text-lg">Ocupadas</div>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-8 bg-gradient-to-br from-emerald-50 to-green-50 border-0 shadow-xl rounded-3xl">
+          <div className="text-center space-y-4">
+            <div className="w-16 h-16 bg-emerald-500 rounded-2xl mx-auto flex items-center justify-center shadow-lg">
+              <div className="w-8 h-8 bg-white rounded-lg"></div>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-emerald-700">{reservationStats.completed}</div>
+              <div className="text-emerald-600 font-semibold text-lg">Completadas</div>
             </div>
           </div>
         </Card>
@@ -297,7 +414,7 @@ export default function DailyAgenda({ restaurantId, restaurantTables }: DailyAge
               <div className="w-8 h-8 bg-white rounded-lg"></div>
             </div>
             <div>
-              <div className="text-3xl font-bold text-blue-700">{reservations.reduce((sum, r) => sum + r.partySize, 0)}</div>
+              <div className="text-3xl font-bold text-blue-700">{reservationStats.totalGuests}</div>
               <div className="text-blue-600 font-semibold text-lg">Comensales</div>
             </div>
           </div>

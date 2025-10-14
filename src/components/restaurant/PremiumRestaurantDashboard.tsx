@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useCallback, Suspense, lazy, memo } from 'react';
 import { useRestaurantData } from '@/hooks/useRestaurantData';
@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 // Lazy loading de componentes pesados
 const OpenAIChat = lazy(() => import('@/components/ai/OpenAIChat'));
 const ReservationCalendar = lazy(() => import('./ReservationCalendar'));
-const TablePlan = lazy(() => import('./ProductionTablePlan'));
+const TablePlan = lazy(() => import('./TablePlan'));
 const MobileNavigation = lazy(() => import('@/components/ui/MobileNavigation'));
 
 interface PremiumRestaurantDashboardProps {
@@ -32,7 +32,7 @@ interface Reservation {
   clientName: string;
   partySize: number;
   table: string;
-  status: 'confirmed' | 'pending' | 'cancelled';
+  status: 'confirmed' | 'occupied' | 'completed' | 'cancelled';
   notes?: string;
   phone?: string;
 }
@@ -53,7 +53,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
     horarios?: Array<{ Turno: string; Inicio: string; Fin: string }>;
   }>({ abierto: true, mensaje: 'Verificando estado...' });
   
-  // Hooks para autenticación y datos del restaurante
+  // Hooks para autenticaciÃ³n y datos del restaurante
   const { logout } = useClientAuth();
   const router = useRouter();
   const { 
@@ -63,54 +63,70 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
     refreshData 
   } = useRestaurantData(restaurantId);
   
-  // Hook para gestión global de mesas - temporalmente deshabilitado
+  // Hook para gestiÃ³n global de mesas - temporalmente deshabilitado
   // const { 
   //   updateTableStatus
   // } = useRestaurantTables(restaurantId);
 
-  // Función placeholder para updateTableStatus
+  // FunciÃ³n placeholder para updateTableStatus
   const updateTableStatus = (tableId: string, status: string, data?: Record<string, unknown>) => {
-    console.log('🔄 Updating table status:', { tableId, status, data });
-    // TODO: Implementar actualización real de estado de mesa
+    console.log('ðŸ”„ Updating table status:', { tableId, status, data });
+    // TODO: Implementar actualizaciÃ³n real de estado de mesa
   };
 
-  // Función para cerrar sesión
+  // FunciÃ³n para cerrar sesiÃ³n
   const handleLogout = async () => {
     try {
       await logout();
-      toast.success('Sesión cerrada exitosamente');
+      toast.success('SesiÃ³n cerrada exitosamente');
       router.push('/login');
     } catch (error) {
-      console.error('Error al cerrar sesión:', error);
-      toast.error('Error al cerrar sesión');
+      console.error('Error al cerrar sesiÃ³n:', error);
+      toast.error('Error al cerrar sesiÃ³n');
     }
   };
 
-  // Función para cargar reservas desde Google Sheets
+  // FunciÃ³n para formatear fecha sin conversiÃ³n a UTC
+  const formatDateToLocal = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // FunciÃ³n para cargar reservas desde Google Sheets
   const loadReservationsFromGoogleSheets = useCallback(async () => {
     try {
-      // Obtener solo reservas de HOY para la agenda del día
-      const today = new Date().toISOString().split('T')[0];
+      // Obtener solo reservas de HOY para la agenda del dÃ­a
+      const today = formatDateToLocal(new Date());
       const currentHour = new Date().getHours();
       const currentTime = `${currentHour.toString().padStart(2, '0')}:00`;
       
-      // PRIMERO: Verificar si el restaurante está abierto
+      // PRIMERO: Verificar si el restaurante estÃ¡ abierto
+      console.log('ðŸ” Verificando estado del restaurante:', { restaurantId, today, currentTime });
       const statusResponse = await fetch(`/api/google-sheets/horarios?restaurantId=${restaurantId}&fecha=${today}&hora=${currentTime}`);
       
       if (statusResponse.ok) {
         const statusData = await statusResponse.json();
+        console.log('ðŸ“Š Respuesta de estado:', statusData);
+        
         if (statusData.success) {
           setRestaurantStatus(statusData.status);
           
-          // Si el restaurante está cerrado, mostrar mensaje pero seguir cargando datos
+          // Si el restaurante estÃ¡ cerrado, limpiar reservas y no cargar mÃ¡s
           if (!statusData.status.abierto) {
-            console.log('🏪 Restaurante cerrado, pero cargando datos de todas formas');
-            // No return aquí - continuar cargando reservas y mesas
+            console.log('ðŸª Restaurante cerrado, limpiando agenda. Estado:', statusData.status);
+            setReservations([]);
+            return; // Salir sin cargar reservas
+          } else {
+            console.log('âœ… Restaurante abierto, cargando reservas');
           }
         }
+      } else {
+        console.error('âŒ Error en la respuesta de estado del restaurante:', statusResponse.status);
       }
       
-      // Si está abierto, cargar reservas normalmente
+      // Solo cargar reservas si el restaurante estÃ¡ abierto
       const response = await fetch(`/api/google-sheets/reservas?restaurantId=${restaurantId}&fecha=${today}`);
       
       if (response.ok) {
@@ -129,21 +145,45 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
               Estado: string;
               Notas?: string;
               Telefono?: string;
-            }) => ({
-              id: reserva.ID,
+            }, index: number) => ({
+              id: reserva.ID || `res_${Date.now()}_${index}`,
               date: reserva.Fecha,
               time: reserva.Hora,
               clientName: reserva.Cliente,
               partySize: reserva.Personas,
               table: reserva.Mesa || 'Por asignar',
-              status: reserva.Estado === 'Confirmada' ? 'confirmed' : 
-                     reserva.Estado === 'Pendiente' ? 'pending' : 'cancelled',
+              status: (() => {
+                const estado = (reserva.Estado || '').toLowerCase().trim();
+                console.log(`ðŸ” PremiumDashboard - Estado de reserva ${reserva.ID}: "${estado}"`);
+                switch (estado) {
+                  case 'ocupada': return 'occupied';
+                  case 'completada': return 'completed';
+                  case 'cancelada': return 'cancelled';
+                  case 'confirmada': return 'confirmed';
+                  case 'reservada': return 'confirmed';
+                  case '':
+                  case 'pendiente': return 'confirmed';
+                  default: return 'confirmed';
+                }
+              })(),
               notes: reserva.Notas || '',
               phone: reserva.Telefono || ''
             }));
+
+          // Eliminar duplicados por ID y asegurar keys Ãºnicas
+          const uniqueReservations = todayReservations.reduce((acc: any[], current: any) => {
+            const existing = acc.find(item => item.id === current.id);
+            if (!existing) {
+              acc.push({
+                ...current,
+                id: `${current.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+              });
+            }
+            return acc;
+          }, []);
           
-          setReservations(todayReservations);
-          console.log('📅 PremiumDashboard: Reservas de hoy cargadas desde Google Sheets:', todayReservations);
+          setReservations(uniqueReservations);
+          console.log('ðŸ“… PremiumDashboard: Reservas de hoy cargadas desde Google Sheets:', uniqueReservations);
         } else {
           console.error('Error cargando reservas:', data.error);
           setReservations([]);
@@ -159,23 +199,23 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
   }, [restaurantId]);
 
   useEffect(() => {
-    // Cargar reservas cuando los datos del restaurante estén disponibles
+    // Cargar reservas cuando los datos del restaurante estÃ©n disponibles
     if (restaurantData && !loading) {
       loadReservationsFromGoogleSheets();
     }
   }, [restaurantData, loading, loadReservationsFromGoogleSheets]);
 
-  // Auto-refresh de reservas cada 30 segundos
-  useEffect(() => {
-    if (!restaurantData || loading) return;
+  // Auto-refresh DESHABILITADO - El usuario controla manualmente los estados
+  // useEffect(() => {
+  //   if (!restaurantData || loading) return;
 
-    const interval = setInterval(() => {
-      console.log('🔄 Auto-refresh: Actualizando reservas desde Google Sheets...');
-      loadReservationsFromGoogleSheets();
-    }, 30000); // 30 segundos
+  //   const interval = setInterval(() => {
+  //     console.log('ðŸ”„ Auto-refresh: Actualizando reservas desde Google Sheets...');
+  //     loadReservationsFromGoogleSheets();
+  //   }, 30000); // 30 segundos
 
-    return () => clearInterval(interval);
-  }, [restaurantData, loading, loadReservationsFromGoogleSheets]);
+  //   return () => clearInterval(interval);
+  // }, [restaurantData, loading, loadReservationsFromGoogleSheets]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -195,6 +235,51 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
     }
   };
 
+  // FunciÃ³n para cambiar el estado de una reserva
+  const handleReservationStatusChange = async (reservationId: string, newStatus: Reservation['status']) => {
+    try {
+      // Actualizar estado local inmediatamente
+      setReservations(prev => 
+        prev.map(reservation => 
+          reservation.id === reservationId 
+            ? { ...reservation, status: newStatus }
+            : reservation
+        )
+      );
+
+      // Actualizar en Google Sheets
+      console.log('ðŸ”„ Enviando actualizaciÃ³n a API:', { restaurantId, reservationId, newStatus, fecha: new Date().toISOString().split('T')[0] });
+      
+      const response = await fetch('/api/google-sheets/update-reservation-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          restaurantId,
+          reservationId,
+          newStatus,
+          fecha: new Date().toISOString().split('T')[0]
+        }),
+      });
+
+      console.log('ðŸ“¡ Respuesta de API:', response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('âŒ Error actualizando estado de reserva:', response.status, errorData);
+        
+        // NO revertir cambio local - mantener el estado seleccionado
+        console.log('âš ï¸ Manteniendo cambio local aunque falle la actualizaciÃ³n en Google Sheets');
+      } else {
+        const result = await response.json();
+        console.log(`âœ… Estado de reserva ${reservationId} actualizado a ${newStatus}:`, result);
+      }
+    } catch (error) {
+      console.error('Error cambiando estado de reserva:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 flex items-center justify-center">
@@ -209,7 +294,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
     );
   }
 
-  // Mostrar error si hay problemas con la autenticación o carga de datos
+  // Mostrar error si hay problemas con la autenticaciÃ³n o carga de datos
   if (restaurantError) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 flex items-center justify-center p-4">
@@ -239,9 +324,9 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
       }`}>
         <div className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4">
           <div className="flex items-center justify-between">
-            {/* Lado izquierdo - Logo y título */}
+            {/* Lado izquierdo - Logo y tÃ­tulo */}
             <div className="flex items-center space-x-2 sm:space-x-3 md:space-x-4">
-              {/* Botón de menú móvil */}
+              {/* BotÃ³n de menÃº mÃ³vil */}
               <Button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 variant="outline"
@@ -294,9 +379,9 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
               </div>
             </div>
             
-            {/* Lado derecho - Botones de acción */}
+            {/* Lado derecho - Botones de acciÃ³n */}
             <div className="flex items-center space-x-1 sm:space-x-2 md:space-x-4">
-              {/* Botón de actualización */}
+              {/* BotÃ³n de actualizaciÃ³n */}
               <Button
                 onClick={() => {
                   refreshData();
@@ -310,7 +395,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                 <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </Button>
               
-              {/* Botón de modo oscuro/claro */}
+              {/* BotÃ³n de modo oscuro/claro */}
               <Button
                 onClick={() => setIsDarkMode(!isDarkMode)}
                 variant="outline"
@@ -324,7 +409,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                 {isDarkMode ? <Sun className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <Moon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
               </Button>
               
-              {/* Botón de cerrar sesión */}
+              {/* BotÃ³n de cerrar sesiÃ³n */}
               <Button
                 onClick={handleLogout}
                 variant="outline"
@@ -334,7 +419,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                     ? 'bg-red-800 border-red-600 text-white hover:bg-red-700' 
                     : 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100'
                 }`}
-                title="Cerrar sesión"
+                title="Cerrar sesiÃ³n"
               >
                 <LogOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </Button>
@@ -343,7 +428,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
         </div>
       </div>
 
-      {/* Overlay móvil para cerrar menú */}
+      {/* Overlay mÃ³vil para cerrar menÃº */}
       {isMobileMenuOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-30 md:hidden"
@@ -358,30 +443,30 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
             ? 'bg-gray-900/40 border-gray-700/30' 
             : 'bg-white/40 border-white/30'
         } ${
-          // En móvil: mostrar solo si está abierto
+          // En mÃ³vil: mostrar solo si estÃ¡ abierto
           isMobileMenuOpen ? 'w-64' : 'w-0 md:w-56 lg:w-64'
         } ${
           // En desktop: siempre visible
           'md:translate-x-0'
         } ${
-          // En móvil: slide in/out
+          // En mÃ³vil: slide in/out
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}>
           <div className="p-3 sm:p-4 md:p-6">
             <nav className="space-y-1 sm:space-y-2">
               {[
-                { id: 'agenda', label: 'Agenda del Día', color: 'blue' },
-                { id: 'reservations', label: 'Gestión de Reservas', color: 'violet' },
+                { id: 'agenda', label: 'Agenda del DÃ­a', color: 'blue' },
+                { id: 'reservations', label: 'GestiÃ³n de Reservas', color: 'violet' },
                 { id: 'tables', label: 'Control de Mesas', color: 'orange' },
                 { id: 'clients', label: 'Base de Clientes', color: 'red' },
                 { id: 'ai_chat', label: 'Chat con IA', color: 'purple' },
-                { id: 'settings', label: 'Configuración', color: 'slate' }
+                { id: 'settings', label: 'ConfiguraciÃ³n', color: 'slate' }
               ].map(item => (
                 <button
                   key={item.id}
                   onClick={() => {
                     setActiveSection(item.id);
-                    // Cerrar menú móvil al seleccionar
+                    // Cerrar menÃº mÃ³vil al seleccionar
                     setIsMobileMenuOpen(false);
                   }}
                   className={`w-full text-left px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 rounded-lg md:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300 ${
@@ -403,19 +488,19 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
         <div className={`flex-1 max-w-none transition-all duration-300 ${
           isDarkMode ? 'text-white' : 'text-gray-900'
         } ${
-          // En móvil: sin margen izquierdo
+          // En mÃ³vil: sin margen izquierdo
           // En desktop: margen para el sidebar
           'md:ml-56 lg:ml-64'
         }`}>
           {activeSection === 'agenda' && (
             <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 md:space-y-8">
-              {/* Reservas del día */}
+              {/* Reservas del dÃ­a */}
               <div className="space-y-4 sm:space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
                   <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
                     <h2 className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight transition-colors duration-300 ${
                       isDarkMode ? 'text-white' : 'text-slate-900'
-                    }`}>Agenda del Día</h2>
+                    }`}>Agenda del DÃ­a</h2>
                     
                     {/* Indicador de estado del restaurante */}
                     <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium ${
@@ -436,7 +521,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                       onClick={loadReservationsFromGoogleSheets}
                       className="px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold shadow-lg text-xs sm:text-sm"
                     >
-                      🔄 Actualizar
+                      ðŸ”„ Actualizar
                     </Button>
                     <Button className="px-4 sm:px-6 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold shadow-lg text-xs sm:text-sm">
                       Nueva Reserva
@@ -464,7 +549,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                             }`}>No hay reservas programadas</h3>
                             <p className={`text-sm ${
                               isDarkMode ? 'text-gray-400' : 'text-slate-600'
-                            }`}>El restaurante está abierto pero no hay reservas para hoy</p>
+                            }`}>El restaurante estÃ¡ abierto pero no hay reservas para hoy</p>
                           </>
                         ) : (
                           <>
@@ -485,9 +570,9 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                       <Card key={reservation.id} className={`p-3 sm:p-4 backdrop-blur-sm border-0 shadow-lg rounded-lg sm:rounded-xl hover:shadow-xl transition-all duration-300 ${
                         isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
                       }`}>
-                        {/* Layout responsive: vertical en móvil, horizontal en desktop */}
+                        {/* Layout responsive: vertical en mÃ³vil, horizontal en desktop */}
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
-                          {/* Información principal */}
+                          {/* InformaciÃ³n principal */}
                           <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3 md:space-x-4">
                             {/* Hora */}
                             <div className="flex items-center space-x-2 sm:space-x-0 sm:flex-col sm:text-center">
@@ -507,7 +592,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                               <span className="text-xs sm:hidden font-medium text-slate-600">Mesa</span>
                             </div>
                             
-                            {/* Información del Cliente */}
+                            {/* InformaciÃ³n del Cliente */}
                             <div className="flex-1 min-w-0">
                               <h3 className={`text-sm sm:text-base md:text-lg font-bold transition-colors duration-300 truncate ${
                                 isDarkMode ? 'text-white' : 'text-slate-900'
@@ -518,7 +603,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                                 }`}>{reservation.partySize} personas</span>
                                 <span className={`hidden sm:inline transition-colors duration-300 ${
                                   isDarkMode ? 'text-gray-500' : 'text-slate-400'
-                                }`}>•</span>
+                                }`}>â€¢</span>
                                 <span className={`font-medium transition-colors duration-300 truncate ${
                                   isDarkMode ? 'text-gray-400' : 'text-slate-500'
                                 }`}>{reservation.phone}</span>
@@ -533,34 +618,26 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                           
                           {/* Status y Acciones */}
                           <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
-                            <Badge className={`px-2 py-1 text-xs font-semibold rounded-md ${getStatusColor(reservation.status)} self-start sm:self-center`}>
-                              {getStatusText(reservation.status)}
-                            </Badge>
+                            <select
+                              value={reservation.status}
+                              onChange={(e) => handleReservationStatusChange(reservation.id, e.target.value as Reservation['status'])}
+                              className={`px-3 py-1 rounded-full text-xs font-semibold border-2 cursor-pointer transition-colors ${
+                                reservation.status === "confirmed"
+                                  ? "text-orange-700 bg-orange-100 border-orange-300 hover:bg-orange-200"
+                                  : reservation.status === "occupied"
+                                  ? "text-red-700 bg-red-100 border-red-300 hover:bg-red-200"
+                                  : reservation.status === "completed"
+                                  ? "text-gray-700 bg-gray-100 border-gray-300 hover:bg-gray-200"
+                                  : "text-rose-700 bg-rose-100 border-rose-300 hover:bg-rose-200"
+                              }`}
+                            >
+                              <option value="confirmed">Reservada</option>
+                              <option value="occupied">Ocupada</option>
+                              <option value="completed">Completada</option>
+                              <option value="cancelled">Cancelada</option>
+                            </select>
                             
-                            {reservation.status === 'pending' && (
-                              <div className="flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:space-x-2">
-                                <Button 
-                                  size="sm" 
-                                  onClick={() => updateTableStatus(reservation.table, 'ocupada', {
-                                    name: reservation.clientName,
-                                    phone: reservation.phone || '',
-                                    partySize: reservation.partySize,
-                                    notes: reservation.notes || ''
-                                  })}
-                                  className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md font-semibold text-xs"
-                                >
-                                  Ocupar Mesa
-                                </Button>
-                                <Button 
-                                  size="sm" 
-                                  onClick={() => updateTableStatus(reservation.table, 'libre')}
-                                  variant="outline"
-                                  className="px-3 py-1 border border-green-200 text-green-600 hover:bg-green-50 rounded-md font-semibold text-xs"
-                                >
-                                  Liberar Mesa
-                                </Button>
-                              </div>
-                            )}
+                            {/* Botones de acciÃ³n removidos - ahora se usa el selector */}
                           </div>
                         </div>
                       </Card>
@@ -569,13 +646,13 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                 ) : (
                   <div className="text-center py-12">
                     <div className={`text-gray-400 mb-4 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                      📅 Sin reservas para hoy
+                      ðŸ“… Sin reservas para hoy
                     </div>
                     <p className={`text-sm ${isDarkMode ? 'text-gray-600' : 'text-gray-500'}`}>
-                      Las reservas aparecerán aquí cuando los clientes llamen a {restaurantData?.name || restaurantName}
+                      Las reservas aparecerÃ¡n aquÃ­ cuando los clientes llamen a {restaurantData?.name || restaurantName}
                     </p>
                     <p className={`text-xs mt-2 ${isDarkMode ? 'text-gray-700' : 'text-gray-400'}`}>
-                      🤖 Retell AI se encarga automáticamente de gestionar las reservas
+                      ðŸ¤– Retell AI se encarga automÃ¡ticamente de gestionar las reservas
                     </p>
                   </div>
                 )}
@@ -625,13 +702,13 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
               }`}>
                 <h3 className={`text-lg sm:text-xl font-bold mb-3 sm:mb-4 transition-colors duration-300 ${
                   isDarkMode ? 'text-yellow-300' : 'text-yellow-900'
-                }`}>⭐ Base de Clientes</h3>
+                }`}>â­ Base de Clientes</h3>
                 <div className="text-center py-6 sm:py-8">
                   <div className={`text-gray-400 mb-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                    👥 Sistema de clientes en desarrollo
+                    ðŸ‘¥ Sistema de clientes en desarrollo
                   </div>
                   <p className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-600' : 'text-gray-500'}`}>
-                    Los datos de clientes se irán acumulando con el uso del sistema de {restaurantData?.name || restaurantName}
+                    Los datos de clientes se irÃ¡n acumulando con el uso del sistema de {restaurantData?.name || restaurantName}
                   </p>
                 </div>
               </Card>
@@ -663,13 +740,13 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
           {activeSection === 'settings' && (
             <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 md:space-y-8">
 
-              {/* Información básica */}
+              {/* InformaciÃ³n bÃ¡sica */}
               <Card className={`p-3 sm:p-4 md:p-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-0 shadow-xl rounded-xl sm:rounded-2xl transition-all duration-300 ${
                 isDarkMode ? 'from-blue-900/20 to-indigo-900/20' : 'from-blue-50 to-indigo-50'
               }`}>
                 <h3 className={`text-lg sm:text-xl font-bold mb-3 sm:mb-4 md:mb-6 transition-colors duration-300 ${
                   isDarkMode ? 'text-blue-300' : 'text-blue-900'
-                }`}>🏪 Información del Restaurante</h3>
+                }`}>ðŸª InformaciÃ³n del Restaurante</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
                   <div className="space-y-3 sm:space-y-4">
                     <div>
@@ -691,7 +768,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                     <div>
                       <label className={`block text-xs sm:text-sm font-semibold mb-1 sm:mb-2 transition-colors duration-300 ${
                         isDarkMode ? 'text-blue-300' : 'text-blue-900'
-                      }`}>Teléfono</label>
+                      }`}>TelÃ©fono</label>
                       <div className={`p-2 sm:p-3 rounded-lg border transition-colors duration-300 ${
                         isDarkMode ? 'bg-gray-800 border-blue-700 text-white' : 'bg-white border-blue-200'
                       }`}>{restaurantData?.phone || '+34 000 000 000'}</div>
@@ -701,10 +778,10 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                     <div>
                       <label className={`block text-xs sm:text-sm font-semibold mb-1 sm:mb-2 transition-colors duration-300 ${
                         isDarkMode ? 'text-blue-300' : 'text-blue-900'
-                      }`}>Dirección</label>
+                      }`}>DirecciÃ³n</label>
                       <div className={`p-2 sm:p-3 rounded-lg border transition-colors duration-300 ${
                         isDarkMode ? 'bg-gray-800 border-blue-700 text-white' : 'bg-white border-blue-200'
-                      }`}>{restaurantData?.address || 'Dirección no especificada'}</div>
+                      }`}>{restaurantData?.address || 'DirecciÃ³n no especificada'}</div>
                     </div>
                     <div>
                       <label className={`block text-xs sm:text-sm font-semibold mb-1 sm:mb-2 transition-colors duration-300 ${
@@ -730,7 +807,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
         </div>
       </div>
 
-      {/* Navegación móvil */}
+      {/* NavegaciÃ³n mÃ³vil */}
       <Suspense fallback={null}>
         <MobileNavigation
           activeSection={activeSection}

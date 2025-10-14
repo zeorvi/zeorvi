@@ -52,7 +52,7 @@ interface TablePlanProps {
 type TableStatus = 'libre' | 'ocupada' | 'reservada' | 'ocupado_todo_dia' | 'mantenimiento';
 
 export default function ProductionTablePlan({ restaurantId, isDarkMode = false }: TablePlanProps) {
-  console.log('🏢 [v2] Production TablePlan component loaded for restaurant:', restaurantId);
+  console.log('🏢 Production TablePlan component loaded for restaurant:', restaurantId);
   
   const { theme } = useTheme();
   const isDark = isDarkMode || theme === 'dark';
@@ -65,14 +65,12 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
   // Usar el hook de mesas (persiste automáticamente los cambios)
   const { 
     tables: hookTables, 
-    isLoading: hookIsLoading
+    isLoading: hookIsLoading,
+    updateTableStatus
   } = useRestaurantTables(restaurantId);
   
-  // Estado local para las mesas con reservas aplicadas
-  const [tablesWithReservations, setTablesWithReservations] = useState<TableState[]>([]);
-  
   // Convertir las mesas del hook al formato esperado
-  const tables: TableState[] = tablesWithReservations.length > 0 ? tablesWithReservations : hookTables.map(table => ({
+  const tables: TableState[] = hookTables.map(table => ({
     id: table.id,
     restaurantId: restaurantId,
     tableId: table.id,
@@ -109,41 +107,13 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
   // WebSocket para tiempo real
   const [ws] = useState<WebSocket | null>(null);
 
-  // Cargar configuración inicial del restaurante
+  // Inicializar datos
   useEffect(() => {
-    const loadRestaurantConfig = async () => {
-      try {
-        const today = new Date().toISOString().split('T')[0];
-        const currentHour = new Date().getHours();
-        const currentTime = `${currentHour.toString().padStart(2, '0')}:00`;
-        
-        const [scheduleData, statusData, diasCerradosData] = await Promise.all([
-          fetch(`/api/restaurant/schedule?restaurantId=${restaurantId}`).then(res => res.json()).catch(() => ({ success: false })),
-          fetch(`/api/google-sheets/horarios?restaurantId=${restaurantId}&fecha=${today}&hora=${currentTime}`).then(res => res.json()).catch(() => ({ success: false })),
-          fetch(`/api/google-sheets/dias-cerrados?restaurantId=${restaurantId}`).then(res => res.json()).catch(() => ({ success: false }))
-        ]);
-        
-        if (scheduleData.success) {
-          setSchedule(scheduleData.data);
-        }
-        
-        if (statusData.success) {
-          setRestaurantStatus(statusData.status);
-        }
-        
-        if (diasCerradosData.success) {
-          setDiasCerrados(diasCerradosData.diasCerrados);
-          setSelectedDiasCerrados(diasCerradosData.diasCerrados);
-        }
-        
-        console.log('✅ Configuración del restaurante cargada');
-        setIsConnected(false); // WebSocket deshabilitado
-      } catch (error) {
-        console.error('❌ Error cargando configuración:', error);
-      }
+    const init = async () => {
+      await initializeData();
+      initializeWebSocket();
     };
-    
-    loadRestaurantConfig();
+    init();
     
     return () => {
       if (ws) {
@@ -153,264 +123,145 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantId]);
 
-  // Auto-refresh optimizado - Sincronizar mesas con reservas cada 3 minutos
-  useEffect(() => {
-    const refreshInterval = setInterval(async () => {
-      try {
-        const today = new Date().toISOString().split('T')[0];
+  // Auto-refresh DESHABILITADO - El usuario controla manualmente los estados
+  // useEffect(() => {
+  //   const refreshInterval = setInterval(async () => {
+  //     try {
+  //       const today = new Date().toISOString().split('T')[0];
+  //       const currentTime = `${new Date().getHours().toString().padStart(2, '0')}:00`;
         
-        console.log('🔄 Auto-refresh: Actualizando estado de mesas con reservas...');
+  //       console.log('🔄 Auto-refresh: Actualizando estado de mesas...');
         
-        const reservationsResponse = await fetch(`/api/google-sheets/reservas?restaurantId=${restaurantId}&fecha=${today}`);
-        if (reservationsResponse.ok) {
-          const reservationsData = await reservationsResponse.json();
-          if (reservationsData.success && reservationsData.reservas && reservationsData.reservas.length > 0) {
-            await updateTableStatusFromReservations(reservationsData.reservas);
-            console.log('✅ Mesas actualizadas automáticamente con reservas del día');
-          }
-        }
-      } catch (error) {
-        console.error('Error en auto-refresh de mesas:', error);
+  //       const reservationsResponse = await fetch(`/api/google-sheets/reservas?restaurantId=${restaurantId}&fecha=${today}`);
+  //       if (reservationsResponse.ok) {
+  //         const reservationsData = await reservationsResponse.json();
+  //         if (reservationsData.success && reservationsData.reservas) {
+  //           await updateTableStatusFromReservations(reservationsData.reservas);
+  //         }
+  //       }
+  //     } catch (error) {
+  //       console.error('Error en auto-refresh de mesas:', error);
+  //     }
+  //   }, 120000); // 2 minutos
+
+  //   return () => clearInterval(refreshInterval);
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [restaurantId]);
+
+  // Inicializar datos del restaurante (solo horarios y estado, las mesas vienen del hook)
+  const initializeData = async () => {
+    try {
+      // Obtener fecha y hora actual para verificar horarios
+      const today = new Date().toISOString().split('T')[0];
+      const currentHour = new Date().getHours();
+      const currentTime = `${currentHour.toString().padStart(2, '0')}:00`;
+      
+      // Cargar datos (sin reservas - el usuario controla manualmente)
+      const [scheduleData, statusData, diasCerradosData] = await Promise.all([
+        fetch(`/api/restaurant/schedule?restaurantId=${restaurantId}`).then(res => res.json()),
+        fetch(`/api/google-sheets/horarios?restaurantId=${restaurantId}&fecha=${today}&hora=${currentTime}`).then(res => res.json()),
+        fetch(`/api/google-sheets/dias-cerrados?restaurantId=${restaurantId}`).then(res => res.json())
+      ]);
+      
+      if (scheduleData.success) {
+        setSchedule(scheduleData.data);
       }
-    }, 180000); // 3 minutos (optimizado)
-
-    return () => clearInterval(refreshInterval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restaurantId]);
-
-
-  // Cuando las mesas del hook cambien, reiniciar la sincronización
-  useEffect(() => {
-    // Ejecutar siempre que el hook no esté cargando, incluso si no hay mesas
-    if (!hookIsLoading) {
-      console.log('🔄 Hook finished loading. Tables count:', hookTables.length);
-      console.log('🔄 Hook tables:', hookTables.map(t => ({ id: t.id, name: t.name, status: t.status })));
       
-      // Recargar las reservas y sincronizar
-      const syncOnTableLoad = async () => {
-        try {
-          const today = new Date().toISOString().split('T')[0];
-          console.log('📅 Fetching reservations for:', today, 'Restaurant:', restaurantId);
-          
-          const reservationsResponse = await fetch(`/api/google-sheets/reservas?restaurantId=${restaurantId}&fecha=${today}`);
-          
-          if (reservationsResponse.ok) {
-            const reservationsData = await reservationsResponse.json();
-            console.log('📊 Reservations response:', reservationsData);
-            
-            if (reservationsData.success && reservationsData.reservas && reservationsData.reservas.length > 0) {
-              console.log('✅ Found', reservationsData.reservas.length, 'reservations');
-              console.log('📋 Reservations detail:', reservationsData.reservas.map((r: Record<string, unknown>) => ({
-                mesa: r.Mesa || r.mesa,
-                estado: r.Estado || r.estado,
-                cliente: r.Cliente || r.cliente,
-                hora: r.Hora || r.hora
-              })));
-              
-              if (hookTables.length > 0) {
-                console.log('✅ Have tables, applying reservations...');
-                await updateTableStatusFromReservations(reservationsData.reservas);
-              } else {
-                console.warn('⚠️ No tables loaded from Google Sheets! Cannot sync reservations.');
-                toast.error('No se encontraron mesas en Google Sheets para este restaurante');
-              }
-            } else {
-              console.log('ℹ️ No reservations found for today');
-              // No hay reservas, usar las mesas base (si existen)
-              if (hookTables.length > 0) {
-                setTablesWithReservations(hookTables.map(table => ({
-                  id: table.id,
-                  restaurantId: restaurantId,
-                  tableId: table.id,
-                  tableName: table.name,
-                  capacity: table.capacity,
-                  location: table.location || 'Sala principal',
-                  status: 'libre' as TableStatus,
-                  currentReservationId: undefined,
-                  clientName: undefined,
-                  clientPhone: undefined,
-                  partySize: undefined,
-                  notes: undefined,
-                  occupiedAt: undefined,
-                  lastUpdated: new Date(),
-                  createdAt: new Date()
-                })));
-                console.log('✅ All tables set to green (no reservations)');
-              }
-            }
-          } else {
-            console.error('❌ Error fetching reservations:', reservationsResponse.status, reservationsResponse.statusText);
-          }
-        } catch (error) {
-          console.error('❌ Error sincronizando al cargar mesas:', error);
-        }
-      };
+      if (statusData.success) {
+        setRestaurantStatus(statusData.status);
+      }
       
-      syncOnTableLoad();
-    } else {
-      console.log('⏳ Hook still loading...');
+      if (diasCerradosData.success) {
+        setDiasCerrados(diasCerradosData.diasCerrados);
+        setSelectedDiasCerrados(diasCerradosData.diasCerrados);
+      }
+
+      // Sincronización DESHABILITADA - El usuario controla manualmente los estados de las mesas
+      // if (reservationsData.success && reservationsData.reservas) {
+      //   console.log('🔄 Sincronizando mesas con reservas del día...');
+      //   await updateTableStatusFromReservations(reservationsData.reservas);
+      //   console.log('✅ Sincronización completada');
+      // }
+
+      // Si no hay mesas, inicializar con datos por defecto
+      if (tables.length === 0) {
+        await initializeDefaultTables();
+      }
+
+    } catch (error) {
+      console.error('Error initializing restaurant data:', error);
+      toast.error('Error al cargar datos del restaurante');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hookTables, hookIsLoading, restaurantId]);
+  };
+
+  // Inicializar mesas por defecto
+  const initializeDefaultTables = async () => {
+    const defaultTables = [
+      { id: 'M1', name: 'Mesa 1', capacity: 4, location: 'Terraza' },
+      { id: 'M2', name: 'Mesa 2', capacity: 2, location: 'Terraza' },
+      { id: 'M3', name: 'Mesa 3', capacity: 6, location: 'Salón Principal' },
+      { id: 'M4', name: 'Mesa 4', capacity: 4, location: 'Salón Principal' },
+      { id: 'M5', name: 'Mesa 5', capacity: 2, location: 'Comedor Privado' },
+      { id: 'M6', name: 'Mesa 6', capacity: 8, location: 'Terraza' },
+      { id: 'M7', name: 'Mesa 7', capacity: 4, location: 'Salón Principal' },
+      { id: 'M8', name: 'Mesa 8', capacity: 2, location: 'Comedor Privado' },
+    ];
+
+    try {
+      const response = await fetch('/api/restaurant/initialize-tables', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ restaurantId, tables: defaultTables })
+      });
+
+      if (response.ok) {
+        await initializeData(); // Recargar datos
+        toast.success('Mesas inicializadas correctamente');
+      }
+    } catch (error) {
+      console.error('Error initializing tables:', error);
+      toast.error('Error al inicializar mesas');
+    }
+  };
+
+  // Inicializar WebSocket (deshabilitado temporalmente)
+  const initializeWebSocket = () => {
+    // WebSocket deshabilitado temporalmente para evitar errores
+    // TODO: Implementar WebSocket server cuando sea necesario
+    console.log('🔌 WebSocket deshabilitado temporalmente');
+    setIsConnected(false);
+  };
 
   // Función para actualizar estado de mesas basado en reservas de hoy
   const updateTableStatusFromReservations = async (reservations: unknown[]) => {
     try {
-      console.log('🔄 [updateTableStatusFromReservations] Iniciando con', reservations.length, 'reservas');
-      console.log('🔄 [updateTableStatusFromReservations] HookTables disponibles:', hookTables.length);
-      
-      // Crear un mapa de reservas por mesa
-      const reservationsByTable = new Map<string, {
-        reservationTime: string;
-        clientName: string;
-        partySize: number;
-        phone: string;
-        estadoReserva: string;
-      }>();
+      console.log('🔄 Actualizando estado de mesas basado en reservas:', reservations.length);
       
       for (const reservation of reservations) {
         const res = reservation as Record<string, unknown>;
-        const tableName = (res.Mesa as string || res.mesa as string || '').trim();
-        const estadoReserva = (res.Estado as string || res.estado as string || '').toLowerCase().trim();
+        const reservationTime = res.Hora as string || res.hora as string;
+        const tableName = res.Mesa as string || res.mesa as string;
+        const clientName = res.Cliente as string || res.cliente as string;
+        const partySize = res.Personas as number || res.personas as number;
+        const phone = res.Telefono as string || res.telefono as string;
         
-        console.log('📝 Procesando reserva:', {
-          mesaOriginal: res.Mesa || res.mesa,
-          mesaNormalizada: tableName,
-          estado: estadoReserva,
-          cliente: res.Cliente || res.cliente
+        if (!tableName || tableName === 'Por asignar') continue;
+        
+        // Marcar la mesa como reservada si tiene una reserva para hoy
+        // (sin importar la hora, ya que es una reserva del día)
+        const tableId = `table_${tableName.toLowerCase().replace(/\s+/g, '_')}`;
+        
+        await updateTableStatus(tableId, 'reserved', {
+          name: clientName,
+          phone: phone,
+          partySize: partySize,
+          notes: `Reserva a las ${reservationTime}`
         });
         
-        if (!tableName || tableName === 'Por asignar') {
-          console.log('⚠️ Mesa sin asignar, saltando...');
-          continue;
-        }
-        
-        // Solo considerar reservas activas (no completadas ni canceladas)
-        if (estadoReserva === 'completada' || estadoReserva === 'cancelada') {
-          console.log('⚠️ Reserva', estadoReserva, ', saltando...');
-          continue;
-        }
-        
-        const tableKey = tableName.toLowerCase();
-        reservationsByTable.set(tableKey, {
-          reservationTime: res.Hora as string || res.hora as string,
-          clientName: res.Cliente as string || res.cliente as string,
-          partySize: res.Personas as number || res.personas as number,
-          phone: res.Telefono as string || res.telefono as string,
-          estadoReserva
-        });
-        
-        console.log('✅ Reserva agregada al mapa con key:', tableKey);
+        console.log(`✅ Mesa ${tableName} marcada como reservada para ${clientName} a las ${reservationTime}`);
       }
-      
-      console.log('📋 Mapa de reservas creado:', reservationsByTable.size, 'mesas con reservas activas');
-      console.log('📋 Keys en el mapa:', Array.from(reservationsByTable.keys()));
-      
-      // Obtener las mesas base del hook
-      const baseTables = hookTables.map(table => ({
-        id: table.id,
-        restaurantId: restaurantId,
-        tableId: table.id,
-        tableName: table.name,
-        capacity: table.capacity,
-        location: table.location || 'Sala principal',
-        status: 'libre' as TableStatus,
-        currentReservationId: undefined,
-        clientName: undefined,
-        clientPhone: undefined,
-        partySize: undefined,
-        notes: undefined,
-        occupiedAt: undefined,
-        lastUpdated: new Date(),
-        createdAt: new Date()
-      }));
-      
-      console.log('🏢 Mesas base creadas:', baseTables.map(t => ({ name: t.tableName, id: t.tableId })));
-      
-      // Aplicar las reservas a las mesas
-      const updatedTables = baseTables.map(table => {
-        console.log('🔍 Buscando reserva para mesa:', table.tableName);
-        
-        // Buscar si hay una reserva para esta mesa
-        let reservation: {
-          reservationTime: string;
-          clientName: string;
-          partySize: number;
-          phone: string;
-          estadoReserva: string;
-        } | null = null;
-        
-        // Buscar por diferentes variaciones del nombre
-        for (const [tableName, res] of reservationsByTable.entries()) {
-          const tableNameLower = table.tableName.toLowerCase();
-          const tableNameNoSpaces = tableNameLower.replace(/\s+/g, '');
-          const reservationNameNoSpaces = tableName.replace(/\s+/g, '');
-          
-          console.log('  🔍 Comparando:', {
-            mesaSistema: tableNameLower,
-            mesaReserva: tableName,
-            sinEspacios: { sistema: tableNameNoSpaces, reserva: reservationNameNoSpaces }
-          });
-          
-          if (
-            tableNameLower === tableName ||
-            tableNameLower.includes(tableName) ||
-            tableName.includes(tableNameLower) ||
-            tableNameNoSpaces === reservationNameNoSpaces
-          ) {
-            reservation = res;
-            console.log(`  ✅ MATCH ENCONTRADO! Mesa ${table.tableName} <-> ${tableName}`);
-            break;
-          }
-        }
-        
-        if (!reservation) {
-          console.log(`  ❌ No hay reserva para ${table.tableName}, quedará LIBRE (verde)`);
-          return table;
-        }
-        
-        // Hay una reserva, determinar el estado
-        let mesaStatus: TableStatus;
-        
-        switch (reservation.estadoReserva) {
-          case 'ocupada':
-            mesaStatus = 'ocupada';
-            console.log(`  🔴 Mesa ${table.tableName} -> OCUPADA (rojo)`);
-            break;
-          case 'confirmada':
-          case 'reservada':
-          case 'pendiente':
-          case '':
-          default:
-            mesaStatus = 'reservada';
-            console.log(`  🟠 Mesa ${table.tableName} -> RESERVADA (naranja)`);
-            break;
-        }
-        
-        return {
-          ...table,
-          status: mesaStatus,
-          clientName: reservation.clientName,
-          clientPhone: reservation.phone,
-          partySize: reservation.partySize,
-          notes: `Reserva a las ${reservation.reservationTime}`
-        };
-      });
-      
-      console.log('💾 Actualizando estado con', updatedTables.length, 'mesas');
-      console.log('📊 Resumen de mesas:', {
-        total: updatedTables.length,
-        reservadas: updatedTables.filter(t => t.status === 'reservada').length,
-        ocupadas: updatedTables.filter(t => t.status === 'ocupada').length,
-        libres: updatedTables.filter(t => t.status === 'libre').length
-      });
-      
-      // Actualizar el estado local con las mesas sincronizadas
-      setTablesWithReservations(updatedTables);
-      
-      console.log('✅ ¡Sincronización de mesas completada!');
     } catch (error) {
-      console.error('❌ Error actualizando estado de mesas:', error);
+      console.error('Error actualizando estado de mesas:', error);
     }
   };
 
@@ -438,28 +289,19 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
   }, [tables, statusFilter, searchTerm]);
 
   // Manejar cambio de estado de mesa
-  const handleTableStatusChange = async (tableId: string, newStatus: TableStatus) => {
+  const handleTableStatusChange = async (tableId: string, newStatus: TableStatus, clientData?: unknown) => {
     try {
       console.log(`🔄 Cambiando estado de mesa ${tableId} a ${newStatus}`);
       
-      // Actualizar inmediatamente en el estado local
-      setTablesWithReservations(prevTables => 
-        prevTables.map(table => 
-          table.tableId === tableId 
-            ? {
-                ...table,
-                status: newStatus,
-                clientName: newStatus === 'libre' ? undefined : table.clientName,
-                clientPhone: newStatus === 'libre' ? undefined : table.clientPhone,
-                partySize: newStatus === 'libre' ? undefined : table.partySize,
-                notes: newStatus === 'libre' ? undefined : table.notes,
-                lastUpdated: new Date()
-              }
-            : table
-        )
-      );
+      // Convertir el status al formato del hook
+      const hookStatus = newStatus === 'libre' ? 'available' : 
+                        newStatus === 'ocupada' ? 'occupied' :
+                        newStatus === 'reservada' ? 'reserved' : 'available';
       
-      console.log(`✅ Mesa ${tableId} actualizada localmente a ${newStatus}`);
+      // Actualizar directamente en el hook (esto persiste los cambios)
+      await updateTableStatus(tableId, hookStatus, clientData as { name: string; phone: string; partySize: number; notes?: string });
+      
+      console.log(`✅ Mesa ${tableId} actualizada a ${newStatus} (persistido en hook)`);
       toast.success(`Mesa ${tableId} actualizada a ${newStatus}`);
     } catch (error) {
       console.error('Error updating table status:', error);
@@ -486,17 +328,8 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
           setShowScheduleDialog(false);
           toast.success('Días cerrados actualizados correctamente');
           
-          // Recargar estado del restaurante
-          const today = new Date().toISOString().split('T')[0];
-          const currentHour = new Date().getHours();
-          const currentTime = `${currentHour.toString().padStart(2, '0')}:00`;
-          const statusResponse = await fetch(`/api/google-sheets/horarios?restaurantId=${restaurantId}&fecha=${today}&hora=${currentTime}`);
-          if (statusResponse.ok) {
-            const statusData = await statusResponse.json();
-            if (statusData.success) {
-              setRestaurantStatus(statusData.status);
-            }
-          }
+          // Recargar datos para actualizar el estado del restaurante
+          initializeData();
         } else {
           toast.error(result.error || 'Error al actualizar días cerrados');
         }
@@ -650,15 +483,8 @@ export default function ProductionTablePlan({ restaurantId, isDarkMode = false }
                   const reservationsData = await reservationsResponse.json();
                   if (reservationsData.success && reservationsData.reservas) {
                     await updateTableStatusFromReservations(reservationsData.reservas);
-                    toast.success(`Sincronización manual completada: ${reservationsData.reservas.length} reserva(s)`, {
-                      duration: 2000
-                    });
                     console.log('✅ Estado de mesas sincronizado con reservas');
-                  } else {
-                    toast.info('No hay reservas para sincronizar hoy');
                   }
-                } else {
-                  toast.error('Error al obtener reservas');
                 }
               } catch (error) {
                 console.error('Error sincronizando estado de mesas:', error);

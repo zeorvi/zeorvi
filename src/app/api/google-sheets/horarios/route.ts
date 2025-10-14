@@ -37,58 +37,53 @@ export async function GET(request: NextRequest) {
     const fechaFinal = fecha || new Date().toISOString().split('T')[0];
     const horaFinal = hora || new Date().toTimeString().slice(0, 5);
 
-    // Detectar entorno
-    const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
-    let status;
-
-    if (isProduction) {
-      // PRODUCCIÓN: Usar horarios hardcoded (SOLO VERIFICA DÍA, NO HORA)
-      console.log('🔐 Production environment - using hardcoded schedules (day-based only)');
+    // SIEMPRE usar horarios hardcoded para evitar problemas de horarios específicos
+    console.log('🔐 Using hardcoded schedules (day-based only) for restaurant:', restaurantId);
+    
+    const config = HORARIOS_HARDCODED[restaurantId as keyof typeof HORARIOS_HARDCODED];
+    let status: {
+      abierto: boolean;
+      mensaje: string;
+      horarios: any[];
+    };
+    
+    if (!config) {
+      // Si no hay configuración, asumir que está abierto
+      status = {
+        abierto: true,
+        mensaje: 'Restaurante abierto todo el día',
+        horarios: []
+      };
+    } else {
+      // Verificar SOLO el día de la semana (NO la hora)
+      const fechaObj = new Date(`${fechaFinal}T12:00:00`);
+      const diaSemana = fechaObj.toLocaleDateString('es-ES', { weekday: 'long' }).toLowerCase();
       
-      const config = HORARIOS_HARDCODED[restaurantId as keyof typeof HORARIOS_HARDCODED];
+      console.log(`📅 Fecha recibida: ${fechaFinal}`);
+      console.log(`📅 Objeto fecha: ${fechaObj.toISOString()}`);
+      console.log(`📅 Día de la semana detectado: "${diaSemana}"`);
+      console.log(`📅 Días cerrados configurados: ${config.diasCerrados.join(', ')}`);
+      console.log(`📅 ¿Está cerrado? ${config.diasCerrados.includes(diaSemana)}`);
       
-      if (!config) {
-        // Si no hay configuración, asumir que está abierto
+      // Verificar si está cerrado ese día
+      if (config.diasCerrados.includes(diaSemana)) {
+        const diasTexto = config.diasCerrados.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ');
+        status = {
+          abierto: false,
+          mensaje: `Restaurante cerrado los ${diasTexto}`,
+          horarios: config.turnos
+        };
+      } else {
+        // Está abierto todo el día (sin importar la hora)
         status = {
           abierto: true,
           mensaje: 'Restaurante abierto todo el día',
-          horarios: []
+          horarios: config.turnos
         };
-      } else {
-        // Verificar SOLO el día de la semana (NO la hora)
-        const fechaObj = new Date(`${fechaFinal}T12:00:00`);
-        const diaSemana = fechaObj.toLocaleDateString('es-ES', { weekday: 'long' }).toLowerCase();
-        
-        console.log(`📅 Día de la semana: ${diaSemana}, Días cerrados: ${config.diasCerrados.join(', ')}`);
-        
-        // Verificar si está cerrado ese día
-        if (config.diasCerrados.includes(diaSemana)) {
-          const diasTexto = config.diasCerrados.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ');
-          status = {
-            abierto: false,
-            mensaje: `Restaurante cerrado los ${diasTexto}`,
-            horarios: config.turnos
-          };
-        } else {
-          // Está abierto todo el día (sin importar la hora)
-          status = {
-            abierto: true,
-            mensaje: 'Restaurante abierto todo el día',
-            horarios: config.turnos
-          };
-        }
       }
-      
-      console.log('✅ Hardcoded schedule check (day-based):', status);
-    } else {
-      // DESARROLLO: Usar Google Sheets
-      console.log('🔧 Development environment - using Google Sheets');
-      status = await GoogleSheetsService.verificarRestauranteAbierto(
-        restaurantId,
-        fechaFinal,
-        horaFinal
-      );
     }
+    
+    console.log('✅ Hardcoded schedule check (day-based):', status);
 
     return NextResponse.json({
       success: true,

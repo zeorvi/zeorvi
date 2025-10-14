@@ -60,7 +60,7 @@ const nextConfig: NextConfig = {
   // Compresión y optimización de imágenes
   compress: true,
   
-  // Configuración de headers para cache
+  // Configuración de headers para cache y UTF-8
   async headers() {
     return [
       {
@@ -69,6 +69,10 @@ const nextConfig: NextConfig = {
           {
             key: 'X-DNS-Prefetch-Control',
             value: 'on'
+          },
+          {
+            key: 'Content-Type',
+            value: 'text/html; charset=utf-8'
           },
           {
             key: 'Content-Security-Policy',
@@ -85,11 +89,20 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        source: '/api/(.*)',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/json; charset=utf-8'
+          },
+        ],
+      },
     ];
   },
   
   // Webpack optimizado para compatibilidad con Vercel
-  webpack: (config, { isServer, dev }) => {
+  webpack: (config, { isServer }) => {
     if (!isServer) {
       // Configuración optimizada para el cliente
       config.resolve.fallback = {

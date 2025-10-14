@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,8 +41,41 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
 
   const dayNames = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
 
-  // Función para cargar reservas desde Google Sheets
-  const loadReservations = async () => {
+  // Función para formatear fecha sin conversión a UTC (memoizada)
+  const formatDateToLocal = useCallback((date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }, []);
+
+  // Función para normalizar fechas que pueden venir en diferentes formatos (memoizada)
+  const normalizeDateString = useCallback((dateStr: string): string => {
+    // Si la fecha ya está en formato YYYY-MM-DD, devolverla tal cual
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return dateStr;
+    }
+    
+    // Si viene con hora, extraer solo la fecha
+    if (dateStr.includes('T')) {
+      return dateStr.split('T')[0];
+    }
+    
+    // Intentar parsear y reformatear
+    try {
+      const date = new Date(dateStr);
+      if (!isNaN(date.getTime())) {
+        return formatDateToLocal(date);
+      }
+    } catch (e) {
+      console.error('Error parseando fecha:', dateStr, e);
+    }
+    
+    return dateStr;
+  }, [formatDateToLocal]);
+
+  // Función para cargar reservas desde Google Sheets (memoizada)
+  const loadReservations = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch(`/api/google-sheets/reservas?restaurantId=${restaurantId}`);
@@ -50,10 +83,10 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          const formattedReservations = data.reservas.map((reserva: any) => ({
-            id: reserva.ID,
+          const formattedReservations = data.reservas.map((reserva: any, index: number) => ({
+            id: reserva.ID || `res_${Date.now()}_${index}`,
             clientName: reserva.Cliente,
-            date: reserva.Fecha,
+            date: normalizeDateString(reserva.Fecha),
             time: reserva.Hora,
             partySize: reserva.Personas,
             table: reserva.Mesa || 'Por asignar',
@@ -63,8 +96,25 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
             notes: reserva.Notas || ''
           }));
           
-          setReservations(formattedReservations);
-          console.log('📅 ReservationCalendar: Reservas cargadas desde Google Sheets:', formattedReservations);
+          // Eliminar duplicados por ID y asegurar keys únicas
+          const uniqueReservations = formattedReservations.reduce((acc: any[], current: any) => {
+            const existing = acc.find(item => item.id === current.id);
+            if (!existing) {
+              // Si no existe, agregar con key única
+              acc.push({
+                ...current,
+                id: `${current.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+              });
+            }
+            return acc;
+          }, []);
+          
+          setReservations(uniqueReservations);
+          console.log('📅 ReservationCalendar: Reservas cargadas:', {
+            total: formattedReservations.length,
+            fechas: formattedReservations.map((r: any) => r.date),
+            reservas: formattedReservations
+          });
         }
       }
     } catch (error) {
@@ -73,16 +123,16 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
     } finally {
       setLoading(false);
     }
-  };
+  }, [restaurantId, normalizeDateString]);
 
-  // Cargar reservas al montar y auto-refresh
+  // Cargar reservas al montar y auto-refresh (reducido a cada 2 minutos para mejor rendimiento)
   useEffect(() => {
     loadReservations();
     
-    // Auto-refresh cada 60 segundos
-    const interval = setInterval(loadReservations, 60000);
+    // Auto-refresh cada 2 minutos (reducido de 60 segundos)
+    const interval = setInterval(loadReservations, 120000);
     return () => clearInterval(interval);
-  }, [restaurantId]);
+  }, [loadReservations]);
 
   const navigateMonth = (direction: 'prev' | 'next') => {
     setCurrentDate(prev => {
@@ -108,7 +158,8 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
     });
   };
 
-  const getDaysInMonth = (date: Date) => {
+  // Memoizar días del mes
+  const getDaysInMonth = useCallback((date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
     const firstDay = new Date(year, month, 1);
@@ -141,35 +192,51 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
     }
     
     return days;
-  };
+  }, []);
 
-  const getReservationsForDate = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
-    return reservations.filter(res => res.date === dateStr);
-  };
+  // Memoizar reservas por fecha
+  const getReservationsForDate = useCallback((date: Date) => {
+    const dateStr = formatDateToLocal(date);
+    const filtered = reservations.filter(res => res.date === dateStr);
+    
+    // Debug: mostrar comparaciones
+    if (filtered.length > 0) {
+      console.log('📅 Reservas encontradas para:', {
+        fechaBuscada: dateStr,
+        reservasEncontradas: filtered.length,
+        reservas: filtered
+      });
+    }
+    
+    return filtered;
+  }, [reservations, formatDateToLocal]);
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = useCallback((status: string) => {
     switch (status) {
       case 'confirmed': return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'pending': return 'bg-amber-100 text-amber-800 border-amber-200';
       case 'cancelled': return 'bg-rose-100 text-rose-800 border-rose-200';
       default: return 'bg-slate-100 text-slate-800 border-slate-200';
     }
-  };
+  }, []);
 
-  const formatDateForDisplay = (date: Date) => {
+  const formatDateForDisplay = useCallback((date: Date) => {
     return date.toLocaleDateString('es-ES', {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
       year: 'numeric'
     });
-  };
+  }, []);
 
-  const days = getDaysInMonth(currentDate);
-  const currentMonthReservations = reservations.filter(r => 
-    r.date.startsWith(`${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`)
-  );
+  // Memoizar días del mes actual
+  const days = useMemo(() => getDaysInMonth(currentDate), [currentDate, getDaysInMonth]);
+  
+  // Memoizar reservas del mes actual
+  const currentMonthReservations = useMemo(() => {
+    const monthStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+    return reservations.filter(r => r.date.startsWith(monthStr));
+  }, [reservations, currentDate]);
 
   return (
     <div className={`p-4 md:p-6 space-y-4 md:space-y-6 transition-colors duration-300 ${

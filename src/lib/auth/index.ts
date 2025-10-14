@@ -124,7 +124,7 @@ export class AuthService {
 
   async login(credentials: LoginCredentials): Promise<{ user: AuthUser; token: string }> {
     try {
-      let user: AuthUser;
+      let user: AuthUser | undefined;
       
       // Detectar entorno: si estamos en Vercel/producción, ir directo a hardcoded
       const isProduction = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
@@ -235,13 +235,19 @@ export class AuthService {
         }
       }
 
+      // Verificar que el usuario fue encontrado
+      if (!user) {
+        console.error('❌ Usuario no encontrado en ningún sistema de autenticación');
+        throw new Error('Credenciales inválidas');
+      }
+
       // Generar JWT token
-      const token = this.generateToken(user!);
+      const token = this.generateToken(user);
 
       // Guardar sesión en cache (memoria)
-      await memoryCache.setex(`session:${user!.id}`, 7 * 24 * 60 * 60, user!);
+      await memoryCache.setex(`session:${user.id}`, 7 * 24 * 60 * 60, user);
 
-      return { user: user!, token };
+      return { user, token };
     } catch (error) {
       console.error('Error en login:', error);
       throw error;

@@ -37,7 +37,13 @@ export async function POST(request: NextRequest) {
           Estado: 'confirmada',
           Notas: parameters.notas || ''
         });
-        result = reservaResult;
+        
+        // Agregar end_call: true para que Retell cuelgue automáticamente
+        result = {
+          ...reservaResult,
+          end_call: true,
+          end_call_message: "Queda confirmada la reserva. Les esperamos en Restaurante La Gaviota. Muchas gracias."
+        };
         break;
 
       case 'buscar_reserva':
@@ -55,46 +61,134 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'cancelar_reserva':
-        const reservasParaCancelar = await GoogleSheetsService.getReservas(restaurantId);
-        const reservaACancelar = reservasParaCancelar.find(r => 
-          r.Cliente === parameters.cliente && 
-          r.Telefono === parameters.telefono
-        );
-        
-        if (reservaACancelar) {
-          result = {
-            success: true,
-            mensaje: `Reserva de ${parameters.cliente} cancelada exitosamente`,
-            reserva: reservaACancelar
-          };
-        } else {
+        try {
+          const reservasParaCancelar = await GoogleSheetsService.getReservas(restaurantId);
+          const reservaACancelar = reservasParaCancelar.find(r => 
+            r.Cliente === parameters.cliente && 
+            r.Telefono === parameters.telefono &&
+            r.Estado.toLowerCase() !== 'cancelada'
+          );
+          
+          if (reservaACancelar && reservaACancelar.ID) {
+            // Actualizar el estado a cancelada en Google Sheets
+            await GoogleSheetsService.updateReservationStatus(
+              restaurantId,
+              reservaACancelar.ID,
+              'cancelada',
+              reservaACancelar.Fecha
+            );
+            
+            result = {
+              success: true,
+              mensaje: `Reserva de ${parameters.cliente} para el ${reservaACancelar.Fecha} a las ${reservaACancelar.Hora} cancelada exitosamente`,
+              reserva_cancelada: {
+                fecha: reservaACancelar.Fecha,
+                hora: reservaACancelar.Hora,
+                personas: reservaACancelar.Personas,
+                mesa: reservaACancelar.Mesa
+              },
+              end_call: true,
+              end_call_message: "Perfecto, su reserva queda cancelada. Muchas gracias por avisarnos. Que tenga un buen día."
+            };
+          } else {
+            result = {
+              success: false,
+              mensaje: 'No se encontró una reserva activa para cancelar. Verifique el nombre y teléfono.'
+            };
+          }
+        } catch (error) {
+          console.error('Error en cancelar_reserva:', error);
           result = {
             success: false,
-            mensaje: 'No se encontró la reserva para cancelar'
+            mensaje: 'Error al cancelar la reserva',
+            error: error instanceof Error ? error.message : 'Error desconocido'
           };
         }
         break;
 
       case 'modificar_reserva':
-        const reservasParaModificar = await GoogleSheetsService.getReservas(restaurantId);
-        const reservaAModificar = reservasParaModificar.find(r => 
-          r.Cliente === parameters.cliente && 
-          r.Telefono === parameters.telefono
-        );
-        
-        if (reservaAModificar) {
-          result = {
-            success: true,
-            mensaje: `Reserva de ${parameters.cliente} modificada exitosamente`,
-            reserva_original: reservaAModificar,
-            nueva_fecha: parameters.nueva_fecha,
-            nueva_hora: parameters.nueva_hora,
-            nuevas_personas: parameters.nuevas_personas
-          };
-        } else {
+        try {
+          // Buscar la reserva existente
+          const reservasParaModificar = await GoogleSheetsService.getReservas(restaurantId);
+          const reservaAModificar = reservasParaModificar.find(r => 
+            r.Cliente === parameters.cliente && 
+            r.Telefono === parameters.telefono &&
+            r.Estado.toLowerCase() !== 'cancelada'
+          );
+          
+          if (reservaAModificar && reservaAModificar.ID) {
+            // Primero verificar disponibilidad para la nueva hora
+            const nuevaFecha = parameters.nueva_fecha || reservaAModificar.Fecha;
+            const nuevaHora = parameters.nueva_hora || reservaAModificar.Hora;
+            const nuevasPersonas = parameters.nuevas_personas || reservaAModificar.Personas;
+            
+            const disponibilidad = await GoogleSheetsService.verificarDisponibilidad(
+              restaurantId,
+              nuevaFecha,
+              nuevaHora,
+              nuevasPersonas
+            );
+            
+            if (!disponibilidad.disponible) {
+              result = {
+                success: false,
+                mensaje: disponibilidad.mensaje || 'No hay disponibilidad para la nueva hora solicitada'
+              };
+              break;
+            }
+            
+            // Cancelar la reserva anterior (cambiar estado)
+            await GoogleSheetsService.updateReservationStatus(
+              restaurantId,
+              reservaAModificar.ID,
+              'cancelada',
+              reservaAModificar.Fecha
+            );
+            
+            // Crear nueva reserva con los datos actualizados
+            const nuevaReservaResult = await GoogleSheetsService.addReserva(restaurantId, {
+              Fecha: nuevaFecha,
+              Hora: nuevaHora,
+              Turno: reservaAModificar.Turno,
+              Cliente: parameters.cliente,
+              Telefono: parameters.telefono,
+              Personas: nuevasPersonas,
+              Zona: reservaAModificar.Zona,
+              Mesa: disponibilidad.mesa || '',
+              Estado: 'confirmada',
+              Notas: `Modificada desde ${reservaAModificar.Fecha} ${reservaAModificar.Hora}. ${parameters.notas || reservaAModificar.Notas || ''}`
+            });
+            
+            result = {
+              success: true,
+              mensaje: `Reserva modificada exitosamente para ${nuevaFecha} a las ${nuevaHora}`,
+              reserva_anterior: {
+                fecha: reservaAModificar.Fecha,
+                hora: reservaAModificar.Hora,
+                personas: reservaAModificar.Personas
+              },
+              nueva_reserva: {
+                fecha: nuevaFecha,
+                hora: nuevaHora,
+                personas: nuevasPersonas,
+                mesa: disponibilidad.mesa
+              },
+              detalles_completos: nuevaReservaResult,
+              end_call: true,
+              end_call_message: "Perfecto, su reserva ha sido modificada. Les esperamos. Muchas gracias."
+            };
+          } else {
+            result = {
+              success: false,
+              mensaje: 'No se encontró una reserva activa para modificar. Verifique el nombre y teléfono.'
+            };
+          }
+        } catch (error) {
+          console.error('Error en modificar_reserva:', error);
           result = {
             success: false,
-            mensaje: 'No se encontró la reserva para modificar'
+            mensaje: 'Error al modificar la reserva',
+            error: error instanceof Error ? error.message : 'Error desconocido'
           };
         }
         break;
@@ -129,6 +223,15 @@ export async function POST(request: NextRequest) {
           transferir: true,
           mensaje: 'Transferencia solicitada',
           motivo: parameters.motivo
+        };
+        break;
+
+      case 'finalizar_llamada':
+        result = {
+          success: true,
+          end_call: true,
+          mensaje: 'Llamada finalizada',
+          motivo: parameters.motivo || 'completado'
         };
         break;
 

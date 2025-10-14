@@ -906,4 +906,92 @@ export class GoogleSheetsService {
       };
     }
   }
+
+  // Actualizar estado de una reserva específica
+  static async updateReservationStatus(
+    restaurantId: string,
+    reservationId: string,
+    newStatus: string,
+    fecha: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const sheets = await getSheetsClient();
+      const spreadsheetId = await getSpreadsheetId(restaurantId);
+      
+      if (!spreadsheetId) {
+        return { success: false, error: 'Spreadsheet ID no encontrado' };
+      }
+
+      const sheetName = 'Reservas';
+      
+      console.log(`🔄 Actualizando estado de reserva ${reservationId} a ${newStatus} en Google Sheets`);
+      console.log(`🔍 Buscando en fecha: ${fecha}`);
+      
+      // Obtener todas las reservas para encontrar la fila
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${sheetName}!A:J`,
+      });
+
+      const rows = response.data.values;
+      if (!rows || rows.length < 2) {
+        return { success: false, error: 'No se encontraron reservas' };
+      }
+
+      console.log(`📋 Total de reservas encontradas: ${rows.length - 1}`);
+      console.log(`🔍 Buscando reserva con ID: "${reservationId}" en fecha: "${fecha}"`);
+
+      // Buscar la reserva por ID y fecha (más flexible)
+      let rowIndex = -1;
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const id = row[0];
+        const rowFecha = row[1];
+        const cliente = row[3]; // Cliente está en la columna D
+        
+        console.log(`🔍 Fila ${i}: ID="${id}", Fecha="${rowFecha}", Cliente="${cliente}"`);
+        
+        // Buscar por ID exacto O por ID que contenga el reservationId
+        if ((id === reservationId || id.includes(reservationId) || reservationId.includes(id)) && rowFecha === fecha) {
+          rowIndex = i + 1; // +1 porque las filas empiezan en 1 en Google Sheets
+          console.log(`✅ Encontrada reserva en fila ${rowIndex}: ID="${id}", Fecha="${rowFecha}"`);
+          break;
+        }
+      }
+
+      if (rowIndex === -1) {
+        return { success: false, error: 'Reserva no encontrada' };
+      }
+
+      // Primero, obtener la fila completa para ver su estructura
+      const rowData = rows[rowIndex - 1];
+      console.log(`📋 Estructura de la fila ${rowIndex}:`, rowData);
+      console.log(`📋 Columnas: A=${rowData[0]}, B=${rowData[1]}, C=${rowData[2]}, D=${rowData[3]}, E=${rowData[4]}, F=${rowData[5]}, G=${rowData[6]}, H=${rowData[7]}, I=${rowData[8]}, J=${rowData[9]}`);
+      
+      // Las columnas deberían ser: A=ID, B=Fecha, C=Hora, D=Turno, E=Cliente, F=Telefono, G=Personas, H=Zona, I=Mesa, J=Estado
+      // Entonces el Estado está en la columna J (índice 9), no en la I
+      const updateRange = `${sheetName}!J${rowIndex}`;
+      
+      console.log(`🔄 Actualizando columna J (Estado) en fila ${rowIndex} a: ${newStatus}`);
+      
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: updateRange,
+        valueInputOption: 'RAW',
+        requestBody: {
+          values: [[newStatus]]
+        }
+      });
+
+      console.log(`✅ Estado de reserva ${reservationId} actualizado a ${newStatus} en columna J fila ${rowIndex}`);
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error actualizando estado de reserva:', error);
+      return { 
+        success: false, 
+        error: 'Error actualizando estado en Google Sheets' 
+      };
+    }
+  }
 }

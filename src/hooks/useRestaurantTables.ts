@@ -35,7 +35,7 @@ export function useRestaurantTables(restaurantId: string) {
     
     setIsLoading(true);
     try {
-      console.log('🔍 [useRestaurantTables] Loading tables for restaurant:', restaurantId);
+      console.log('🔍 [useRestaurantTables] Cargando mesas para restaurante:', restaurantId);
       
       // Llamar al endpoint /api/restaurant/tables
       const response = await fetch(`/api/restaurant/tables?restaurantId=${restaurantId}`);
@@ -45,23 +45,23 @@ export function useRestaurantTables(restaurantId: string) {
       }
       
       const result = await response.json();
-      console.log('📊 [useRestaurantTables] API response:', result);
+      console.log('📊 [useRestaurantTables] Respuesta de API:', result);
       
       if (result.success && result.data) {
         // Convertir las mesas de Google Sheets al formato esperado
-        const tablesWithStatus: TableStatus[] = result.data.map((table: any) => ({
-          id: table.ID || `table-${Math.random().toString(36).substr(2, 9)}`,
-          name: table.ID || `Mesa ${table.ID}`,
-          capacity: table.Capacidad || 4,
-          location: table.Zona || 'Sala principal',
-          status: table.Estado === 'Libre' ? 'available' : 
-                  table.Estado === 'Ocupada' ? 'occupied' : 
-                  table.Estado === 'Reservada' ? 'reserved' : 'available',
+        const tablesWithStatus: TableStatus[] = result.data.map((table: Record<string, unknown>) => ({
+          id: (table.ID as string) || `table-${Math.random().toString(36).substr(2, 9)}`,
+          name: (table.ID as string) || `Mesa ${table.ID}`,
+          capacity: (table.Capacidad as number) || 4,
+          location: (table.Zona as string) || 'Sala principal',
+          status: (table.Estado as string) === 'Libre' ? 'available' : 
+                  (table.Estado as string) === 'Ocupada' ? 'occupied' : 
+                  (table.Estado as string) === 'Reservada' ? 'reserved' : 'available',
           lastUpdated: new Date().toISOString(),
           updatedBy: 'system'
         }));
         
-        console.log('✅ [useRestaurantTables] Tables converted:', tablesWithStatus);
+        console.log('✅ [useRestaurantTables] Mesas convertidas:', tablesWithStatus);
         setTables(tablesWithStatus);
         setLastUpdate(new Date());
       } else {
@@ -165,28 +165,31 @@ export function useRestaurantTables(restaurantId: string) {
     loadTables();
   }, [loadTables]);
 
-  // Sincronización automática cada 2 minutos
+  // Sincronización automática cada 5 minutos (optimizado)
   useEffect(() => {
     if (!restaurantId || tables.length === 0) return;
 
-    console.log('🔄 Setting up auto-sync for restaurant:', restaurantId);
+    console.log('🔄 Configurando auto-sincronización para restaurante:', restaurantId);
     const interval = setInterval(() => {
-      console.log('⏰ Auto-sync triggered');
+      console.log('⏰ Auto-sincronización activada');
       syncWithFirebase();
-    }, 2 * 60 * 1000); // 2 minutos
+    }, 5 * 60 * 1000); // 5 minutos (optimizado de 2 minutos)
 
     return () => {
-      console.log('🛑 Cleaning up auto-sync interval');
+      console.log('🛑 Limpiando intervalo de auto-sincronización');
       clearInterval(interval);
     };
   }, [syncWithFirebase, restaurantId, tables.length]);
 
-  console.log('🔄 Hook returning:', { 
-    tablesCount: tables.length, 
-    isLoading, 
-    restaurantId,
-    tables: tables.map(t => ({ id: t.id, name: t.name, status: t.status }))
-  });
+  // Log solo en desarrollo para evitar spam en producción
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔄 Hook retornando:', { 
+      tablesCount: tables.length, 
+      isLoading, 
+      restaurantId,
+      tables: tables.map(t => ({ id: t.id, name: t.name, status: t.status }))
+    });
+  }
 
   return {
     tables,
