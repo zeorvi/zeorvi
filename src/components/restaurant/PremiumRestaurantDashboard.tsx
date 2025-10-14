@@ -1,23 +1,30 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useCallback, Suspense, lazy, memo } from 'react';
 import { useRestaurantData } from '@/hooks/useRestaurantData';
 import AuthErrorHandler from '@/components/auth/AuthErrorHandler';
-// import { useRestaurantTables } from '@/hooks/useRestaurantTables';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Sun, Moon, RefreshCw, LogOut, Menu, X } from 'lucide-react';
 import { ReservationLoading, TableLoading, AILoading } from '@/components/ui/optimized-loading';
 import { useClientAuth } from '@/hooks/useClientAuth';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
-// Lazy loading de componentes pesados
+// Lazy loading de componentes pesados con prefetch
 const OpenAIChat = lazy(() => import('@/components/ai/OpenAIChat'));
 const ReservationCalendar = lazy(() => import('./ReservationCalendar'));
-const TablePlan = lazy(() => import('./TablePlan'));
+const TablePlan = lazy(() => import('./EnhancedTablePlan'));
 const MobileNavigation = lazy(() => import('@/components/ui/MobileNavigation'));
+
+// Precargar componentes más usados
+if (typeof window !== 'undefined') {
+  // Precargar después de 1 segundo
+  setTimeout(() => {
+    import('./ReservationCalendar');
+    import('./EnhancedTablePlan');
+  }, 1000);
+}
 
 interface PremiumRestaurantDashboardProps {
   restaurantId: string;
@@ -53,7 +60,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
     horarios?: Array<{ Turno: string; Inicio: string; Fin: string }>;
   }>({ abierto: true, mensaje: 'Verificando estado...' });
   
-  // Hooks para autenticaciÃ³n y datos del restaurante
+  // Hooks para autenticación y datos del restaurante
   const { logout } = useClientAuth();
   const router = useRouter();
   const { 
@@ -62,31 +69,20 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
     error: restaurantError, 
     refreshData 
   } = useRestaurantData(restaurantId);
-  
-  // Hook para gestiÃ³n global de mesas - temporalmente deshabilitado
-  // const { 
-  //   updateTableStatus
-  // } = useRestaurantTables(restaurantId);
 
-  // FunciÃ³n placeholder para updateTableStatus
-  const updateTableStatus = (tableId: string, status: string, data?: Record<string, unknown>) => {
-    console.log('ðŸ”„ Updating table status:', { tableId, status, data });
-    // TODO: Implementar actualizaciÃ³n real de estado de mesa
-  };
-
-  // FunciÃ³n para cerrar sesiÃ³n
+  // Función para cerrar sesión
   const handleLogout = async () => {
     try {
       await logout();
-      toast.success('SesiÃ³n cerrada exitosamente');
+      toast.success('Sesión cerrada exitosamente');
       router.push('/login');
     } catch (error) {
-      console.error('Error al cerrar sesiÃ³n:', error);
-      toast.error('Error al cerrar sesiÃ³n');
+      console.error('Error al cerrar sesión:', error);
+      toast.error('Error al cerrar sesión');
     }
   };
 
-  // FunciÃ³n para formatear fecha sin conversiÃ³n a UTC
+  // Función para formatear fecha sin conversión a UTC
   const formatDateToLocal = (date: Date): string => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -94,39 +90,39 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
     return `${year}-${month}-${day}`;
   };
 
-  // FunciÃ³n para cargar reservas desde Google Sheets
+  // Función para cargar reservas desde Google Sheets
   const loadReservationsFromGoogleSheets = useCallback(async () => {
     try {
-      // Obtener solo reservas de HOY para la agenda del dÃ­a
+      // Obtener solo reservas de HOY para la agenda del día
       const today = formatDateToLocal(new Date());
       const currentHour = new Date().getHours();
       const currentTime = `${currentHour.toString().padStart(2, '0')}:00`;
       
-      // PRIMERO: Verificar si el restaurante estÃ¡ abierto
-      console.log('ðŸ” Verificando estado del restaurante:', { restaurantId, today, currentTime });
+      // PRIMERO: Verificar si el restaurante está abierto
+      console.log('🔍 Verificando estado del restaurante:', { restaurantId, today, currentTime });
       const statusResponse = await fetch(`/api/google-sheets/horarios?restaurantId=${restaurantId}&fecha=${today}&hora=${currentTime}`);
       
       if (statusResponse.ok) {
         const statusData = await statusResponse.json();
-        console.log('ðŸ“Š Respuesta de estado:', statusData);
+        console.log('📊 Respuesta de estado:', statusData);
         
         if (statusData.success) {
           setRestaurantStatus(statusData.status);
           
-          // Si el restaurante estÃ¡ cerrado, limpiar reservas y no cargar mÃ¡s
+          // Si el restaurante está cerrado, limpiar reservas y no cargar más
           if (!statusData.status.abierto) {
-            console.log('ðŸª Restaurante cerrado, limpiando agenda. Estado:', statusData.status);
+            console.log('🏪 Restaurante cerrado, limpiando agenda. Estado:', statusData.status);
             setReservations([]);
             return; // Salir sin cargar reservas
           } else {
-            console.log('âœ… Restaurante abierto, cargando reservas');
+            console.log('✅ Restaurante abierto, cargando reservas');
           }
         }
       } else {
-        console.error('âŒ Error en la respuesta de estado del restaurante:', statusResponse.status);
+        console.error('❌ Error en la respuesta de estado del restaurante:', statusResponse.status);
       }
       
-      // Solo cargar reservas si el restaurante estÃ¡ abierto
+      // Solo cargar reservas si el restaurante está abierto
       const response = await fetch(`/api/google-sheets/reservas?restaurantId=${restaurantId}&fecha=${today}`);
       
       if (response.ok) {
@@ -134,27 +130,17 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
         if (data.success) {
           // Convertir formato de Google Sheets al formato del dashboard
           const todayReservations = data.reservas
-            .sort((a: any, b: any) => a.Hora.localeCompare(b.Hora))
-            .map((reserva: {
-              ID: string;
-              Fecha: string;
-              Hora: string;
-              Cliente: string;
-              Personas: number;
-              Mesa?: string;
-              Estado: string;
-              Notas?: string;
-              Telefono?: string;
-            }, index: number) => ({
-              id: reserva.ID || `res_${Date.now()}_${index}`,
-              date: reserva.Fecha,
-              time: reserva.Hora,
-              clientName: reserva.Cliente,
-              partySize: reserva.Personas,
-              table: reserva.Mesa || 'Por asignar',
+            .sort((a: Record<string, string>, b: Record<string, string>) => (a.Hora || '').localeCompare(b.Hora || ''))
+            .map((reserva: Record<string, unknown>, index: number) => ({
+              id: (reserva.ID as string) || `res_${Date.now()}_${index}`,
+              date: (reserva.Fecha as string),
+              time: (reserva.Hora as string),
+              clientName: (reserva.Cliente as string),
+              partySize: (reserva.Personas as number),
+              table: (reserva.Mesa as string) || 'Por asignar',
               status: (() => {
-                const estado = (reserva.Estado || '').toLowerCase().trim();
-                console.log(`ðŸ” PremiumDashboard - Estado de reserva ${reserva.ID}: "${estado}"`);
+                const estado = ((reserva.Estado as string) || '').toLowerCase().trim();
+                console.log(`🔍 PremiumDashboard - Estado de reserva ${reserva.ID}: "${estado}"`);
                 switch (estado) {
                   case 'ocupada': return 'occupied';
                   case 'completada': return 'completed';
@@ -166,12 +152,12 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                   default: return 'confirmed';
                 }
               })(),
-              notes: reserva.Notas || '',
-              phone: reserva.Telefono || ''
+              notes: (reserva.Notas as string) || '',
+              phone: (reserva.Telefono as string) || ''
             }));
 
-          // Eliminar duplicados por ID y asegurar keys Ãºnicas
-          const uniqueReservations = todayReservations.reduce((acc: any[], current: any) => {
+          // Eliminar duplicados por ID y asegurar keys únicas
+          const uniqueReservations = todayReservations.reduce((acc: Reservation[], current: Reservation) => {
             const existing = acc.find(item => item.id === current.id);
             if (!existing) {
               acc.push({
@@ -183,7 +169,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
           }, []);
           
           setReservations(uniqueReservations);
-          console.log('ðŸ“… PremiumDashboard: Reservas de hoy cargadas desde Google Sheets:', uniqueReservations);
+          console.log('📅 PremiumDashboard: Reservas de hoy cargadas desde Google Sheets:', uniqueReservations);
         } else {
           console.error('Error cargando reservas:', data.error);
           setReservations([]);
@@ -199,7 +185,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
   }, [restaurantId]);
 
   useEffect(() => {
-    // Cargar reservas cuando los datos del restaurante estÃ©n disponibles
+    // Cargar reservas cuando los datos del restaurante estén disponibles
     if (restaurantData && !loading) {
       loadReservationsFromGoogleSheets();
     }
@@ -210,32 +196,15 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
   //   if (!restaurantData || loading) return;
 
   //   const interval = setInterval(() => {
-  //     console.log('ðŸ”„ Auto-refresh: Actualizando reservas desde Google Sheets...');
+  //     console.log('🔄 Auto-refresh: Actualizando reservas desde Google Sheets...');
   //     loadReservationsFromGoogleSheets();
   //   }, 30000); // 30 segundos
 
   //   return () => clearInterval(interval);
   // }, [restaurantData, loading, loadReservationsFromGoogleSheets]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'confirmed': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-      case 'pending': return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'cancelled': return 'bg-rose-100 text-rose-800 border-rose-200';
-      default: return 'bg-slate-100 text-slate-800 border-slate-200';
-    }
-  };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'confirmed': return 'Confirmada';
-      case 'pending': return 'Pendiente';
-      case 'cancelled': return 'Cancelada';
-      default: return status;
-    }
-  };
-
-  // FunciÃ³n para cambiar el estado de una reserva
+  // Función para cambiar el estado de una reserva
   const handleReservationStatusChange = async (reservationId: string, newStatus: Reservation['status']) => {
     try {
       // Actualizar estado local inmediatamente
@@ -248,7 +217,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
       );
 
       // Actualizar en Google Sheets
-      console.log('ðŸ”„ Enviando actualizaciÃ³n a API:', { restaurantId, reservationId, newStatus, fecha: new Date().toISOString().split('T')[0] });
+      console.log('🔄 Enviando actualización a API:', { restaurantId, reservationId, newStatus, fecha: new Date().toISOString().split('T')[0] });
       
       const response = await fetch('/api/google-sheets/update-reservation-status', {
         method: 'POST',
@@ -263,17 +232,17 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
         }),
       });
 
-      console.log('ðŸ“¡ Respuesta de API:', response.status, response.statusText);
+      console.log('📡 Respuesta de API:', response.status, response.statusText);
 
       if (!response.ok) {
         const errorData = await response.text();
-        console.error('âŒ Error actualizando estado de reserva:', response.status, errorData);
+        console.error('❌ Error actualizando estado de reserva:', response.status, errorData);
         
         // NO revertir cambio local - mantener el estado seleccionado
-        console.log('âš ï¸ Manteniendo cambio local aunque falle la actualizaciÃ³n en Google Sheets');
+        console.log('⚠️ Manteniendo cambio local aunque falle la actualización en Google Sheets');
       } else {
         const result = await response.json();
-        console.log(`âœ… Estado de reserva ${reservationId} actualizado a ${newStatus}:`, result);
+        console.log(`✅ Estado de reserva ${reservationId} actualizado a ${newStatus}:`, result);
       }
     } catch (error) {
       console.error('Error cambiando estado de reserva:', error);
@@ -294,7 +263,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
     );
   }
 
-  // Mostrar error si hay problemas con la autenticaciÃ³n o carga de datos
+  // Mostrar error si hay problemas con la autenticación o carga de datos
   if (restaurantError) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 flex items-center justify-center p-4">
@@ -322,55 +291,55 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
           ? 'bg-gray-900/95 border-gray-700/50' 
           : 'bg-white/95 border-slate-200/50'
       }`}>
-        <div className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4">
+        <div className="px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-2.5 lg:py-4">
           <div className="flex items-center justify-between">
-            {/* Lado izquierdo - Logo y tÃ­tulo */}
-            <div className="flex items-center space-x-2 sm:space-x-3 md:space-x-4">
-              {/* BotÃ³n de menÃº mÃ³vil */}
+            {/* Lado izquierdo - Logo y título */}
+            <div className="flex items-center space-x-1.5 sm:space-x-2 md:space-x-3 lg:space-x-4">
+              {/* Botón de menú móvil */}
               <Button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 variant="outline"
                 size="sm"
-                className={`h-8 w-8 sm:h-9 sm:w-9 md:hidden transition-all duration-300 ${
+                className={`h-7 w-7 md:hidden p-0 ${
                   isDarkMode 
                     ? 'bg-gray-800 border-gray-600 text-white hover:bg-gray-700' 
                     : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
                 }`}
               >
-                {isMobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+                {isMobileMenuOpen ? <X className="h-3.5 w-3.5" /> : <Menu className="h-3.5 w-3.5" />}
               </Button>
               
               <div className="relative">
-                <div className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg md:rounded-xl flex items-center justify-center shadow-lg">
-                  <div className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6 bg-white rounded-md md:rounded-lg flex items-center justify-center">
-                    <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-sm"></div>
+                <div className="h-7 w-7 sm:h-8 sm:w-8 lg:h-12 lg:w-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg lg:rounded-xl flex items-center justify-center shadow-lg">
+                  <div className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-6 lg:w-6 bg-white rounded-md lg:rounded-lg flex items-center justify-center">
+                    <div className="w-2 h-2 lg:w-3 lg:h-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-sm"></div>
                   </div>
                 </div>
-                <div className="absolute -top-1 -right-1 h-2 w-2 sm:h-2.5 sm:w-2.5 md:h-3 md:w-3 bg-green-400 rounded-full border-2 border-white animate-pulse"></div>
+                <div className="absolute -top-0.5 -right-0.5 lg:-top-1 lg:-right-1 h-2 w-2 lg:h-3 lg:w-3 bg-green-400 rounded-full border border-white lg:border-2 animate-pulse"></div>
               </div>
               
               <div className="min-w-0 flex-1">
-                <h1 className={`text-sm sm:text-base md:text-lg lg:text-xl font-bold tracking-tight transition-colors duration-300 truncate ${
+                <h1 className={`text-xs sm:text-sm md:text-base lg:text-xl font-bold tracking-tight truncate ${
                   isDarkMode ? 'text-white' : 'text-slate-900'
                 }`}>{restaurantData?.name || restaurantName}</h1>
                 
                 <div className="hidden sm:block">
-                  <p className={`text-xs md:text-sm font-medium capitalize transition-colors duration-300 ${
+                  <p className={`text-[10px] sm:text-xs lg:text-sm font-medium capitalize ${
                     isDarkMode ? 'text-gray-400' : 'text-slate-500'
                   }`}>{restaurantType}</p>
                   <div className="flex items-center space-x-2 mt-1">
                     <div className="flex items-center space-x-1">
                       <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
-                      <span className={`text-xs font-medium transition-colors duration-300 ${
+                      <span className={`text-[10px] lg:text-xs font-medium ${
                         isDarkMode ? 'text-gray-300' : 'text-slate-600'
                       }`}>Sistema Activo</span>
                     </div>
-                    <div className={`w-0.5 h-3 rounded-full transition-colors duration-300 ${
+                    <div className={`w-0.5 h-2 lg:h-3 rounded-full ${
                       isDarkMode ? 'bg-gray-600' : 'bg-slate-300'
                     }`}></div>
                     <div className="flex items-center space-x-1">
                       <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse"></div>
-                      <span className={`text-xs font-medium transition-colors duration-300 ${
+                      <span className={`text-[10px] lg:text-xs font-medium ${
                         isDarkMode ? 'text-gray-300' : 'text-slate-600'
                       }`}>IA Conectada</span>
                     </div>
@@ -379,56 +348,70 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
               </div>
             </div>
             
-            {/* Lado derecho - Botones de acciÃ³n */}
-            <div className="flex items-center space-x-1 sm:space-x-2 md:space-x-4">
-              {/* BotÃ³n de actualizaciÃ³n */}
+            {/* Lado derecho - Botones de acción */}
+            <div className="flex items-center space-x-1 lg:space-x-2">
+              {/* Botón de actualización */}
               <Button
-                onClick={() => {
+                onClick={async () => {
+                  // Invalidar caché primero para forzar actualización
+                  try {
+                    await fetch('/api/cache/invalidate', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ restaurantId, type: 'all' })
+                    });
+                  } catch (error) {
+                    console.error('Error invalidando caché:', error);
+                  }
+                  
+                  // Luego actualizar datos
                   refreshData();
                   loadReservationsFromGoogleSheets();
+                  toast.success('Datos actualizados');
                 }}
                 variant="outline"
                 size="sm"
-                className="h-8 w-8 sm:h-9 sm:w-9 transition-all duration-300 bg-blue-500 border-blue-600 text-white hover:bg-blue-600"
-                title="Actualizar datos y reservas"
+                className="h-7 w-7 lg:h-9 lg:w-9 p-0 bg-blue-500 border-blue-600 text-white hover:bg-blue-600"
+                title="Actualizar"
               >
-                <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <RefreshCw className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
               </Button>
               
-              {/* BotÃ³n de modo oscuro/claro */}
+              {/* Botón de modo oscuro/claro */}
               <Button
                 onClick={() => setIsDarkMode(!isDarkMode)}
                 variant="outline"
                 size="sm"
-                className={`h-8 w-8 sm:h-9 sm:w-9 transition-all duration-300 ${
+                className={`h-7 w-7 lg:h-9 lg:w-9 p-0 ${
                   isDarkMode 
                     ? 'bg-gray-800 border-gray-600 text-white hover:bg-gray-700' 
                     : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
                 }`}
+                title={isDarkMode ? 'Modo claro' : 'Modo oscuro'}
               >
-                {isDarkMode ? <Sun className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <Moon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
+                {isDarkMode ? <Sun className="h-3.5 w-3.5 lg:h-4 lg:w-4" /> : <Moon className="h-3.5 w-3.5 lg:h-4 lg:w-4" />}
               </Button>
               
-              {/* BotÃ³n de cerrar sesiÃ³n */}
+              {/* Botón de cerrar sesión */}
               <Button
                 onClick={handleLogout}
                 variant="outline"
                 size="sm"
-                className={`h-8 w-8 sm:h-9 sm:w-9 transition-all duration-300 ${
+                className={`h-7 w-7 lg:h-9 lg:w-9 p-0 ${
                   isDarkMode 
                     ? 'bg-red-800 border-red-600 text-white hover:bg-red-700' 
                     : 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100'
                 }`}
-                title="Cerrar sesiÃ³n"
+                title="Cerrar sesión"
               >
-                <LogOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <LogOut className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
               </Button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Overlay mÃ³vil para cerrar menÃº */}
+      {/* Overlay móvil para cerrar menú */}
       {isMobileMenuOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-30 md:hidden"
@@ -436,48 +419,45 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
         />
       )}
 
-      <div className="flex pt-12 sm:pt-14 md:pt-16 lg:pt-20">
+      <div className="flex pt-11 sm:pt-11 md:pt-12 lg:pt-16">
         {/* Sidebar Responsive */}
-        <div className={`fixed left-0 top-12 sm:top-14 md:top-16 lg:top-20 bottom-0 backdrop-blur-2xl shadow-2xl border-r z-40 overflow-y-auto transition-all duration-300 ${
+        <div className={`fixed left-0 top-11 sm:top-11 md:top-12 lg:top-16 bottom-0 backdrop-blur-2xl shadow-2xl border-r z-40 overflow-y-auto transition-all duration-300 ${
           isDarkMode 
             ? 'bg-gray-900/40 border-gray-700/30' 
             : 'bg-white/40 border-white/30'
         } ${
-          // En mÃ³vil: mostrar solo si estÃ¡ abierto
-          isMobileMenuOpen ? 'w-64' : 'w-0 md:w-56 lg:w-64'
+          // En móvil: mostrar solo si está abierto
+          isMobileMenuOpen ? 'w-52 sm:w-56' : 'w-0 md:w-48 lg:w-64'
         } ${
-          // En desktop: siempre visible
-          'md:translate-x-0'
-        } ${
-          // En mÃ³vil: slide in/out
+          // En móvil: slide in/out
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}>
-          <div className="p-3 sm:p-4 md:p-6">
-            <nav className="space-y-1 sm:space-y-2">
+          <div className="px-2 sm:px-3 lg:px-6 pb-2 sm:pb-3 lg:pb-6 pt-6 sm:pt-8 lg:pt-10">
+            <nav className="space-y-1 lg:space-y-2">
               {[
-                { id: 'agenda', label: 'Agenda del DÃ­a', color: 'blue' },
-                { id: 'reservations', label: 'GestiÃ³n de Reservas', color: 'violet' },
+                { id: 'agenda', label: 'Agenda del Día', color: 'blue' },
+                { id: 'reservations', label: 'Gestión de Reservas', color: 'violet' },
                 { id: 'tables', label: 'Control de Mesas', color: 'orange' },
                 { id: 'clients', label: 'Base de Clientes', color: 'red' },
                 { id: 'ai_chat', label: 'Chat con IA', color: 'purple' },
-                { id: 'settings', label: 'ConfiguraciÃ³n', color: 'slate' }
+                { id: 'settings', label: 'Configuración', color: 'slate' }
               ].map(item => (
                 <button
                   key={item.id}
                   onClick={() => {
                     setActiveSection(item.id);
-                    // Cerrar menÃº mÃ³vil al seleccionar
+                    // Cerrar menú móvil al seleccionar
                     setIsMobileMenuOpen(false);
                   }}
-                  className={`w-full text-left px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 rounded-lg md:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300 ${
+                  className={`w-full text-left px-3 py-2 lg:px-4 lg:py-3 rounded-lg lg:rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center gap-2 ${
                     activeSection === item.id
-                      ? `bg-gradient-to-r from-${item.color}-500 to-${item.color}-600 text-white shadow-lg transform scale-105`
+                      ? `bg-gradient-to-r from-${item.color}-500 to-${item.color}-600 text-white shadow-lg`
                       : isDarkMode 
-                        ? 'text-gray-300 hover:bg-gray-800/60 hover:text-white hover:shadow-md'
-                        : 'text-slate-700 hover:bg-slate-100/60 hover:text-slate-900 hover:shadow-md'
+                        ? 'text-gray-300 hover:bg-gray-800/60 hover:text-white'
+                        : 'text-slate-700 hover:bg-slate-100/60 hover:text-slate-900'
                   }`}
                 >
-                  <span className={`tracking-wide ${activeSection === item.id ? 'font-bold' : ''}`}>{item.label}</span>
+                  <span className="truncate">{item.label}</span>
                 </button>
               ))}
             </nav>
@@ -488,19 +468,18 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
         <div className={`flex-1 max-w-none transition-all duration-300 ${
           isDarkMode ? 'text-white' : 'text-gray-900'
         } ${
-          // En mÃ³vil: sin margen izquierdo
-          // En desktop: margen para el sidebar
-          'md:ml-56 lg:ml-64'
+          // Margen izquierdo para sidebar
+          'md:ml-48 lg:ml-64'
         }`}>
           {activeSection === 'agenda' && (
-            <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 md:space-y-8">
-              {/* Reservas del dÃ­a */}
-              <div className="space-y-4 sm:space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+            <div className="pt-4 sm:pt-6 md:pt-8 lg:pt-10 px-2 sm:px-3 md:px-4 lg:px-6 space-y-3 sm:space-y-4 lg:space-y-8">
+              {/* Reservas del día */}
+              <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
                   <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
-                    <h2 className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight transition-colors duration-300 ${
+                    <h2 className={`text-base sm:text-lg md:text-xl lg:text-2xl font-bold tracking-tight transition-colors duration-300 ${
                       isDarkMode ? 'text-white' : 'text-slate-900'
-                    }`}>Agenda del DÃ­a</h2>
+                    }`}>Agenda del Día</h2>
                     
                     {/* Indicador de estado del restaurante */}
                     <div className={`flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium ${
@@ -516,14 +495,14 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                       </span>
                     </div>
                   </div>
-                  <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                  <div className="flex gap-2">
                     <Button 
                       onClick={loadReservationsFromGoogleSheets}
-                      className="px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold shadow-lg text-xs sm:text-sm"
+                      className="px-3 py-1.5 lg:px-4 lg:py-2 rounded-lg lg:rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold shadow-lg text-xs lg:text-sm"
                     >
-                      ðŸ”„ Actualizar
+                      Actualizar
                     </Button>
-                    <Button className="px-4 sm:px-6 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold shadow-lg text-xs sm:text-sm">
+                    <Button className="hidden sm:flex px-3 py-1.5 lg:px-6 lg:py-3 rounded-lg lg:rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold shadow-lg text-xs lg:text-sm">
                       Nueva Reserva
                     </Button>
                   </div>
@@ -549,7 +528,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                             }`}>No hay reservas programadas</h3>
                             <p className={`text-sm ${
                               isDarkMode ? 'text-gray-400' : 'text-slate-600'
-                            }`}>El restaurante estÃ¡ abierto pero no hay reservas para hoy</p>
+                            }`}>El restaurante está abierto pero no hay reservas para hoy</p>
                           </>
                         ) : (
                           <>
@@ -565,70 +544,74 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                     </div>
                   </Card>
                 ) : reservations.length > 0 ? (
-                  <div className="space-y-2 sm:space-y-3">
+                  <div className="space-y-2 lg:space-y-3">
                     {reservations.map((reservation) => (
-                      <Card key={reservation.id} className={`p-3 sm:p-4 backdrop-blur-sm border-0 shadow-lg rounded-lg sm:rounded-xl hover:shadow-xl transition-all duration-300 ${
+                      <Card key={reservation.id} className={`p-2 sm:p-3 lg:p-4 backdrop-blur-sm border-0 shadow-lg rounded-lg lg:rounded-xl hover:shadow-xl transition-all duration-200 ${
                         isDarkMode ? 'bg-gray-800/70' : 'bg-white/70'
                       }`}>
-                        {/* Layout responsive: vertical en mÃ³vil, horizontal en desktop */}
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
-                          {/* InformaciÃ³n principal */}
-                          <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3 md:space-x-4">
+                        {/* Layout responsive */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 lg:gap-4">
+                          {/* Información principal */}
+                          <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 flex-1 min-w-0">
                             {/* Hora */}
-                            <div className="flex items-center space-x-2 sm:space-x-0 sm:flex-col sm:text-center">
-                              <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-gradient-to-br from-slate-100 to-slate-200 rounded-md md:rounded-lg flex items-center justify-center shadow-md">
-                                <span className={`text-xs sm:text-sm font-bold transition-colors duration-300 ${
-                                  isDarkMode ? 'text-black' : 'text-slate-700'
-                                }`}>{reservation.time}</span>
+                            <div className="flex-shrink-0">
+                              <div className="px-2 py-1 lg:w-12 lg:h-12 bg-gradient-to-br from-slate-100 to-slate-200 rounded-md lg:rounded-lg flex items-center justify-center">
+                                <span className={`text-xs lg:text-sm font-bold ${isDarkMode ? 'text-black' : 'text-slate-700'}`}>
+                                  {reservation.time}
+                                </span>
                               </div>
-                              <span className="text-xs sm:hidden font-medium text-slate-600">Hora</span>
                             </div>
                             
                             {/* Mesa */}
-                            <div className="flex items-center space-x-2 sm:space-x-0 sm:flex-col sm:text-center">
-                              <div className="px-2 sm:px-3 py-1 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-md shadow-md">
+                            <div className="flex-shrink-0">
+                              <div className="px-2 py-1 lg:px-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-md shadow-md">
                                 <span className="text-white font-bold text-xs">Mesa {reservation.table}</span>
                               </div>
-                              <span className="text-xs sm:hidden font-medium text-slate-600">Mesa</span>
                             </div>
                             
-                            {/* InformaciÃ³n del Cliente */}
+                            {/* Información del Cliente */}
                             <div className="flex-1 min-w-0">
-                              <h3 className={`text-sm sm:text-base md:text-lg font-bold transition-colors duration-300 truncate ${
-                                isDarkMode ? 'text-white' : 'text-slate-900'
-                              }`}>{reservation.clientName}</h3>
-                              <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-3 text-xs">
-                                <span className={`font-medium transition-colors duration-300 ${
-                                  isDarkMode ? 'text-gray-300' : 'text-slate-600'
-                                }`}>{reservation.partySize} personas</span>
-                                <span className={`hidden sm:inline transition-colors duration-300 ${
-                                  isDarkMode ? 'text-gray-500' : 'text-slate-400'
-                                }`}>â€¢</span>
-                                <span className={`font-medium transition-colors duration-300 truncate ${
-                                  isDarkMode ? 'text-gray-400' : 'text-slate-500'
-                                }`}>{reservation.phone}</span>
+                              <h3 className={`text-sm lg:text-lg font-bold truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
+                                {reservation.clientName}
+                              </h3>
+                              <div className="flex items-center gap-2 lg:gap-3 text-xs">
+                                <span className={`${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>
+                                  {reservation.partySize} personas
+                                </span>
+                                <span className={`hidden lg:inline ${isDarkMode ? 'text-gray-500' : 'text-slate-400'}`}>•</span>
+                                <span className={`hidden lg:inline truncate ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
+                                  {reservation.phone}
+                                </span>
+                                {reservation.notes && (
+                                  <>
+                                    <span className={`lg:hidden ${isDarkMode ? 'text-gray-500' : 'text-slate-400'}`}>•</span>
+                                    <span className={`lg:hidden italic truncate ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
+                                      {reservation.notes}
+                                    </span>
+                                  </>
+                                )}
                               </div>
                               {reservation.notes && (
-                                <p className={`italic text-xs mt-1 transition-colors duration-300 ${
-                                  isDarkMode ? 'text-gray-400' : 'text-slate-500'
-                                }`}>{reservation.notes}</p>
+                                <p className={`hidden lg:block italic text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
+                                  {reservation.notes}
+                                </p>
                               )}
                             </div>
                           </div>
                           
-                          {/* Status y Acciones */}
-                          <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+                          {/* Status */}
+                          <div className="flex-shrink-0">
                             <select
                               value={reservation.status}
                               onChange={(e) => handleReservationStatusChange(reservation.id, e.target.value as Reservation['status'])}
-                              className={`px-3 py-1 rounded-full text-xs font-semibold border-2 cursor-pointer transition-colors ${
+                              className={`w-full sm:w-auto px-2 py-1 lg:px-3 rounded-md lg:rounded-full text-xs font-semibold border lg:border-2 cursor-pointer transition-colors ${
                                 reservation.status === "confirmed"
-                                  ? "text-orange-700 bg-orange-100 border-orange-300 hover:bg-orange-200"
+                                  ? "text-orange-700 bg-orange-100 border-orange-300"
                                   : reservation.status === "occupied"
-                                  ? "text-red-700 bg-red-100 border-red-300 hover:bg-red-200"
+                                  ? "text-red-700 bg-red-100 border-red-300"
                                   : reservation.status === "completed"
-                                  ? "text-gray-700 bg-gray-100 border-gray-300 hover:bg-gray-200"
-                                  : "text-rose-700 bg-rose-100 border-rose-300 hover:bg-rose-200"
+                                  ? "text-gray-700 bg-gray-100 border-gray-300"
+                                  : "text-rose-700 bg-rose-100 border-rose-300"
                               }`}
                             >
                               <option value="confirmed">Reservada</option>
@@ -636,8 +619,6 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                               <option value="completed">Completada</option>
                               <option value="cancelled">Cancelada</option>
                             </select>
-                            
-                            {/* Botones de acciÃ³n removidos - ahora se usa el selector */}
                           </div>
                         </div>
                       </Card>
@@ -646,13 +627,13 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                 ) : (
                   <div className="text-center py-12">
                     <div className={`text-gray-400 mb-4 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                      ðŸ“… Sin reservas para hoy
+                      📅 Sin reservas para hoy
                     </div>
                     <p className={`text-sm ${isDarkMode ? 'text-gray-600' : 'text-gray-500'}`}>
-                      Las reservas aparecerÃ¡n aquÃ­ cuando los clientes llamen a {restaurantData?.name || restaurantName}
+                      Las reservas aparecerán aquí cuando los clientes llamen a {restaurantData?.name || restaurantName}
                     </p>
                     <p className={`text-xs mt-2 ${isDarkMode ? 'text-gray-700' : 'text-gray-400'}`}>
-                      ðŸ¤– Retell AI se encarga automÃ¡ticamente de gestionar las reservas
+                      🤖 Retell AI se encarga automáticamente de gestionar las reservas
                     </p>
                   </div>
                 )}
@@ -662,38 +643,36 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
 
           {/* Vista de Agenda completa */}
 
-          {/* Otras secciones con Suspense para lazy loading */}
-          {activeSection === 'reservations' && (
+          {/* Otras secciones con Suspense - Mantener montadas para mejor rendimiento */}
+          <div style={{ display: activeSection === 'reservations' ? 'block' : 'none' }} className="pt-2 sm:pt-3 md:pt-4 lg:pt-6">
             <Suspense fallback={
               <div className="flex items-center justify-center h-64">
                 <ReservationLoading />
               </div>
             }>
               <ReservationCalendar 
-                key={`reservations-${restaurantId}-${restaurantData?.name}`}
                 restaurantId={restaurantId} 
                 isDarkMode={isDarkMode} 
                 restaurantTables={[]}
               />
             </Suspense>
-          )}
+          </div>
 
-          {activeSection === 'tables' && (
+          <div style={{ display: activeSection === 'tables' ? 'block' : 'none' }} className="pt-2 sm:pt-3 md:pt-4 lg:pt-6">
             <Suspense fallback={
               <div className="flex items-center justify-center h-64">
                 <TableLoading />
               </div>
             }>
               <TablePlan 
-                key={`tables-${restaurantId}-${restaurantData?.name}`}
                 restaurantId={restaurantId} 
-                isDarkMode={isDarkMode} 
+                isDarkMode={isDarkMode}
               />
             </Suspense>
-          )}
+          </div>
 
           {activeSection === 'clients' && (
-            <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 md:space-y-8">
+            <div className="pt-2 sm:pt-3 md:pt-4 lg:pt-6 px-3 sm:px-4 md:px-6 space-y-4 sm:space-y-6 md:space-y-8">
               {/* Clientes VIP */}
               <Card className={`p-3 sm:p-4 border-0 shadow-xl rounded-xl sm:rounded-2xl transition-all duration-300 ${
                 isDarkMode 
@@ -702,13 +681,13 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
               }`}>
                 <h3 className={`text-lg sm:text-xl font-bold mb-3 sm:mb-4 transition-colors duration-300 ${
                   isDarkMode ? 'text-yellow-300' : 'text-yellow-900'
-                }`}>â­ Base de Clientes</h3>
+                }`}>⭐ Base de Clientes</h3>
                 <div className="text-center py-6 sm:py-8">
                   <div className={`text-gray-400 mb-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                    ðŸ‘¥ Sistema de clientes en desarrollo
+                    👥 Sistema de clientes en desarrollo
                   </div>
                   <p className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-600' : 'text-gray-500'}`}>
-                    Los datos de clientes se irÃ¡n acumulando con el uso del sistema de {restaurantData?.name || restaurantName}
+                    Los datos de clientes se irán acumulando con el uso del sistema de {restaurantData?.name || restaurantName}
                   </p>
                 </div>
               </Card>
@@ -718,7 +697,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
 
 
 
-          {activeSection === 'ai_chat' && (
+          <div style={{ display: activeSection === 'ai_chat' ? 'block' : 'none' }} className="pt-2 sm:pt-3 md:pt-4 lg:pt-6">
             <Suspense fallback={
               <div className="flex items-center justify-center h-64">
                 <AILoading />
@@ -734,19 +713,19 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                 />
               </div>
             </Suspense>
-          )}
+          </div>
 
 
           {activeSection === 'settings' && (
             <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 md:space-y-8">
 
-              {/* InformaciÃ³n bÃ¡sica */}
+              {/* Información básica */}
               <Card className={`p-3 sm:p-4 md:p-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-0 shadow-xl rounded-xl sm:rounded-2xl transition-all duration-300 ${
                 isDarkMode ? 'from-blue-900/20 to-indigo-900/20' : 'from-blue-50 to-indigo-50'
               }`}>
                 <h3 className={`text-lg sm:text-xl font-bold mb-3 sm:mb-4 md:mb-6 transition-colors duration-300 ${
                   isDarkMode ? 'text-blue-300' : 'text-blue-900'
-                }`}>ðŸª InformaciÃ³n del Restaurante</h3>
+                }`}>🏪 Información del Restaurante</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
                   <div className="space-y-3 sm:space-y-4">
                     <div>
@@ -768,7 +747,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                     <div>
                       <label className={`block text-xs sm:text-sm font-semibold mb-1 sm:mb-2 transition-colors duration-300 ${
                         isDarkMode ? 'text-blue-300' : 'text-blue-900'
-                      }`}>TelÃ©fono</label>
+                      }`}>Teléfono</label>
                       <div className={`p-2 sm:p-3 rounded-lg border transition-colors duration-300 ${
                         isDarkMode ? 'bg-gray-800 border-blue-700 text-white' : 'bg-white border-blue-200'
                       }`}>{restaurantData?.phone || '+34 000 000 000'}</div>
@@ -778,10 +757,10 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                     <div>
                       <label className={`block text-xs sm:text-sm font-semibold mb-1 sm:mb-2 transition-colors duration-300 ${
                         isDarkMode ? 'text-blue-300' : 'text-blue-900'
-                      }`}>DirecciÃ³n</label>
+                      }`}>Dirección</label>
                       <div className={`p-2 sm:p-3 rounded-lg border transition-colors duration-300 ${
                         isDarkMode ? 'bg-gray-800 border-blue-700 text-white' : 'bg-white border-blue-200'
-                      }`}>{restaurantData?.address || 'DirecciÃ³n no especificada'}</div>
+                      }`}>{restaurantData?.address || 'Dirección no especificada'}</div>
                     </div>
                     <div>
                       <label className={`block text-xs sm:text-sm font-semibold mb-1 sm:mb-2 transition-colors duration-300 ${
@@ -807,7 +786,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
         </div>
       </div>
 
-      {/* NavegaciÃ³n mÃ³vil */}
+      {/* Navegación móvil */}
       <Suspense fallback={null}>
         <MobileNavigation
           activeSection={activeSection}

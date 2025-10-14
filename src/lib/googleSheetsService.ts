@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import { getSpreadsheetId } from './restaurantSheets';
+import { googleSheetsCache } from './cache/googleSheetsCache';
 
 export interface Reserva {
   ID?: string;
@@ -46,48 +47,52 @@ export class GoogleSheetsService {
     return getSpreadsheetId(restaurantId);
   }
 
-  // ✅ Leer reservas
+  // ✅ Leer reservas (con caché)
   static async getReservas(restaurantId: string): Promise<Reserva[]> {
-    try {
-      console.log(`📊 [Google Sheets] Obteniendo reservas para ${restaurantId}...`);
-      console.log(`📊 [Google Sheets] CLIENT_EMAIL: ${process.env.GOOGLE_CLIENT_EMAIL ? '✅ Configurado' : '❌ No configurado'}`);
-      console.log(`📊 [Google Sheets] PRIVATE_KEY: ${process.env.GOOGLE_PRIVATE_KEY ? '✅ Configurado' : '❌ No configurado'}`);
-      
-      const sheets = await this.getClient();
-      const sheetId = this.getSheetId(restaurantId);
-      
-      console.log(`📊 [Google Sheets] SpreadsheetId: ${sheetId}`);
-      
-      const res = await sheets.spreadsheets.values.get({
-        spreadsheetId: sheetId,
-        range: "Reservas!A2:K",
-      });
-      
-      const values = res.data.values || [];
-      console.log(`✅ [Google Sheets] ${values.length} reservas obtenidas`);
-      
-      return values.map(row => ({
-        ID: row[0] || '',
-        Fecha: row[1] || '',
-        Hora: row[2] || '',
-        Turno: row[3] || '',
-        Cliente: row[4] || '',
-        Telefono: row[5] || '',
-        Personas: parseInt(row[6]) || 0,
-        Zona: row[7] || '',
-        Mesa: row[8] || '',
-        Estado: (row[9] as 'pendiente' | 'confirmada' | 'cancelada') || 'pendiente',
-        Notas: row[10] || '',
-        Creado: row[11] || new Date().toISOString(),
-      }));
-    } catch (error) {
-      console.error(`❌ [Google Sheets] Error leyendo reservas para ${restaurantId}:`, error);
-      if (error instanceof Error) {
-        console.error(`❌ [Google Sheets] Error message: ${error.message}`);
-        console.error(`❌ [Google Sheets] Error stack: ${error.stack}`);
-      }
-      throw error; // Lanzar el error para que el endpoint lo maneje
-    }
+    const cacheKey = `reservas:${restaurantId}`;
+    
+    return googleSheetsCache.get(
+      cacheKey,
+      async () => {
+        try {
+          console.log(`📊 [Google Sheets] Fetching reservas para ${restaurantId}...`);
+          
+          const sheets = await this.getClient();
+          const sheetId = this.getSheetId(restaurantId);
+          
+          const res = await sheets.spreadsheets.values.get({
+            spreadsheetId: sheetId,
+            range: "Reservas!A2:K",
+          });
+          
+          const values = res.data.values || [];
+          console.log(`✅ [Google Sheets] ${values.length} reservas obtenidas`);
+          
+          return values.map(row => ({
+            ID: row[0] || '',
+            Fecha: row[1] || '',
+            Hora: row[2] || '',
+            Turno: row[3] || '',
+            Cliente: row[4] || '',
+            Telefono: row[5] || '',
+            Personas: parseInt(row[6]) || 0,
+            Zona: row[7] || '',
+            Mesa: row[8] || '',
+            Estado: (row[9] as 'pendiente' | 'confirmada' | 'cancelada') || 'pendiente',
+            Notas: row[10] || '',
+            Creado: row[11] || new Date().toISOString(),
+          }));
+        } catch (error) {
+          console.error(`❌ [Google Sheets] Error leyendo reservas para ${restaurantId}:`, error);
+          if (error instanceof Error) {
+            console.error(`❌ [Google Sheets] Error message: ${error.message}`);
+            console.error(`❌ [Google Sheets] Error stack: ${error.stack}`);
+          }
+          throw error;
+        }
+      },
+      'reservas'
+    );
   }
 
   // ✅ Añadir nueva reserva con validación de disponibilidad
@@ -142,6 +147,10 @@ export class GoogleSheetsService {
       });
       
       console.log(`✅ Reserva creada exitosamente: ${reserva.Cliente} - Mesa ${mesaFinal} - ${reserva.Fecha} ${reserva.Hora}`);
+      
+      // Invalidar caché de reservas
+      googleSheetsCache.invalidate(`reservas:${restaurantId}`);
+      
       return { success: true, ID: reservaId };
     } catch (error) {
       console.error(`Error creando reserva para ${restaurantId}:`, error);
@@ -195,6 +204,10 @@ export class GoogleSheetsService {
       });
       
       console.log(`✅ Reserva actualizada: ${id} para ${restaurantId}`);
+      
+      // Invalidar caché de reservas
+      googleSheetsCache.invalidate(`reservas:${restaurantId}`);
+      
       return { success: true };
     } catch (error) {
       console.error(`Error actualizando reserva ${id} para ${restaurantId}:`, error);
@@ -202,43 +215,46 @@ export class GoogleSheetsService {
     }
   }
 
-  // ✅ Leer mesas
+  // ✅ Leer mesas (con caché)
   static async getMesas(restaurantId: string): Promise<Mesa[]> {
-    try {
-      console.log(`📊 [Google Sheets] Obteniendo mesas para ${restaurantId}...`);
-      console.log(`📊 [Google Sheets] CLIENT_EMAIL: ${process.env.GOOGLE_CLIENT_EMAIL ? '✅ Configurado' : '❌ No configurado'}`);
-      console.log(`📊 [Google Sheets] PRIVATE_KEY: ${process.env.GOOGLE_PRIVATE_KEY ? '✅ Configurado' : '❌ No configurado'}`);
-      
-      const sheets = await this.getClient();
-      const sheetId = this.getSheetId(restaurantId);
-      
-      console.log(`📊 [Google Sheets] SpreadsheetId: ${sheetId}`);
-      console.log(`📊 [Google Sheets] Leyendo rango: Mesas!A2:F`);
-      
-      const res = await sheets.spreadsheets.values.get({
-        spreadsheetId: sheetId,
-        range: "Mesas!A2:F",
-      });
-      
-      const values = res.data.values || [];
-      console.log(`✅ [Google Sheets] ${values.length} mesas obtenidas`);
-      
-      return values.map(row => ({
-        ID: row[0] || '',
-        Zona: row[1] || '',
-        Capacidad: parseInt(row[2]) || 0,
-        Turnos: row[3] || '',
-        Estado: row[4] || 'Libre',
-        Notas: row[5] || '',
-      }));
-    } catch (error) {
-      console.error(`❌ [Google Sheets] Error leyendo mesas para ${restaurantId}:`, error);
-      if (error instanceof Error) {
-        console.error(`❌ [Google Sheets] Error message: ${error.message}`);
-        console.error(`❌ [Google Sheets] Error stack: ${error.stack}`);
-      }
-      throw error; // Lanzar el error para que el endpoint lo maneje
-    }
+    const cacheKey = `mesas:${restaurantId}`;
+    
+    return googleSheetsCache.get(
+      cacheKey,
+      async () => {
+        try {
+          console.log(`📊 [Google Sheets] Fetching mesas para ${restaurantId}...`);
+          
+          const sheets = await this.getClient();
+          const sheetId = this.getSheetId(restaurantId);
+          
+          const res = await sheets.spreadsheets.values.get({
+            spreadsheetId: sheetId,
+            range: "Mesas!A2:F",
+          });
+          
+          const values = res.data.values || [];
+          console.log(`✅ [Google Sheets] ${values.length} mesas obtenidas`);
+          
+          return values.map(row => ({
+            ID: row[0] || '',
+            Zona: row[1] || '',
+            Capacidad: parseInt(row[2]) || 0,
+            Turnos: row[3] || '',
+            Estado: row[4] || 'Libre',
+            Notas: row[5] || '',
+          }));
+        } catch (error) {
+          console.error(`❌ [Google Sheets] Error leyendo mesas para ${restaurantId}:`, error);
+          if (error instanceof Error) {
+            console.error(`❌ [Google Sheets] Error message: ${error.message}`);
+            console.error(`❌ [Google Sheets] Error stack: ${error.stack}`);
+          }
+          throw error;
+        }
+      },
+      'mesas'
+    );
   }
 
   // ✅ Leer turnos
@@ -789,6 +805,10 @@ export class GoogleSheetsService {
       });
       
       console.log(`✅ Reserva ${id} eliminada completamente de Google Sheets`);
+      
+      // Invalidar caché de reservas
+      googleSheetsCache.invalidate(`reservas:${restaurantId}`);
+      
       return { success: true };
     } catch (error) {
       console.error(`Error eliminando reserva ${id} para ${restaurantId}:`, error);

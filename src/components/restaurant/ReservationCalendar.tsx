@@ -74,9 +74,13 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
     return dateStr;
   }, [formatDateToLocal]);
 
-  // Función para cargar reservas desde Google Sheets (memoizada)
+  // Función para cargar reservas desde Google Sheets (memoizada, con caché)
   const loadReservations = useCallback(async () => {
-    setLoading(true);
+    // Solo mostrar loading si no hay reservas previas
+    if (reservations.length === 0) {
+      setLoading(true);
+    }
+    
     try {
       const response = await fetch(`/api/google-sheets/reservas?restaurantId=${restaurantId}`);
       
@@ -110,28 +114,31 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
           }, []);
           
           setReservations(uniqueReservations);
-          console.log('📅 ReservationCalendar: Reservas cargadas:', {
-            total: formattedReservations.length,
-            fechas: formattedReservations.map((r: any) => r.date),
-            reservas: formattedReservations
-          });
         }
       }
     } catch (error) {
       console.error('Error cargando reservas:', error);
-      setReservations([]);
+      // No limpiar reservas existentes en caso de error
+      if (reservations.length === 0) {
+        setReservations([]);
+      }
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, normalizeDateString]);
+  }, [restaurantId, normalizeDateString, reservations.length]);
 
-  // Cargar reservas al montar y auto-refresh (reducido a cada 2 minutos para mejor rendimiento)
+  // Cargar reservas al montar (sin auto-refresh para mejor rendimiento)
   useEffect(() => {
     loadReservations();
     
-    // Auto-refresh cada 2 minutos (reducido de 60 segundos)
-    const interval = setInterval(loadReservations, 120000);
-    return () => clearInterval(interval);
+    // DESHABILITADO: Auto-refresh para mejorar rendimiento
+    // Las reservas se actualizan cuando:
+    // 1. El usuario navega entre meses
+    // 2. Se crea/modifica una reserva
+    // 3. El usuario hace click en "Actualizar" en el dashboard
+    
+    // const interval = setInterval(loadReservations, 300000); // 5 minutos
+    // return () => clearInterval(interval);
   }, [loadReservations]);
 
   const navigateMonth = (direction: 'prev' | 'next') => {
@@ -239,7 +246,7 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
   }, [reservations, currentDate]);
 
   return (
-    <div className={`p-4 md:p-6 space-y-4 md:space-y-6 transition-colors duration-300 ${
+    <div className={`p-2 sm:p-3 md:p-4 lg:p-6 space-y-3 lg:space-y-6 transition-colors duration-300 ${
       isDarkMode ? 'text-white' : 'text-gray-900'
     }`}>
       {/* Header del Calendario */}
@@ -247,16 +254,16 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
         <Button 
           onClick={loadReservations}
           disabled={loading}
-          className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+          className={`h-7 px-2 lg:px-3 lg:py-2 rounded-lg text-xs lg:text-sm font-semibold ${
             isDarkMode 
               ? 'bg-gray-700 hover:bg-gray-600 text-white' 
               : 'bg-blue-500 hover:bg-blue-600 text-white'
           }`}
         >
-          {loading ? 'Cargando...' : '🔄 Actualizar'}
+          {loading ? '...' : '🔄'} <span className="hidden lg:inline ml-2">Actualizar</span>
         </Button>
         
-        <div className={`flex items-center space-x-2 md:space-x-3 rounded-lg md:rounded-xl border shadow-sm px-3 md:px-4 py-1.5 md:py-2 transition-all duration-300 ${
+        <div className={`flex items-center gap-1.5 lg:gap-3 rounded-lg lg:rounded-xl border shadow-sm px-2 py-1 lg:px-4 lg:py-2 ${
           isDarkMode 
             ? 'bg-gradient-to-r from-gray-800 to-gray-700 border-gray-600' 
             : 'bg-gradient-to-r from-purple-50 to-violet-50 border-purple-200'
@@ -269,10 +276,10 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
               newDate.setMonth(parseInt(e.target.value));
               setCurrentDate(newDate);
             }}
-            className={`px-2 md:px-3 py-1 border rounded-md md:rounded-lg font-medium focus:outline-none focus:ring-1 transition-all duration-300 text-xs md:text-sm ${
+            className={`px-1.5 py-0.5 lg:px-3 lg:py-1 border rounded-md lg:rounded-lg font-medium focus:outline-none text-xs lg:text-sm ${
               isDarkMode 
-                ? 'bg-gray-700 border-gray-600 text-white focus:border-gray-500 focus:ring-gray-400' 
-                : 'bg-white border-purple-300 text-purple-900 focus:border-purple-500 focus:ring-purple-200'
+                ? 'bg-gray-700 border-gray-600 text-white' 
+                : 'bg-white border-purple-300 text-purple-900'
             }`}
           >
             {monthNames.map((month, index) => (
@@ -290,10 +297,10 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
               newDate.setFullYear(parseInt(e.target.value));
               setCurrentDate(newDate);
             }}
-            className={`px-2 md:px-3 py-1 border rounded-md md:rounded-lg font-medium focus:outline-none focus:ring-1 transition-all duration-300 text-xs md:text-sm ${
+            className={`px-1.5 py-0.5 lg:px-3 lg:py-1 border rounded-md lg:rounded-lg font-medium focus:outline-none text-xs lg:text-sm ${
               isDarkMode 
-                ? 'bg-gray-700 border-gray-600 text-white focus:border-gray-500 focus:ring-gray-400' 
-                : 'bg-white border-purple-300 text-purple-900 focus:border-purple-500 focus:ring-purple-200'
+                ? 'bg-gray-700 border-gray-600 text-white' 
+                : 'bg-white border-purple-300 text-purple-900'
             }`}
           >
             <option value={2025}>2025</option>
@@ -301,21 +308,21 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
           </select>
         </div>
         
-        <div className={`px-3 py-2 rounded-lg text-sm font-semibold ${
+        <div className={`px-2 py-1 lg:px-3 lg:py-2 rounded-lg text-xs lg:text-sm font-semibold ${
           isDarkMode ? 'bg-gray-800 text-gray-300' : 'bg-purple-100 text-purple-900'
         }`}>
-          {currentMonthReservations.length} reserva{currentMonthReservations.length !== 1 ? 's' : ''}
+          {currentMonthReservations.length} <span className="hidden lg:inline">reserva{currentMonthReservations.length !== 1 ? 's' : ''}</span>
         </div>
       </div>
 
-      {/* Calendario Principal */}
-      <Card className={`p-4 md:p-6 backdrop-blur-sm border-0 shadow-xl rounded-xl md:rounded-2xl transition-all duration-300 ${
+      {/* Calendario Principal responsive */}
+      <Card className={`p-2 sm:p-3 lg:p-6 backdrop-blur-sm border-0 shadow-xl rounded-lg lg:rounded-2xl transition-all duration-300 ${
         isDarkMode ? 'bg-gray-800/60' : 'bg-white/60'
       }`}>
         {/* Cabecera de dias */}
-        <div className="grid grid-cols-7 gap-2 -mb-3 -mt-2">
+        <div className="grid grid-cols-7 gap-1 lg:gap-2 mb-1 lg:-mb-3 lg:-mt-2">
           {dayNames.map(day => (
-            <div key={day} className={`text-center font-semibold text-xs md:text-sm transition-colors duration-300 ${
+            <div key={day} className={`text-center font-semibold text-[10px] sm:text-xs lg:text-sm ${
               isDarkMode ? 'text-gray-300' : 'text-slate-600'
             }`}>
               {day}
@@ -323,8 +330,8 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
           ))}
         </div>
         
-        {/* Grid del calendario */}
-        <div className="grid grid-cols-7 gap-2">
+        {/* Grid del calendario responsive */}
+        <div className="grid grid-cols-7 gap-1 lg:gap-2">
           {days.map(({ date, isCurrentMonth }, index) => {
             const dayReservations = getReservationsForDate(date);
             const isToday = date.toDateString() === new Date().toDateString();
@@ -334,22 +341,22 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
               <div
                 key={index}
                 onClick={() => setSelectedDate(date)}
-                className={`pt-1 pb-1 px-1 min-h-[70px] md:min-h-[90px] border-2 rounded-lg md:rounded-xl cursor-pointer transition-all duration-200 ${
+                className={`p-1 min-h-[50px] sm:min-h-[60px] lg:min-h-[90px] border lg:border-2 rounded-md lg:rounded-xl cursor-pointer transition-all duration-200 ${
                   isCurrentMonth 
                     ? isDarkMode
-                      ? 'bg-gray-700 hover:bg-gray-600 border-gray-600 hover:border-gray-500'
-                      : 'bg-white hover:bg-blue-50 border-slate-200 hover:border-blue-300'
+                      ? 'bg-gray-700 hover:bg-gray-600 border-gray-600 lg:hover:border-gray-500'
+                      : 'bg-white hover:bg-blue-50 border-slate-200 lg:hover:border-blue-300'
                     : isDarkMode
                       ? 'bg-gray-800 border-gray-700 text-gray-500'
                       : 'bg-slate-50 border-slate-100 text-slate-400'
                 } ${
-                  isToday ? (isDarkMode ? 'ring-2 ring-blue-400 bg-blue-900/30' : 'ring-2 ring-blue-400 bg-blue-50') : ''
+                  isToday ? (isDarkMode ? 'ring-1 lg:ring-2 ring-blue-400 lg:bg-blue-900/30' : 'ring-1 lg:ring-2 ring-blue-400 lg:bg-blue-50') : ''
                 } ${
-                  isSelected ? (isDarkMode ? 'ring-2 ring-purple-400 bg-purple-900/30' : 'ring-2 ring-purple-400 bg-purple-50') : ''
+                  isSelected ? (isDarkMode ? 'ring-1 lg:ring-2 ring-purple-400 lg:bg-purple-900/30' : 'ring-1 lg:ring-2 ring-purple-400 lg:bg-purple-50') : ''
                 }`}
               >
                 <div className="text-center">
-                  <div className={`text-xs md:text-sm font-semibold mb-1 transition-colors duration-300 ${
+                  <div className={`text-[10px] sm:text-xs lg:text-sm font-semibold mb-0.5 lg:mb-1 ${
                     isToday 
                       ? (isDarkMode ? 'text-blue-400' : 'text-blue-700')
                       : isCurrentMonth 
@@ -359,22 +366,26 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
                     {date.getDate()}
                   </div>
                   
-                  {/* Reservas del dia */}
-                  <div className="space-y-1">
+                  {/* Indicador de reservas - móvil/tablet: puntos, desktop: lista */}
+                  <div className="lg:hidden">
+                    {dayReservations.length > 0 && (
+                      <div className="flex justify-center gap-0.5">
+                        {dayReservations.slice(0, 3).map((_, i) => (
+                          <div key={i} className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-orange-500"></div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="hidden lg:block space-y-1">
                     {dayReservations.slice(0, 2).map(reservation => (
                       <div
                         key={reservation.id}
-                        className={`text-xs px-1.5 md:px-2 py-0.5 md:py-1 rounded-md md:rounded-lg border ${getStatusColor(reservation.status)}`}
+                        className={`text-xs px-2 py-1 rounded-lg border ${getStatusColor(reservation.status)}`}
                       >
-                        <div className="font-semibold truncate">
-                          {reservation.time}
-                        </div>
-                        <div className="truncate">
-                          {reservation.clientName}
-                        </div>
+                        <div className="font-semibold truncate">{reservation.time}</div>
+                        <div className="truncate">{reservation.clientName}</div>
                       </div>
                     ))}
-                    
                     {dayReservations.length > 2 && (
                       <div className="text-xs text-slate-500 font-semibold">
                         +{dayReservations.length - 2} mas
@@ -388,62 +399,79 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
         </div>
       </Card>
 
-      {/* Detalles del dia seleccionado */}
+      {/* Detalles del dia seleccionado responsive */}
       {selectedDate && (
-        <Card className="p-6 bg-gradient-to-br from-purple-50 to-violet-50 border-0 shadow-xl rounded-2xl">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-purple-900">
-              Reservas del {formatDateForDisplay(selectedDate)}
+        <Card className={`p-3 lg:p-6 border-0 shadow-xl rounded-lg lg:rounded-2xl ${
+          isDarkMode ? 'bg-gray-800/60' : 'bg-gradient-to-br from-purple-50 to-violet-50'
+        }`}>
+          <div className="flex items-center justify-between mb-3 lg:mb-6">
+            <h3 className={`text-sm sm:text-base lg:text-xl font-bold ${isDarkMode ? 'text-white' : 'text-purple-900'}`}>
+              <span className="lg:hidden">{selectedDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
+              <span className="hidden lg:inline">{formatDateForDisplay(selectedDate)}</span>
             </h3>
             <button
               onClick={() => setSelectedDate(null)}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-100 to-purple-200 hover:from-purple-200 hover:to-purple-300 border-2 border-purple-300 hover:border-purple-400 text-purple-700 hover:text-purple-800 font-semibold transition-all duration-300 shadow-md hover:shadow-lg"
+              className={`px-2 py-1 lg:px-4 lg:py-2 rounded-lg lg:rounded-xl text-xs lg:text-sm font-semibold ${
+                isDarkMode 
+                  ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                  : 'bg-purple-100 hover:bg-purple-200 border-2 lg:border-purple-300 text-purple-700'
+              }`}
             >
-              ✕ Cerrar
+              ✕ <span className="hidden lg:inline">Cerrar</span>
             </button>
           </div>
           
           {getReservationsForDate(selectedDate).length === 0 ? (
-            <div className="text-center py-8">
-              <div className="w-16 h-16 bg-slate-100 rounded-2xl mx-auto mb-4 flex items-center justify-center">
+            <div className="text-center py-4 lg:py-8">
+              <div className="hidden lg:flex w-16 h-16 bg-slate-100 rounded-2xl mx-auto mb-4 items-center justify-center">
                 <div className="w-8 h-8 bg-slate-300 rounded-xl"></div>
               </div>
-              <h4 className="text-lg font-semibold text-slate-700 mb-2">No hay reservas</h4>
-              <p className="text-slate-500">Este dia esta libre para nuevas reservas</p>
+              <h4 className="hidden lg:block text-lg font-semibold text-slate-700 mb-2">No hay reservas</h4>
+              <p className={`text-xs lg:text-sm ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
+                <span className="lg:hidden">Sin reservas</span>
+                <span className="hidden lg:inline">Este dia esta libre para nuevas reservas</span>
+              </p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2 lg:space-y-4">
               {getReservationsForDate(selectedDate).map(reservation => (
-                <div key={reservation.id} className="bg-white p-4 rounded-xl shadow-md border-l-4 border-purple-400">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold">
+                <div key={reservation.id} className={`p-2 lg:p-4 rounded-lg lg:rounded-xl shadow border-l-2 lg:border-l-4 border-purple-400 ${
+                  isDarkMode ? 'bg-gray-700' : 'bg-white'
+                }`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 lg:gap-3 flex-1 min-w-0">
+                      <div className={`w-6 h-6 lg:w-10 lg:h-10 rounded-md lg:rounded-xl flex items-center justify-center text-white font-bold text-xs lg:text-base ${
+                        isDarkMode ? 'bg-purple-600' : 'bg-gradient-to-br from-purple-400 to-purple-600'
+                      }`}>
                         {reservation.partySize}
                       </div>
-                      <div>
-                        <h4 className="font-bold text-purple-900">{reservation.clientName}</h4>
-                        <p className="text-purple-700 text-sm">{reservation.time} • Mesa {reservation.table}</p>
+                      <div className="flex-1 min-w-0">
+                        <h4 className={`font-bold text-xs lg:text-base truncate ${isDarkMode ? 'text-white' : 'text-purple-900'}`}>
+                          {reservation.clientName}
+                        </h4>
+                        <p className={`text-[10px] lg:text-sm truncate ${isDarkMode ? 'text-gray-300' : 'text-purple-700'}`}>
+                          {reservation.time} • Mesa {reservation.table}
+                        </p>
                       </div>
                     </div>
-                    <Badge className={getStatusColor(reservation.status)}>
-                      {reservation.status === 'confirmed' ? 'Confirmada' : 
-                       reservation.status === 'pending' ? 'Pendiente' : 'Cancelada'}
+                    <Badge className={`text-[10px] lg:text-xs px-1.5 py-0.5 lg:px-2 lg:py-1 ${getStatusColor(reservation.status)}`}>
+                      <span className="lg:hidden">{reservation.status === 'confirmed' ? 'OK' : reservation.status === 'pending' ? 'Pend' : 'X'}</span>
+                      <span className="hidden lg:inline">{reservation.status === 'confirmed' ? 'Confirmada' : reservation.status === 'pending' ? 'Pendiente' : 'Cancelada'}</span>
                     </Badge>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  {reservation.notes && (
+                    <p className={`text-[10px] lg:text-xs mt-1 lg:mt-2 italic truncate ${isDarkMode ? 'text-gray-400' : 'text-purple-600'}`}>
+                      {reservation.notes}
+                    </p>
+                  )}
+                  
+                  <div className="hidden lg:grid grid-cols-2 gap-4 mt-3 text-sm">
                     <div>
-                      <span className="font-semibold text-purple-900">Telefono:</span>
+                      <span className="font-semibold text-purple-900">Teléfono:</span>
                       <span className="text-purple-700 ml-2">{reservation.phone}</span>
                     </div>
-                    {reservation.notes && (
-                      <div>
-                        <span className="font-semibold text-purple-900">Notas:</span>
-                        <span className="text-purple-700 ml-2">{reservation.notes}</span>
-                      </div>
-                    )}
                   </div>
-                  
                 </div>
               ))}
             </div>

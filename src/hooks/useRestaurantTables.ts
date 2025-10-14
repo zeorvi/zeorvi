@@ -35,9 +35,6 @@ export function useRestaurantTables(restaurantId: string) {
     
     setIsLoading(true);
     try {
-      console.log('🔍 [useRestaurantTables] Cargando mesas para restaurante:', restaurantId);
-      
-      // Llamar al endpoint /api/restaurant/tables
       const response = await fetch(`/api/restaurant/tables?restaurantId=${restaurantId}`);
       
       if (!response.ok) {
@@ -45,7 +42,6 @@ export function useRestaurantTables(restaurantId: string) {
       }
       
       const result = await response.json();
-      console.log('📊 [useRestaurantTables] Respuesta de API:', result);
       
       if (result.success && result.data) {
         // Convertir las mesas de Google Sheets al formato esperado
@@ -61,16 +57,14 @@ export function useRestaurantTables(restaurantId: string) {
           updatedBy: 'system'
         }));
         
-        console.log('✅ [useRestaurantTables] Mesas convertidas:', tablesWithStatus);
         setTables(tablesWithStatus);
         setLastUpdate(new Date());
       } else {
-        console.log('⚠️ [useRestaurantTables] No tables data in response');
         setTables([]);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('❌ [useRestaurantTables] Error loading tables:', error);
-      toast.error('Error al cargar las mesas');
+      // No mostrar toast - el usuario puede usar el botón de actualizar
       setTables([]);
     } finally {
       setIsLoading(false);

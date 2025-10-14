@@ -246,12 +246,12 @@ export default function DailyAgenda({ restaurantId }: DailyAgendaProps) {
 
   if (loading) {
     return (
-      <div className="p-12">
-        <div className="animate-pulse space-y-6">
-          <div className="h-12 bg-slate-200 rounded-2xl w-2/3"></div>
-          <div className="space-y-4">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-32 bg-slate-200 rounded-2xl"></div>
+      <div className="p-3">
+        <div className="animate-pulse space-y-3">
+          <div className="h-8 bg-slate-200 rounded-lg w-2/3"></div>
+          <div className="space-y-2">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-20 bg-slate-200 rounded-lg"></div>
             ))}
           </div>
         </div>
@@ -260,90 +260,97 @@ export default function DailyAgenda({ restaurantId }: DailyAgendaProps) {
   }
 
   return (
-    <div className="p-12 bg-gradient-to-br from-slate-50 via-white to-slate-100 min-h-screen">
-      {/* Header Elegante */}
-      <div className="mb-12">
-        <div className="flex items-center justify-between">
-          <div className="space-y-4">
-            <h1 className="text-4xl font-bold text-slate-900 tracking-tight">
-              Agenda De {formattedDate}
+    <div className="p-2 sm:p-3 md:p-4 lg:p-12 bg-gradient-to-br from-slate-50 via-white to-slate-100 min-h-screen">
+      {/* Header responsive */}
+      <div className="mb-4 lg:mb-12">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="space-y-1 lg:space-y-4">
+            <h1 className="text-base sm:text-lg md:text-xl lg:text-4xl font-bold text-slate-900 tracking-tight">
+              <span className="lg:hidden">Agenda de Hoy</span>
+              <span className="hidden lg:inline">Agenda De {formattedDate}</span>
             </h1>
-            <p className="text-xl text-slate-600 font-medium">
-              {reservations.length} reservas programadas para hoy
+            <p className="text-xs sm:text-sm lg:text-xl text-slate-600 lg:font-medium">
+              {reservations.length} reserva{reservations.length !== 1 ? 's' : ''} <span className="hidden lg:inline">programadas para hoy</span>
             </p>
           </div>
           
-          <div className="flex items-center space-x-6">
+          <div className="flex gap-2 lg:space-x-6">
             <Button 
               variant="outline" 
               onClick={loadReservations}
               disabled={loading}
-              className="px-6 py-3 rounded-2xl border-2 border-slate-200 hover:border-slate-300 text-slate-700 font-semibold disabled:opacity-50"
+              className="h-7 px-2 lg:px-6 lg:py-3 text-xs lg:text-sm rounded-lg lg:rounded-2xl lg:border-2"
             >
-              {loading ? 'Cargando...' : '🔄 Actualizar'}
+              {loading ? '...' : '🔄'} <span className="hidden lg:inline ml-2">Actualizar</span>
             </Button>
-            <Button className="px-8 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold shadow-lg">
-              Nueva Reserva
+            <Button className="hidden sm:flex h-7 px-3 lg:px-8 lg:py-3 text-xs lg:text-sm rounded-lg lg:rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold shadow-lg">
+              <span className="lg:hidden">+ Nueva</span>
+              <span className="hidden lg:inline">Nueva Reserva</span>
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Reservas del Día */}
-      <div className="space-y-8">
-        <h2 className="text-2xl font-bold text-slate-900 tracking-tight mb-8">Reservas de Hoy</h2>
+      {/* Reservas del Día responsive */}
+      <div className="space-y-3">
+        <h2 className="hidden lg:block text-2xl font-bold text-slate-900 tracking-tight mb-8">Reservas de Hoy</h2>
         
         {reservations.length === 0 ? (
-          <Card className="p-16 text-center bg-white/60 backdrop-blur-sm border-0 shadow-xl rounded-3xl">
-            <div className="space-y-6">
+          <Card className="p-8 lg:p-16 text-center bg-white/60 backdrop-blur-sm border-0 shadow-xl rounded-lg lg:rounded-3xl">
+            <div className="hidden lg:block space-y-6">
               <div className="w-24 h-24 bg-slate-100 rounded-full mx-auto flex items-center justify-center">
                 <div className="w-12 h-12 bg-slate-300 rounded-full"></div>
               </div>
-              <div>
-                <h3 className="text-2xl font-bold text-slate-900 mb-2">No hay reservas programadas</h3>
-              </div>
+              <h3 className="text-2xl font-bold text-slate-900 mb-2">No hay reservas programadas</h3>
             </div>
+            <p className="text-sm text-slate-600 lg:hidden">No hay reservas para hoy</p>
           </Card>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2 lg:space-y-3">
             {reservations.map((reservation) => (
-              <Card key={reservation.id} className="p-4 bg-white/60 backdrop-blur-sm border-0 shadow-lg rounded-xl hover:shadow-xl transition-all duration-300">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    {/* Hora más pequeña */}
-                    <div className="text-center">
-                      <div className="w-12 h-12 bg-gradient-to-br from-slate-100 to-slate-200 rounded-lg flex items-center justify-center shadow-md">
-                        <span className="text-sm font-bold text-slate-700">{reservation.time}</span>
+              <Card key={reservation.id} className="p-2 sm:p-3 lg:p-4 bg-white/60 backdrop-blur-sm border-0 shadow-lg rounded-lg lg:rounded-xl hover:shadow-xl transition-all duration-200 lg:duration-300">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
+                  <div className="flex items-center gap-2 lg:gap-4 flex-1 min-w-0">
+                    {/* Hora */}
+                    <div className="flex-shrink-0">
+                      <div className="px-2 py-1 lg:w-12 lg:h-12 bg-gradient-to-br from-slate-100 to-slate-200 rounded-md lg:rounded-lg flex items-center justify-center shadow-md">
+                        <span className="text-xs lg:text-sm font-bold text-slate-700">{reservation.time}</span>
                       </div>
                     </div>
                     
-                    {/* Mesa más pequeña */}
-                    <div className="text-center">
-                      <div className="px-3 py-1 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-md shadow-md">
+                    {/* Mesa */}
+                    <div className="flex-shrink-0">
+                      <div className="px-2 py-1 lg:px-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-md shadow-md">
                         <span className="text-white font-bold text-xs">Mesa {reservation.table}</span>
                       </div>
                     </div>
                     
-                    {/* Información del Cliente más compacta */}
-                    <div className="space-y-1">
-                      <h3 className="text-lg font-bold text-slate-900">{reservation.clientName}</h3>
-                      <div className="flex items-center space-x-3 text-xs">
-                        <span className="text-slate-600 font-medium">{reservation.partySize} personas</span>
-                        <span className="text-slate-400">•</span>
-                        <span className="text-slate-500 font-medium">{reservation.phone || "No disponible"}</span>
+                    {/* Información del Cliente */}
+                    <div className="flex-1 min-w-0 lg:space-y-1">
+                      <h3 className="text-sm lg:text-lg font-bold text-slate-900 truncate">{reservation.clientName}</h3>
+                      <div className="flex items-center gap-2 lg:gap-3 text-xs">
+                        <span className="text-slate-600 lg:font-medium">{reservation.partySize} <span className="hidden lg:inline">personas</span><span className="lg:hidden">pers.</span></span>
+                        <span className="hidden lg:inline text-slate-400">•</span>
+                        <span className="hidden lg:inline text-slate-500 font-medium">{reservation.phone || "No disponible"}</span>
+                        {reservation.notes && (
+                          <>
+                            <span className="lg:hidden text-slate-400">•</span>
+                            <span className="lg:hidden text-slate-500 italic truncate">{reservation.notes}</span>
+                          </>
+                        )}
                       </div>
                       {reservation.notes && (
-                        <p className="text-slate-500 italic text-xs max-w-md">{reservation.notes}</p>
+                        <p className="hidden lg:block text-slate-500 italic text-xs max-w-md">{reservation.notes}</p>
                       )}
                     </div>
                   </div>
                   
-                  {/* Status y Acciones */}
-                  <div className="flex items-center space-x-3">
+                  {/* Status */}
+                  <div className="flex-shrink-0">
                     <select
                       value={reservation.status}
                       onChange={(e) => handleStatusChange(reservation.id, e.target.value as Reservation['status'])}
-                      className={`px-3 py-1 rounded-full text-xs font-semibold border-2 cursor-pointer transition-colors ${
+                      className={`w-full sm:w-auto px-2 py-1 lg:px-3 rounded-md lg:rounded-full text-xs font-semibold border lg:border-2 cursor-pointer transition-colors ${
                         reservation.status === "reserved"
                           ? "text-orange-700 bg-orange-100 border-orange-300 hover:bg-orange-200"
                           : reservation.status === "occupied"
@@ -358,10 +365,6 @@ export default function DailyAgenda({ restaurantId }: DailyAgendaProps) {
                       <option value="completed">Completada</option>
                       <option value="cancelled">Cancelada</option>
                     </select>
-                    
-                    <div className="flex space-x-2">
-                      {/* Botones de acción removidos - ahora se usa el selector */}
-                    </div>
                   </div>
                 </div>
               </Card>
@@ -370,52 +373,52 @@ export default function DailyAgenda({ restaurantId }: DailyAgendaProps) {
         )}
       </div>
 
-      {/* Resumen del Día */}
-      <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8">
-        <Card className="p-8 bg-gradient-to-br from-emerald-50 to-teal-50 border-0 shadow-xl rounded-3xl">
-          <div className="text-center space-y-4">
-            <div className="w-16 h-16 bg-emerald-500 rounded-2xl mx-auto flex items-center justify-center shadow-lg">
+      {/* Resumen del Día responsive */}
+      <div className="mt-4 lg:mt-16 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-3 gap-2 lg:gap-8">
+        <Card className="p-2 lg:p-8 bg-gradient-to-br from-emerald-50 to-teal-50 border-0 shadow-lg lg:shadow-xl rounded-lg lg:rounded-3xl">
+          <div className="text-center lg:space-y-4">
+            <div className="hidden lg:flex w-16 h-16 bg-emerald-500 rounded-2xl mx-auto items-center justify-center shadow-lg">
               <div className="w-8 h-8 bg-white rounded-lg"></div>
             </div>
             <div>
-              <div className="text-3xl font-bold text-orange-700">{reservationStats.reserved}</div>
-              <div className="text-orange-600 font-semibold text-lg">Reservadas</div>
+              <div className="text-lg sm:text-xl lg:text-3xl font-bold text-orange-700">{reservationStats.reserved}</div>
+              <div className="text-orange-600 font-semibold text-[10px] sm:text-xs lg:text-lg">Reservadas</div>
             </div>
           </div>
         </Card>
 
-        <Card className="p-8 bg-gradient-to-br from-amber-50 to-orange-50 border-0 shadow-xl rounded-3xl">
-          <div className="text-center space-y-4">
-            <div className="w-16 h-16 bg-amber-500 rounded-2xl mx-auto flex items-center justify-center shadow-lg">
+        <Card className="p-2 lg:p-8 bg-gradient-to-br from-amber-50 to-orange-50 border-0 shadow-lg lg:shadow-xl rounded-lg lg:rounded-3xl">
+          <div className="text-center lg:space-y-4">
+            <div className="hidden lg:flex w-16 h-16 bg-amber-500 rounded-2xl mx-auto items-center justify-center shadow-lg">
               <div className="w-8 h-8 bg-white rounded-lg"></div>
             </div>
             <div>
-              <div className="text-3xl font-bold text-red-700">{reservationStats.occupied}</div>
-              <div className="text-red-600 font-semibold text-lg">Ocupadas</div>
+              <div className="text-lg sm:text-xl lg:text-3xl font-bold text-red-700">{reservationStats.occupied}</div>
+              <div className="text-red-600 font-semibold text-[10px] sm:text-xs lg:text-lg">Ocupadas</div>
             </div>
           </div>
         </Card>
 
-        <Card className="p-8 bg-gradient-to-br from-emerald-50 to-green-50 border-0 shadow-xl rounded-3xl">
-          <div className="text-center space-y-4">
-            <div className="w-16 h-16 bg-emerald-500 rounded-2xl mx-auto flex items-center justify-center shadow-lg">
+        <Card className="p-2 lg:p-8 bg-gradient-to-br from-emerald-50 to-green-50 border-0 shadow-lg lg:shadow-xl rounded-lg lg:rounded-3xl">
+          <div className="text-center lg:space-y-4">
+            <div className="hidden lg:flex w-16 h-16 bg-emerald-500 rounded-2xl mx-auto items-center justify-center shadow-lg">
               <div className="w-8 h-8 bg-white rounded-lg"></div>
             </div>
             <div>
-              <div className="text-3xl font-bold text-emerald-700">{reservationStats.completed}</div>
-              <div className="text-emerald-600 font-semibold text-lg">Completadas</div>
+              <div className="text-lg sm:text-xl lg:text-3xl font-bold text-emerald-700">{reservationStats.completed}</div>
+              <div className="text-emerald-600 font-semibold text-[10px] sm:text-xs lg:text-lg">Completadas</div>
             </div>
           </div>
         </Card>
 
-        <Card className="p-8 bg-gradient-to-br from-blue-50 to-indigo-50 border-0 shadow-xl rounded-3xl">
-          <div className="text-center space-y-4">
-            <div className="w-16 h-16 bg-blue-500 rounded-2xl mx-auto flex items-center justify-center shadow-lg">
+        <Card className="p-2 lg:p-8 bg-gradient-to-br from-blue-50 to-indigo-50 border-0 shadow-lg lg:shadow-xl rounded-lg lg:rounded-3xl lg:col-span-3">
+          <div className="text-center lg:space-y-4">
+            <div className="hidden lg:flex w-16 h-16 bg-blue-500 rounded-2xl mx-auto items-center justify-center shadow-lg">
               <div className="w-8 h-8 bg-white rounded-lg"></div>
             </div>
             <div>
-              <div className="text-3xl font-bold text-blue-700">{reservationStats.totalGuests}</div>
-              <div className="text-blue-600 font-semibold text-lg">Comensales</div>
+              <div className="text-lg sm:text-xl lg:text-3xl font-bold text-blue-700">{reservationStats.totalGuests}</div>
+              <div className="text-blue-600 font-semibold text-[10px] sm:text-xs lg:text-lg">Comensales</div>
             </div>
           </div>
         </Card>
