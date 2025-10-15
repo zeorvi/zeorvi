@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { findUserByEmail, verifyPassword } from '@/lib/auth/hardcodedUsers';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function POST() {
   try {
     console.log('🧪 Testing hardcoded authentication...');

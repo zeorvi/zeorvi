@@ -7,6 +7,10 @@ import authService from '@/lib/auth';
 import { db } from '@/lib/database';
 import { z } from 'zod';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 const createTableSchema = z.object({
   number: z.string().min(1, 'Número de mesa requerido'),
   name: z.string().optional(),

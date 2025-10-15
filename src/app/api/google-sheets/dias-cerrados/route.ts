@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleSheetsService } from '@/lib/googleSheetsService';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // GET - Obtener días cerrados
 export async function GET(request: NextRequest) {
   try {

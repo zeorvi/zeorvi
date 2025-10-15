@@ -3,6 +3,10 @@ import { aiAgentService } from '@/lib/services/aiAgentService';
 import { verifyRetellWebhook } from '@/lib/webhookValidator';
 import { logger } from '@/lib/logger';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // GET - Obtener insights y reportes generados por IA
 export async function GET(request: NextRequest) {
   try {

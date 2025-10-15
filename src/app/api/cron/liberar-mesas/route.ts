@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TableManagementSystem } from '@/lib/tableManagementSystem';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 /**
  * Obtener lista de todos los restaurantes
  * En producción esto vendría de una base de datos

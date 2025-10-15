@@ -5,6 +5,10 @@ import { handleApiError } from '@/lib/errorHandling/productionErrorHandler';
 import { logger } from '@/lib/logger';
 import { sqliteDb } from '@/lib/database/sqlite';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // Almacenar números de teléfono por call_id para usar en el análisis
 // En producción, esto debería usar Redis para persistencia
 const callPhoneNumbers = new Map<string, string>();

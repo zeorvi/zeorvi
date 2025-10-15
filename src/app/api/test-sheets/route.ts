@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { GoogleSheetsService } from "@/lib/googleSheetsService";
 import { getSpreadsheetId } from "@/lib/restaurantSheets";
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function GET() {
   try {
     console.log("🧪 Testing Google Sheets connection...");

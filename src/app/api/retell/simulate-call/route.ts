@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // POST - Simular llamada de Retell para testing
 export async function POST(request: NextRequest) {
   try {

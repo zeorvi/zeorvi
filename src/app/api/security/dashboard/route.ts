@@ -8,6 +8,10 @@ import { createSecureAPIMiddleware, createSecureResponse, getClientIP } from '@/
 import { securityMonitor } from '@/lib/securityMonitor';
 import { logger } from '@/lib/logger';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // GET - Obtener dashboard de seguridad
 const secureGET = createSecureAPIMiddleware()(async function GET(request: NextRequest) {
   const clientIP = getClientIP(request);

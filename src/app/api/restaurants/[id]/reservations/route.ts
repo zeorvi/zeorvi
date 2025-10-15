@@ -8,6 +8,10 @@ import authService from '@/lib/auth';
 import { db } from '@/lib/database';
 import { z } from 'zod';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 const createReservationSchema = z.object({
   table_id: z.number().optional(),
   client_name: z.string().min(2, 'Nombre del cliente requerido'),

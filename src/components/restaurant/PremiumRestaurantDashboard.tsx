@@ -235,14 +235,29 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
       console.log('📡 Respuesta de API:', response.status, response.statusText);
 
       if (!response.ok) {
-        const errorData = await response.text();
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = await response.text();
+        }
         console.error('❌ Error actualizando estado de reserva:', response.status, errorData);
+        
+        // Mostrar error al usuario
+        const errorMsg = typeof errorData === 'object' && errorData.error 
+          ? errorData.error 
+          : typeof errorData === 'string' 
+          ? errorData 
+          : 'Error desconocido';
+        
+        toast.error(`Error al actualizar: ${errorMsg}`);
         
         // NO revertir cambio local - mantener el estado seleccionado
         console.log('⚠️ Manteniendo cambio local aunque falle la actualización en Google Sheets');
       } else {
         const result = await response.json();
         console.log(`✅ Estado de reserva ${reservationId} actualizado a ${newStatus}:`, result);
+        toast.success(`Estado actualizado a ${newStatus === 'confirmed' ? 'Reservada' : newStatus === 'occupied' ? 'Ocupada' : newStatus === 'completed' ? 'Completada' : 'Cancelada'}`);
       }
     } catch (error) {
       console.error('Error cambiando estado de reserva:', error);

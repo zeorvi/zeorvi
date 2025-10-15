@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateNewRestaurant } from '@/lib/dashboardProtection';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 /**
  * API Endpoint para crear nuevos restaurantes con dashboard protegido
  * POST /api/restaurants/create

@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { productionDb } from '@/lib/database/production';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // POST /api/restaurant/initialize-tables - Inicializar mesas por defecto
 export async function POST(request: NextRequest) {
   try {

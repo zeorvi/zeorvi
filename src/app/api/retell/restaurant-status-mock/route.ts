@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // GET - Obtener estado completo del restaurante para el agente de IA (versión de prueba)
 export async function GET(request: NextRequest) {
   try {

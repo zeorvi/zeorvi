@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;

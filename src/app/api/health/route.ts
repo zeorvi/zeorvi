@@ -3,6 +3,10 @@ import { productionMonitor } from '@/lib/monitoring/productionMonitor';
 import { restaurantRateLimiter } from '@/lib/rateLimiting/restaurantRateLimiter';
 import { productionErrorHandler } from '@/lib/errorHandling/productionErrorHandler';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function GET(request: NextRequest) {
   try {
     const startTime = Date.now();

@@ -9,6 +9,10 @@ import authService from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

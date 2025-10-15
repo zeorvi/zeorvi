@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleSheetsService } from '@/lib/googleSheetsService';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function POST(request: NextRequest) {
   try {
-    const { restaurantId, reservationId, newStatus, fecha } = await request.json();
+    const body = await request.json();
+    const { restaurantId, reservationId, newStatus, fecha } = body;
+    
+    console.log('📥 Datos recibidos en update-reservation-status:', body);
 
     if (!restaurantId || !reservationId || !newStatus || !fecha) {
+      console.error('❌ Faltan parámetros:', { restaurantId, reservationId, newStatus, fecha });
       return NextResponse.json({ 
         success: false, 
         error: 'Faltan parámetros requeridos' 
@@ -14,13 +22,16 @@ export async function POST(request: NextRequest) {
 
     // Convertir estado a formato de Google Sheets
     const statusMapping: Record<string, string> = {
-      'reserved': 'confirmada', // En Google Sheets se guarda como confirmada
+      'confirmed': 'confirmada', // Estado del dashboard
+      'reserved': 'confirmada',  // Por compatibilidad
       'occupied': 'ocupada', 
       'completed': 'completada',
       'cancelled': 'cancelada'
     };
 
     const googleSheetsStatus = statusMapping[newStatus] || 'confirmada';
+    
+    console.log(`📋 Estado recibido: ${newStatus} -> Mapeado a Google Sheets: ${googleSheetsStatus}`);
 
     console.log(`🔄 Actualizando estado de reserva ${reservationId} a ${googleSheetsStatus} en Google Sheets`);
 

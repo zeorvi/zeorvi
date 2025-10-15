@@ -7,6 +7,10 @@ import { db } from '@/lib/database';
 import { logger } from '@/lib/logger';
 import authService from '@/lib/auth';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

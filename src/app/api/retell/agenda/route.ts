@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRestaurantById } from '@/lib/restaurantServicePostgres';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // GET - Obtener agenda del día
 export async function GET(request: NextRequest) {
   try {

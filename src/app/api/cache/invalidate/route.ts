@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { googleSheetsCache } from '@/lib/cache/googleSheetsCache';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 /**
  * POST /api/cache/invalidate
  * Endpoint para invalidar manualmente el caché de Google Sheets

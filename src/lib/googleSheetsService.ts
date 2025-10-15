@@ -935,10 +935,30 @@ export class GoogleSheetsService {
     fecha: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
+      console.log(`🔄 [updateReservationStatus] Iniciando actualización con parámetros:`, {
+        restaurantId,
+        reservationId,
+        newStatus,
+        fecha
+      });
+      
       const sheets = await getSheetsClient();
-      const spreadsheetId = await getSpreadsheetId(restaurantId);
+      
+      // Obtener el spreadsheetId de forma segura
+      let spreadsheetId: string;
+      try {
+        spreadsheetId = getSpreadsheetId(restaurantId);
+        console.log(`📊 [updateReservationStatus] SpreadsheetId obtenido:`, spreadsheetId);
+      } catch (error) {
+        console.error(`❌ [updateReservationStatus] Error obteniendo SpreadsheetId para restaurantId: ${restaurantId}`, error);
+        return { 
+          success: false, 
+          error: `No se encontró configuración para el restaurante: ${restaurantId}` 
+        };
+      }
       
       if (!spreadsheetId) {
+        console.error(`❌ [updateReservationStatus] SpreadsheetId vacío para restaurantId: ${restaurantId}`);
         return { success: false, error: 'Spreadsheet ID no encontrado' };
       }
 
@@ -1007,7 +1027,15 @@ export class GoogleSheetsService {
       
       return { success: true };
     } catch (error) {
-      console.error('Error actualizando estado de reserva:', error);
+      console.error('❌ [updateReservationStatus] Error actualizando estado de reserva:', error);
+      if (error instanceof Error) {
+        console.error('❌ [updateReservationStatus] Error message:', error.message);
+        console.error('❌ [updateReservationStatus] Error stack:', error.stack);
+        return { 
+          success: false, 
+          error: `Error actualizando estado: ${error.message}` 
+        };
+      }
       return { 
         success: false, 
         error: 'Error actualizando estado en Google Sheets' 

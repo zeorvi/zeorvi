@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sqliteDb } from '@/lib/database/sqlite';
 import { laGaviotaConfig, otroRestauranteConfig } from '@/lib/restaurantConfigs';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // GET - Obtener estado de todas las mesas
 export async function GET(request: NextRequest) {
   try {

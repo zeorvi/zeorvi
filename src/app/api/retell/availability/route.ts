@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { db } from '@/lib/database';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // POST - Verificar disponibilidad (mesas libres ahora o por fecha)
 export async function POST(request: NextRequest) {
   try {

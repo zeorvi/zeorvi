@@ -3,6 +3,10 @@ import { sqliteDb } from '@/lib/database/sqlite';
 import { logger } from '@/lib/logger';
 import bcrypt from 'bcryptjs';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // POST - Crear nuevo restaurante
 export async function POST(request: NextRequest) {
   try {

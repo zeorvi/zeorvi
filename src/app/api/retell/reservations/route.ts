@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sqliteDb } from '@/lib/database/sqlite';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // GET - Listar reservas del restaurante
 export async function GET(request: NextRequest) {
   try {

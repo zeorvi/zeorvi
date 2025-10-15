@@ -33,7 +33,7 @@ export const HARDCODED_USERS: HardcodedUser[] = [
   {
     id: 'user_lagaviota',
     email: 'admin@lagaviota.com',
-    passwordHash: DEFAULT_PASSWORD_HASH,
+    passwordHash: '$2b$12$gacV8viNHKhJWP47DvD3oe/SAjklvO6HVl.8xw/Tq.ktRbWShkQd6', // lagaviota123
     name: 'La Gaviota',
     role: 'restaurant',
     restaurantId: 'rest_003',

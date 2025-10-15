@@ -3,6 +3,10 @@ import { logger } from '@/lib/logger';
 import { productionDb } from '@/lib/database/production';
 import { realtimeService } from '@/lib/realtimeService';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // POST /api/restaurant/update-table-status - Actualizar estado de mesa
 export async function POST(request: NextRequest) {
   try {

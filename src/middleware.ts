@@ -15,7 +15,7 @@ export function middleware(request: NextRequest) {
   // Verificar si es una ruta de API
   if (url.pathname.startsWith('/api/')) {
     // Rate limiting básico para APIs
-    const rateLimitKey = request.ip || 'unknown';
+    const rateLimitKey = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
     const now = Date.now();
     const windowMs = 15 * 60 * 1000; // 15 minutos
     const maxRequests = 100; // máximo 100 requests por ventana

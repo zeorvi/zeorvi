@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { GoogleSheetsService } from '@/lib/googleSheetsService';
 import { DateTime } from 'luxon';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // --- Función auxiliar para obtener fecha con zona horaria española ---
 function obtenerFecha(fechaTexto: string): string {
   const zona = "Europe/Madrid";

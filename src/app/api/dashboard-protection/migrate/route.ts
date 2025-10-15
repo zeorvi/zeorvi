@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { migrateRestaurantsToStandardDashboard } from '@/lib/dashboardProtection';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 /**
  * API Endpoint para migrar restaurantes existentes al dashboard estándar
  * POST /api/dashboard-protection/migrate

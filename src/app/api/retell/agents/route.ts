@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sqliteDb } from '@/lib/database/sqlite';
 import { logger } from '@/lib/logger';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export interface RetellAgentSummary {
   restaurantId: string;
   restaurantName: string;

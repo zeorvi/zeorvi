@@ -6,6 +6,10 @@ import { logger, logAPI } from '@/lib/logger';
 import { rateLimiters } from '@/lib/rateLimiter';
 import { webhookValidators } from '@/lib/webhookValidator';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 const client = twilio(
   process.env.TWILIO_ACCOUNT_SID,
   process.env.TWILIO_AUTH_TOKEN

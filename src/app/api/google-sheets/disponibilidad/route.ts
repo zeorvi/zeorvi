@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleSheetsService } from '@/lib/googleSheetsService';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 function normalizeZona(z?: string) {
   if (!z) return undefined;
   const s = z.trim().toLowerCase();

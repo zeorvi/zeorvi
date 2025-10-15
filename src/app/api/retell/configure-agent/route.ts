@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCompleteAgentConfig } from '@/lib/retellConfig';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // POST - Configurar agente real de Retell AI con prompt específico
 export async function POST(request: NextRequest) {
   try {

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { RetellReservationFlow } from '@/lib/retellReservationFlow';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // POST - Procesar solicitud de reserva desde Retell AI
 export async function POST(request: NextRequest) {
   try {

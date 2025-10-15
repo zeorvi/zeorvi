@@ -40,8 +40,8 @@ export default function ProtectedDashboard({
       {/* Dashboard estándar optimizado */}
       <PremiumRestaurantDashboard
         restaurantId={restaurantId}
-        restaurantName={restaurantName}
-        restaurantType={restaurantType}
+        restaurantName={restaurantName || 'Restaurante'}
+        restaurantType={restaurantType || 'standard'}
       />
     </div>
   );

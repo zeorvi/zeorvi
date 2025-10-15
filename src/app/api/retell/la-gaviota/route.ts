@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRestaurantConfig } from '@/lib/retellConfig';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // GET - Obtener información completa de La Gaviota para el agente
 export async function GET() {
   try {

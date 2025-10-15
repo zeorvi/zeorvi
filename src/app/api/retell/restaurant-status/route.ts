@@ -4,6 +4,10 @@ import { sqliteDb } from '@/lib/database/sqlite';
 import { productionDb } from '@/lib/database/production';
 import { occupancyPredictor } from '@/lib/occupancyPredictor';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // GET - Obtener estado completo del restaurante para el agente de IA
 export async function GET(request: NextRequest) {
   try {

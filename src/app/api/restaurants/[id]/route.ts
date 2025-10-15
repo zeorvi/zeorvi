@@ -3,6 +3,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // Usar SQLite en desarrollo y producción temporalmente hasta resolver Supabase
 let db: any;
 try {

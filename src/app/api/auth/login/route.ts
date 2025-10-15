@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import authService from '@/lib/auth';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function POST(request: NextRequest) {
   try {
     console.log('🔍 Login API called');

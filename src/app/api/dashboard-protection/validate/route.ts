@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateDashboardConfig, applyStandardDashboardConfig } from '@/lib/dashboardProtection';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 /**
  * API Endpoint para validar configuración del dashboard
  * POST /api/dashboard-protection/validate

@@ -7,6 +7,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import authService from '@/lib/auth';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // Usar SQLite en desarrollo, PostgreSQL en producción
 let db: any;
 if (process.env.NODE_ENV === 'development') {

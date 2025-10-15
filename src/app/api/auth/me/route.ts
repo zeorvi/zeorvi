@@ -7,6 +7,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import authService from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function GET(request: NextRequest) {
   try {
     // Obtener token de la cookie

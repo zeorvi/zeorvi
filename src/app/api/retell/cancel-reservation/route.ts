@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getReservationsByDate, Reservation } from '@/lib/restaurantData';
 import { retellCalendarSync } from '@/lib/services/retellCalendarSync';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // Helper para buscar reservas por teléfono o nombre
 function findReservationsByClient(phone?: string, name?: string, date?: string): Reservation[] {
   const searchDate = date ? new Date(date) : new Date();

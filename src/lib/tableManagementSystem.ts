@@ -334,6 +334,9 @@ export class TableManagementSystem {
     hora: string,
     restaurantId: string
   ): Promise<Mesa[]> {
+    // Log para debugging (usa fecha y restaurantId)
+    console.log(`🔍 Verificando mesas que se liberan antes de ${hora} el ${fecha} en ${restaurantId}`);
+    
     return mesas.filter(mesa => {
       if (mesa.estado === 'ocupada' && mesa.reservaActual) {
         const horaFinReserva = mesa.reservaActual.horaFin;
@@ -366,8 +369,8 @@ export class TableManagementSystem {
   }
 
   private static async actualizarEstadoMesaEnSheets(mesa: Mesa, restaurantId: string): Promise<void> {
-    // Aquí podrías actualizar el estado de la mesa en Google Sheets
+    // TODO: Implementar actualización completa en Google Sheets
     // Por ejemplo, crear una hoja "Mesas" con el estado actual
-    console.log(`📊 Actualizando estado de mesa ${mesa.numero} en Google Sheets`);
+    console.log(`📊 Actualizando estado de mesa ${mesa.numero} en Google Sheets para restaurante ${restaurantId}`);
   }
 }

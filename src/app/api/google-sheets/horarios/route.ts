@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleSheetsService } from '@/lib/googleSheetsService';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // Horarios hardcoded para producción
 // IMPORTANTE: Solo se verifica el DÍA, NO la hora. El restaurante está abierto todo el día excepto los días cerrados.
 const HORARIOS_HARDCODED = {

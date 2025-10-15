@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { RetellGoogleSheetsFunctions } from '@/lib/retellGoogleSheetsFunctions';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function GET(request: NextRequest) {
   try {
     console.log('🧪 Test endpoint llamado');

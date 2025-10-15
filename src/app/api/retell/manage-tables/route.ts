@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyRetellWebhook } from '@/lib/webhookValidator';
 import { logger } from '@/lib/logger';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // GET - Obtener información de mesas para gestión
 export async function GET(request: NextRequest) {
   let restaurantId: string | null = null;
@@ -118,6 +122,7 @@ export async function POST(request: NextRequest) {
     }, { status: 500 });
   }
 }
+
 
 
 

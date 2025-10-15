@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { realtimeNotifications, RealtimeNotification } from '@/lib/realtimeNotifications';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // GET - Obtener notificaciones recientes
 export async function GET(request: NextRequest) {
   try {

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRetellAgentConfig, createRetellAgent } from '@/lib/retellConfig';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

@@ -4,6 +4,10 @@ import { applyRateLimit } from '@/lib/middleware/rateLimitingMiddleware';
 import { handleApiError } from '@/lib/errorHandling/productionErrorHandler';
 import { logger } from '@/lib/logger';
 
+// Configuración de runtime dinámico
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // Almacenar números de teléfono por call_id para usar en el análisis
 // En producción, esto debería usar Redis para persistencia
 const callPhoneNumbers = new Map<string, string>();
