@@ -12,7 +12,6 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 // Lazy loading de componentes pesados con prefetch
-const OpenAIChat = lazy(() => import('@/components/ai/OpenAIChat'));
 const ReservationCalendar = lazy(() => import('./ReservationCalendar'));
 const TablePlan = lazy(() => import('./EnhancedTablePlan'));
 const MobileNavigation = lazy(() => import('@/components/ui/MobileNavigation'));
@@ -185,11 +184,17 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
   }, [restaurantId]);
 
   useEffect(() => {
-    // Cargar reservas cuando los datos del restaurante estén disponibles
+    // PRE-CARGAR reservas inmediatamente al montar el dashboard
+    // Esto hace que los datos estén listos ANTES de que el usuario haga clic en "Agenda"
     if (restaurantData && !loading) {
+      console.log('🚀 [Dashboard] Pre-cargando reservas en background...');
       loadReservationsFromGoogleSheets();
     }
   }, [restaurantData, loading, loadReservationsFromGoogleSheets]);
+
+  // Auto-refresh DESHABILITADO - Ya no es necesario
+  // La sincronización automática cada 3 min (cron job) mantiene la DB actualizada
+  // y el sistema lee de DB que es instantáneo
 
   // Auto-refresh DESHABILITADO - El usuario controla manualmente los estados
   // useEffect(() => {
@@ -365,7 +370,7 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
             
             {/* Lado derecho - Botones de acción */}
             <div className="flex items-center space-x-1 lg:space-x-2">
-              {/* Botón de actualización */}
+              {/* Botón de actualizar */}
               <Button
                 onClick={async () => {
                   // Invalidar caché primero para forzar actualización
@@ -454,7 +459,6 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                 { id: 'reservations', label: 'Gestión de Reservas', color: 'violet' },
                 { id: 'tables', label: 'Control de Mesas', color: 'orange' },
                 { id: 'clients', label: 'Base de Clientes', color: 'red' },
-                { id: 'ai_chat', label: 'Chat con IA', color: 'purple' },
                 { id: 'settings', label: 'Configuración', color: 'slate' }
               ].map(item => (
                 <button
@@ -511,12 +515,6 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button 
-                      onClick={loadReservationsFromGoogleSheets}
-                      className="px-3 py-1.5 lg:px-4 lg:py-2 rounded-lg lg:rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold shadow-lg text-xs lg:text-sm"
-                    >
-                      Actualizar
-                    </Button>
                     <Button className="hidden sm:flex px-3 py-1.5 lg:px-6 lg:py-3 rounded-lg lg:rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold shadow-lg text-xs lg:text-sm">
                       Nueva Reserva
                     </Button>
@@ -712,23 +710,6 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
 
 
 
-          <div style={{ display: activeSection === 'ai_chat' ? 'block' : 'none' }} className="pt-2 sm:pt-3 md:pt-4 lg:pt-6">
-            <Suspense fallback={
-              <div className="flex items-center justify-center h-64">
-                <AILoading />
-              </div>
-            }>
-              <div className="w-full max-w-full">
-                <OpenAIChat 
-                  restaurantId={restaurantId}
-                  restaurantName={restaurantName}
-                  restaurantType={restaurantType}
-                  currentUserName="Gerente"
-                  isDarkMode={isDarkMode}
-                />
-              </div>
-            </Suspense>
-          </div>
 
 
           {activeSection === 'settings' && (

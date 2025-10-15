@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect, useMemo } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRestaurantTables } from '@/hooks/useRestaurantTables';
@@ -9,15 +10,117 @@ interface TablePlanProps {
   isDarkMode?: boolean;
 }
 
+interface TableWithReservation {
+  id: string;
+  name: string;
+  capacity: number;
+  location?: string;
+  status: 'available' | 'occupied' | 'reserved' | 'maintenance';
+  clientName?: string;
+  phone?: string;
+  partySize?: number;
+  reservationTime?: string;
+  specialFeatures?: string[];
+  lastUpdated?: string;
+  updatedBy?: string;
+  client?: {
+    name: string;
+    phone: string;
+    partySize: number;
+    notes?: string;
+  };
+}
+
 export default function TablePlan({ restaurantId, isDarkMode = false }: TablePlanProps) {
   // Usar el hook global de mesas
   const { 
-    tables, 
-    isLoading
+    tables: hookTables, 
+    isLoading: hookIsLoading
   } = useRestaurantTables(restaurantId);
-
-
-
+  
+  // Estado local para mesas con reservas aplicadas
+  const [tablesWithReservations, setTablesWithReservations] = useState<TableWithReservation[]>([]);
+  
+  // Usar mesas con reservas si están disponibles, si no las del hook
+  const tables = useMemo(() => {
+    return tablesWithReservations.length > 0 ? tablesWithReservations : hookTables;
+  }, [tablesWithReservations, hookTables]);
+  
+  const isLoading = hookIsLoading;
+  
+  // Sincronizar mesas con reservas del día
+  useEffect(() => {
+    if (!hookIsLoading && hookTables.length > 0) {
+      const syncReservations = async () => {
+        try {
+          const today = new Date().toISOString().split('T')[0];
+          const response = await fetch(`/api/google-sheets/reservas?restaurantId=${restaurantId}&fecha=${today}`);
+          
+          if (response.ok) {
+            const data = await response.json();
+            
+            if (data.success && data.reservas && data.reservas.length > 0) {
+              // Crear mapa de reservas por mesa
+              const reservationMap = new Map();
+              
+              data.reservas.forEach((reserva: Record<string, unknown>) => {
+                const mesaNombre = ((reserva.Mesa as string) || (reserva.mesa as string) || '').toLowerCase().trim();
+                const estado = ((reserva.Estado as string) || (reserva.estado as string) || '').toLowerCase().trim();
+                
+                // Solo considerar reservas activas
+                if (mesaNombre && mesaNombre !== 'por asignar' && estado !== 'completada' && estado !== 'cancelada') {
+                  reservationMap.set(mesaNombre, {
+                    clientName: reserva.Cliente || reserva.cliente,
+                    phone: reserva.Telefono || reserva.telefono,
+                    partySize: reserva.Personas || reserva.personas,
+                    time: reserva.Hora || reserva.hora,
+                    estado
+                  });
+                }
+              });
+              
+              // Aplicar reservas a las mesas
+              const updatedTables: TableWithReservation[] = hookTables.map(table => {
+                const tableName = table.name.toLowerCase();
+                const reservation = reservationMap.get(tableName) || 
+                                  reservationMap.get(tableName.replace(/\s+/g, '')) ||
+                                  Array.from(reservationMap.entries()).find(([key]) => 
+                                    key.includes(tableName) || tableName.includes(key)
+                                  )?.[1];
+                
+                if (reservation) {
+                  return {
+                    ...table,
+                    status: (reservation.estado === 'ocupada' ? 'occupied' : 'reserved') as 'available' | 'occupied' | 'reserved' | 'maintenance',
+                    clientName: reservation.clientName,
+                    phone: reservation.phone,
+                    partySize: reservation.partySize,
+                    reservationTime: reservation.time
+                  };
+                }
+                
+                return table as TableWithReservation;
+              });
+              
+              setTablesWithReservations(updatedTables);
+              console.log('✅ Mesas sincronizadas con', data.reservas.length, 'reservas');
+            } else {
+              setTablesWithReservations(hookTables as TableWithReservation[]);
+            }
+          }
+        } catch (error) {
+          console.error('Error sincronizando reservas:', error);
+          setTablesWithReservations(hookTables as TableWithReservation[]);
+        }
+      };
+      
+      syncReservations();
+      
+      // Auto-refresh cada 3 minutos
+      const interval = setInterval(syncReservations, 180000);
+      return () => clearInterval(interval);
+    }
+  }, [hookTables, hookIsLoading, restaurantId]);
 
   const getStatusText = (status: 'available' | 'occupied' | 'reserved' | 'maintenance') => {
     switch (status) {

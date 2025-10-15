@@ -103,6 +103,51 @@ class SQLiteDatabase {
         )
       `);
 
+      // Crear tabla de reservas (sincronizada desde Google Sheets)
+      await run(`
+        CREATE TABLE IF NOT EXISTS reservations (
+          id TEXT PRIMARY KEY,
+          restaurant_id TEXT NOT NULL,
+          fecha TEXT NOT NULL,
+          hora TEXT NOT NULL,
+          turno TEXT,
+          cliente TEXT NOT NULL,
+          telefono TEXT,
+          personas INTEGER NOT NULL,
+          zona TEXT,
+          mesa TEXT,
+          estado TEXT DEFAULT 'Confirmada',
+          notas TEXT,
+          creado TEXT,
+          synced_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+        )
+      `);
+
+      // Crear tabla de mesas (sincronizada desde Google Sheets)
+      await run(`
+        CREATE TABLE IF NOT EXISTS tables (
+          id TEXT PRIMARY KEY,
+          restaurant_id TEXT NOT NULL,
+          table_id TEXT NOT NULL,
+          zona TEXT,
+          capacidad INTEGER NOT NULL,
+          turnos TEXT,
+          estado TEXT DEFAULT 'Libre',
+          notas TEXT,
+          synced_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (restaurant_id) REFERENCES restaurants(id),
+          UNIQUE(restaurant_id, table_id)
+        )
+      `);
+
+      // Índices para optimizar consultas
+      await run(`CREATE INDEX IF NOT EXISTS idx_reservations_restaurant ON reservations(restaurant_id)`);
+      await run(`CREATE INDEX IF NOT EXISTS idx_reservations_fecha ON reservations(fecha)`);
+      await run(`CREATE INDEX IF NOT EXISTS idx_tables_restaurant ON tables(restaurant_id)`);
+
       // Insertar datos de ejemplo
       await this.insertSampleData();
 
@@ -462,6 +507,172 @@ class SQLiteDatabase {
         }
       });
     });
+  }
+  // ============================================
+  // MÉTODOS PARA RESERVAS Y MESAS (CACHE LOCAL)
+  // ============================================
+
+  async syncReservations(restaurantId: string, reservations: any[]): Promise<void> {
+    const run = promisify(this.db.run.bind(this.db));
+    
+    try {
+      // Limpiar reservas antiguas del restaurante
+      const deleteStmt = this.db.prepare(`DELETE FROM reservations WHERE restaurant_id = ?`);
+      deleteStmt.run(restaurantId);
+      
+      // Insertar nuevas reservas usando INSERT OR REPLACE
+      const stmt = this.db.prepare(`
+        INSERT OR REPLACE INTO reservations (
+          id, restaurant_id, fecha, hora, turno, cliente, telefono, 
+          personas, zona, mesa, estado, notas, creado, synced_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      for (const res of reservations) {
+        try {
+          stmt.run(
+            res.ID || `${restaurantId}_${Date.now()}_${Math.random()}`,
+            restaurantId,
+            res.Fecha,
+            res.Hora,
+            res.Turno || '',
+            res.Cliente,
+            res.Telefono || '',
+            res.Personas,
+            res.Zona || '',
+            res.Mesa || '',
+            res.Estado || 'Confirmada',
+            res.Notas || '',
+            res.Creado || new Date().toISOString(),
+            new Date().toISOString()
+          );
+        } catch (rowError) {
+          console.warn(`⚠️ [DB] Error insertando reserva ${res.ID}:`, rowError);
+          // Continuar con las demás
+        }
+      }
+      
+      stmt.finalize();
+      console.log(`✅ [DB] Sincronizadas ${reservations.length} reservas para ${restaurantId}`);
+    } catch (error) {
+      console.error('❌ [DB] Error syncing reservations:', error);
+      // No lanzar el error para no crashear el servidor
+    }
+  }
+
+  async getReservations(restaurantId: string, fecha?: string): Promise<any[]> {
+    const all = promisify(this.db.all.bind(this.db));
+    
+    try {
+      let query = `SELECT * FROM reservations WHERE restaurant_id = ?`;
+      const params: any[] = [restaurantId];
+      
+      if (fecha) {
+        query += ` AND fecha = ?`;
+        params.push(fecha);
+      }
+      
+      query += ` ORDER BY fecha, hora`;
+      
+      const stmt = this.db.prepare(query);
+      const rows = (params.length > 0 ? stmt.all(...params) : stmt.all()) as unknown as any[];
+      return rows.map(row => ({
+        ID: row.id,
+        Fecha: row.fecha,
+        Hora: row.hora,
+        Turno: row.turno,
+        Cliente: row.cliente,
+        Telefono: row.telefono,
+        Personas: row.personas,
+        Zona: row.zona,
+        Mesa: row.mesa,
+        Estado: row.estado,
+        Notas: row.notas,
+        Creado: row.creado
+      }));
+    } catch (error) {
+      console.error('❌ [DB] Error getting reservations:', error);
+      return [];
+    }
+  }
+
+  async syncTables(restaurantId: string, tables: any[]): Promise<void> {
+    const run = promisify(this.db.run.bind(this.db));
+    
+    try {
+      // Limpiar mesas antiguas del restaurante
+      const deleteStmt = this.db.prepare(`DELETE FROM tables WHERE restaurant_id = ?`);
+      deleteStmt.run(restaurantId);
+      
+      // Insertar nuevas mesas usando INSERT OR REPLACE para evitar errores de constraint
+      const stmt = this.db.prepare(`
+        INSERT OR REPLACE INTO tables (
+          id, restaurant_id, table_id, zona, capacidad, 
+          turnos, estado, notas, synced_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      for (const table of tables) {
+        try {
+          stmt.run(
+            `${restaurantId}_${table.ID}`,
+            restaurantId,
+            table.ID,
+            table.Zona || '',
+            table.Capacidad,
+            table.Turnos || '',
+            table.Estado || 'Libre',
+            table.Notas || '',
+            new Date().toISOString()
+          );
+        } catch (rowError) {
+          console.warn(`⚠️ [DB] Error insertando mesa ${table.ID}:`, rowError);
+          // Continuar con las demás mesas
+        }
+      }
+      
+      stmt.finalize();
+      console.log(`✅ [DB] Sincronizadas ${tables.length} mesas para ${restaurantId}`);
+    } catch (error) {
+      console.error('❌ [DB] Error syncing tables:', error);
+      // No lanzar el error para no crashear el servidor
+    }
+  }
+
+  async getTables(restaurantId: string): Promise<any[]> {
+    const all = promisify(this.db.all.bind(this.db));
+    
+    try {
+      const stmt = this.db.prepare(`SELECT * FROM tables WHERE restaurant_id = ? ORDER BY table_id`);
+      const rows = stmt.all(restaurantId) as unknown as any[];
+      
+      return rows.map(row => ({
+        ID: row.table_id,
+        Zona: row.zona,
+        Capacidad: row.capacidad,
+        Turnos: row.turnos,
+        Estado: row.estado,
+        Notas: row.notas
+      }));
+    } catch (error) {
+      console.error('❌ [DB] Error getting tables:', error);
+      return [];
+    }
+  }
+
+  async getLastSyncTime(restaurantId: string, type: 'reservations' | 'tables'): Promise<Date | null> {
+    const get = promisify(this.db.get.bind(this.db));
+    
+    try {
+      const table = type === 'reservations' ? 'reservations' : 'tables';
+      const stmt = this.db.prepare(`SELECT MAX(synced_at) as last_sync FROM ${table} WHERE restaurant_id = ?`);
+      const row = stmt.get(restaurantId) as any;
+      
+      return row?.last_sync ? new Date(row.last_sync) : null;
+    } catch (error) {
+      console.error(`❌ [DB] Error getting last sync time for ${type}:`, error);
+      return null;
+    }
   }
 }
 

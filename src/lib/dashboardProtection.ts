@@ -43,7 +43,6 @@ export const STANDARD_DASHBOARD_CONFIG = {
     { id: 'reservations', label: 'Gestión de Reservas', color: 'violet' },
     { id: 'tables', label: 'Control de Mesas', color: 'orange' },
     { id: 'clients', label: 'Base de Clientes', color: 'red' },
-    { id: 'ai_chat', label: 'Chat con IA', color: 'purple' },
     { id: 'settings', label: 'Configuración', color: 'slate' }
   ],
   

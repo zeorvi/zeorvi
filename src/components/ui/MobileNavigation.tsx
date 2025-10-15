@@ -31,19 +31,6 @@ export default function MobileNavigation({
 
   return (
     <>
-      {/* Botón flotante para abrir navegación */}
-      <div className="fixed bottom-4 right-4 z-50 md:hidden">
-        <Button
-          onClick={() => setIsOpen(!isOpen)}
-          className={`h-14 w-14 rounded-full shadow-2xl transition-all duration-300 ${
-            isDarkMode 
-              ? 'bg-gray-800 hover:bg-gray-700 text-white' 
-              : 'bg-white hover:bg-gray-50 text-gray-900'
-          }`}
-        >
-          {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </Button>
-      </div>
 
       {/* Overlay */}
       {isOpen && (
@@ -97,39 +84,6 @@ export default function MobileNavigation({
         </Card>
       </div>
 
-      {/* Navegación inferior fija para tablets */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 hidden md:block lg:hidden">
-        <div className={`backdrop-blur-sm border-t transition-all duration-300 ${
-          isDarkMode 
-            ? 'bg-gray-900/95 border-gray-700/50' 
-            : 'bg-white/95 border-slate-200/50'
-        }`}>
-          <div className="flex items-center justify-around px-4 py-2">
-            {navigationItems.slice(0, 4).map((item) => {
-              const Icon = item.icon;
-              const isActive = activeSection === item.id;
-              
-              return (
-                <Button
-                  key={item.id}
-                  onClick={() => onSectionChange(item.id)}
-                  variant="ghost"
-                  className={`flex flex-col items-center justify-center space-y-1 h-16 w-16 transition-all duration-300 ${
-                    isActive
-                      ? `text-${item.color}-600 bg-${item.color}-50`
-                      : isDarkMode 
-                        ? 'text-gray-400 hover:text-white hover:bg-gray-800'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  <Icon className="h-5 w-5" />
-                  <span className="text-xs font-medium">{item.label}</span>
-                </Button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
     </>
   );
 }

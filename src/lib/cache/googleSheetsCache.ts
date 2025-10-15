@@ -18,19 +18,20 @@ class GoogleSheetsCache {
   private cache: Map<string, CacheEntry<any>> = new Map();
   private pendingRequests: Map<string, PendingRequest<any>> = new Map();
   
-  // TTL por defecto: 30 segundos
-  private readonly DEFAULT_TTL = 30000;
+  // TTL por defecto: 2 minutos
+  private readonly DEFAULT_TTL = 120000;
   
   // TTL para diferentes tipos de datos
   private readonly TTL_CONFIG = {
-    reservas: 30000,      // 30 segundos - se actualizan frecuentemente
-    horarios: 300000,     // 5 minutos - cambian poco
-    mesas: 60000,         // 1 minuto - estado cambiante
-    disponibilidad: 20000 // 20 segundos - crítico para reservas
+    reservas: 60000,      // 1 minuto - se actualizan frecuentemente
+    horarios: 600000,     // 10 minutos - cambian poco
+    mesas: 300000,        // 5 minutos - estado cambiante pero no tanto
+    disponibilidad: 45000 // 45 segundos - crítico para reservas
   };
 
   /**
    * Obtener datos del caché o ejecutar la función de fetch
+   * Implementa stale-while-revalidate para respuestas instantáneas
    */
   async get<T>(
     key: string,
@@ -39,6 +40,7 @@ class GoogleSheetsCache {
   ): Promise<T> {
     const now = Date.now();
     const ttl = this.TTL_CONFIG[type];
+    const staleTime = ttl * 2; // Permitir datos "stale" por el doble del TTL
 
     // 1. Verificar si hay una request pendiente para la misma clave
     const pending = this.pendingRequests.get(key);
@@ -47,14 +49,38 @@ class GoogleSheetsCache {
       return pending.promise;
     }
 
-    // 2. Verificar caché
+    // 2. Verificar caché (fresh)
     const cached = this.cache.get(key);
     if (cached && (now - cached.timestamp) < cached.ttl) {
-      console.log(`✅ [Cache] HIT para: ${key} (edad: ${Math.round((now - cached.timestamp) / 1000)}s)`);
+      console.log(`✅ [Cache] HIT FRESH para: ${key} (edad: ${Math.round((now - cached.timestamp) / 1000)}s)`);
       return cached.data;
     }
 
-    // 3. Cache miss - hacer fetch
+    // 3. Caché STALE pero disponible - devolver mientras actualiza en background
+    if (cached && (now - cached.timestamp) < staleTime) {
+      console.log(`⚡ [Cache] HIT STALE para: ${key} - Devolviendo y actualizando en background`);
+      
+      // Actualizar en background sin bloquear
+      const backgroundUpdate = fetchFn()
+        .then(data => {
+          this.cache.set(key, { data, timestamp: Date.now(), ttl });
+          this.pendingRequests.delete(key);
+          console.log(`🔄 [Cache] Background update completado: ${key}`);
+          return data;
+        })
+        .catch(error => {
+          this.pendingRequests.delete(key);
+          console.error(`❌ [Cache] Error en background update: ${key}`, error);
+          throw error;
+        });
+      
+      this.pendingRequests.set(key, { promise: backgroundUpdate, timestamp: now });
+      
+      // Devolver datos stale inmediatamente
+      return cached.data;
+    }
+
+    // 4. Cache miss - hacer fetch bloqueante
     console.log(`❌ [Cache] MISS para: ${key} - Fetching...`);
     
     const fetchPromise = fetchFn()

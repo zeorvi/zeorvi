@@ -251,17 +251,6 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
     }`}>
       {/* Header del Calendario */}
       <div className="flex items-center justify-between">
-        <Button 
-          onClick={loadReservations}
-          disabled={loading}
-          className={`h-7 px-2 lg:px-3 lg:py-2 rounded-lg text-xs lg:text-sm font-semibold ${
-            isDarkMode 
-              ? 'bg-gray-700 hover:bg-gray-600 text-white' 
-              : 'bg-blue-500 hover:bg-blue-600 text-white'
-          }`}
-        >
-          {loading ? '...' : '🔄'} <span className="hidden lg:inline ml-2">Actualizar</span>
-        </Button>
         
         <div className={`flex items-center gap-1.5 lg:gap-3 rounded-lg lg:rounded-xl border shadow-sm px-2 py-1 lg:px-4 lg:py-2 ${
           isDarkMode 

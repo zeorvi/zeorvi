@@ -35,7 +35,15 @@ export function useRestaurantTables(restaurantId: string) {
     
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/restaurant/tables?restaurantId=${restaurantId}`);
+      // Timeout de 25 segundos para Google Sheets
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
+      
+      const response = await fetch(`/api/restaurant/tables?restaurantId=${restaurantId}`, {
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -63,9 +71,14 @@ export function useRestaurantTables(restaurantId: string) {
         setTables([]);
       }
     } catch (error: unknown) {
-      console.error('❌ [useRestaurantTables] Error loading tables:', error);
-      // No mostrar toast - el usuario puede usar el botón de actualizar
-      setTables([]);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.warn('⏱️ [useRestaurantTables] Timeout loading tables - Google Sheets puede estar lento');
+        toast.warning('Google Sheets está tardando. Intenta refrescar en unos segundos.');
+        setTables([]);
+      } else {
+        console.error('❌ [useRestaurantTables] Error loading tables:', error);
+        setTables([]);
+      }
     } finally {
       setIsLoading(false);
     }

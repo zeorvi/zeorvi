@@ -5,6 +5,96 @@ import { GoogleSheetsService } from '@/lib/googleSheetsService';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+/**
+ * Convierte referencias de días/fechas en formato YYYY-MM-DD
+ * Maneja: "hoy", "mañana", "lunes", "martes", etc.
+ */
+function parseRelativeDate(dateInput: string): string {
+  console.log(`🔍 [parseRelativeDate] Input recibido: "${dateInput}"`);
+  const normalized = dateInput.toLowerCase().trim();
+  console.log(`🔍 [parseRelativeDate] Normalizado: "${normalized}"`);
+  const today = new Date();
+  
+  // Si ya es una fecha en formato YYYY-MM-DD, devolverla
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    console.log(`✅ [parseRelativeDate] Es fecha ISO: "${normalized}"`);
+    return normalized;
+  }
+  
+  // Días de la semana en español con normalización de acentos
+  const daysOfWeek = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+  const daysOfWeekWithAccents = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  
+  // Función para normalizar quitando acentos
+  const removeAccents = (str: string) => {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  };
+  
+  const normalizedNoAccents = removeAccents(normalized);
+  console.log(`🔍 [parseRelativeDate] Normalizado sin acentos: "${normalizedNoAccents}"`);
+  
+  // Manejar "hoy"
+  if (normalized === 'hoy') {
+    const result = today.toISOString().split('T')[0];
+    console.log(`✅ [parseRelativeDate] Es "hoy": "${result}"`);
+    return result;
+  }
+  
+  // Manejar "mañana"
+  if (normalized === 'mañana' || normalizedNoAccents === 'manana') {
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const result = tomorrow.toISOString().split('T')[0];
+    console.log(`✅ [parseRelativeDate] Es "mañana": "${result}"`);
+    return result;
+  }
+  
+  // Manejar "pasado mañana"
+  if (normalized === 'pasado mañana' || normalized === 'pasadomañana' || normalizedNoAccents === 'pasado manana' || normalizedNoAccents === 'pasadomanana') {
+    const dayAfterTomorrow = new Date(today);
+    dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
+    const result = dayAfterTomorrow.toISOString().split('T')[0];
+    console.log(`✅ [parseRelativeDate] Es "pasado mañana": "${result}"`);
+    return result;
+  }
+  
+  // Manejar días de la semana (primero buscar con acentos, luego sin acentos)
+  let dayIndex = daysOfWeekWithAccents.findIndex(day => normalized.includes(day));
+  
+  if (dayIndex === -1) {
+    // Intentar sin acentos
+    dayIndex = daysOfWeek.findIndex(day => normalizedNoAccents.includes(day));
+    console.log(`🔍 [parseRelativeDate] Buscando día de semana sin acentos... dayIndex: ${dayIndex}`);
+  } else {
+    console.log(`🔍 [parseRelativeDate] Buscando día de semana con acentos... dayIndex: ${dayIndex}`);
+  }
+  
+  if (dayIndex !== -1) {
+    const currentDayIndex = today.getDay();
+    console.log(`🔍 [parseRelativeDate] Día actual: ${daysOfWeek[currentDayIndex]} (índice ${currentDayIndex})`);
+    console.log(`🔍 [parseRelativeDate] Día objetivo: ${daysOfWeek[dayIndex]} (índice ${dayIndex})`);
+    
+    let daysToAdd = dayIndex - currentDayIndex;
+    
+    // Si el día ya pasó esta semana, ir a la próxima semana
+    if (daysToAdd <= 0) {
+      daysToAdd += 7;
+    }
+    
+    console.log(`🔍 [parseRelativeDate] Días a añadir: ${daysToAdd}`);
+    
+    const targetDate = new Date(today);
+    targetDate.setDate(today.getDate() + daysToAdd);
+    const result = targetDate.toISOString().split('T')[0];
+    console.log(`✅ [parseRelativeDate] Resultado: "${result}"`);
+    return result;
+  }
+  
+  // Si no se pudo parsear, devolver fecha inválida para que se maneje el error
+  console.error(`❌ [parseRelativeDate] No se pudo parsear: "${dateInput}"`);
+  throw new Error(`Fecha inválida: ${dateInput}`);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -19,35 +109,62 @@ export async function POST(request: NextRequest) {
 
     switch (function_name) {
       case 'verificar_disponibilidad':
-        result = await GoogleSheetsService.verificarDisponibilidad(
-          restaurantId,
-          parameters.fecha,
-          parameters.hora,
-          parameters.personas,
-          parameters.zona
-        );
+        try {
+          console.log(`📅 Fecha recibida original: "${parameters.fecha}"`);
+          const fechaParsed = parseRelativeDate(parameters.fecha);
+          console.log(`📅 Fecha convertida: "${fechaParsed}"`);
+          result = await GoogleSheetsService.verificarDisponibilidad(
+            restaurantId,
+            fechaParsed,
+            parameters.hora,
+            parameters.personas,
+            parameters.zona
+          );
+        } catch (error) {
+          console.error('❌ Error en parseRelativeDate:', error);
+          result = {
+            disponible: false,
+            error: error instanceof Error ? error.message : 'Error procesando fecha',
+            mensaje: 'No pude entender la fecha. Por favor, indique la fecha en formato día de la semana, "mañana", o "hoy".'
+          };
+        }
         break;
 
       case 'crear_reserva':
-        const reservaResult = await GoogleSheetsService.addReserva(restaurantId, {
-          Fecha: parameters.fecha,
-          Hora: parameters.hora,
-          Turno: parameters.turno || 'Cena',
-          Cliente: parameters.cliente,
-          Telefono: parameters.telefono,
-          Personas: parameters.personas,
-          Zona: parameters.zona,
-          Mesa: parameters.mesa,
-          Estado: 'confirmada',
-          Notas: parameters.notas || ''
-        });
+        try {
+          console.log(`📅 [crear_reserva] Fecha recibida original: "${parameters.fecha}"`);
+          const fechaParsed = parseRelativeDate(parameters.fecha);
+          console.log(`📅 [crear_reserva] Fecha convertida: "${fechaParsed}"`);
+          
+          const reservaResult = await GoogleSheetsService.addReserva(restaurantId, {
+            Fecha: fechaParsed,
+            Hora: parameters.hora,
+            Turno: parameters.turno || 'Cena',
+            Cliente: parameters.cliente,
+            Telefono: parameters.telefono,
+            Personas: parameters.personas,
+            Zona: parameters.zona,
+            Mesa: parameters.mesa,
+            Estado: 'confirmada',
+            Notas: parameters.notas || ''
+          });
         
-        // Agregar end_call: true para que Retell cuelgue automáticamente
-        result = {
-          ...reservaResult,
-          end_call: true,
-          end_call_message: "Queda confirmada la reserva. Les esperamos en Restaurante La Gaviota. Muchas gracias."
-        };
+          console.log(`✅ [crear_reserva] Reserva creada exitosamente:`, reservaResult);
+          
+          // Agregar end_call: true para que Retell cuelgue automáticamente
+          result = {
+            ...reservaResult,
+            end_call: true,
+            end_call_message: "Queda confirmada la reserva. Les esperamos en Restaurante La Gaviota. Muchas gracias."
+          };
+        } catch (error) {
+          console.error('❌ [crear_reserva] Error:', error);
+          result = {
+            success: false,
+            error: error instanceof Error ? error.message : 'Error procesando la reserva',
+            mensaje: 'No se pudo crear la reserva. Por favor, verifique la fecha y vuelva a intentarlo.'
+          };
+        }
         break;
 
       case 'buscar_reserva':
@@ -122,7 +239,11 @@ export async function POST(request: NextRequest) {
           
           if (reservaAModificar && reservaAModificar.ID) {
             // Primero verificar disponibilidad para la nueva hora
-            const nuevaFecha = parameters.nueva_fecha || reservaAModificar.Fecha;
+            // Parsear la nueva fecha si fue proporcionada
+            let nuevaFecha = reservaAModificar.Fecha;
+            if (parameters.nueva_fecha) {
+              nuevaFecha = parseRelativeDate(parameters.nueva_fecha);
+            }
             const nuevaHora = parameters.nueva_hora || reservaAModificar.Hora;
             const nuevasPersonas = parameters.nuevas_personas || reservaAModificar.Personas;
             
@@ -198,15 +319,24 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'consultar_reservas_dia':
-        const reservasDelDia = await GoogleSheetsService.getReservas(restaurantId);
-        const reservasDelDiaFiltradas = reservasDelDia.filter(r => r.Fecha === parameters.fecha);
-        
-        result = {
-          success: true,
-          reservas: reservasDelDiaFiltradas,
-          total: reservasDelDiaFiltradas.length,
-          mensaje: `${reservasDelDiaFiltradas.length} reservas encontradas para ${parameters.fecha}`
-        };
+        try {
+          const fechaParsed = parseRelativeDate(parameters.fecha);
+          const reservasDelDia = await GoogleSheetsService.getReservas(restaurantId);
+          const reservasDelDiaFiltradas = reservasDelDia.filter(r => r.Fecha === fechaParsed);
+          
+          result = {
+            success: true,
+            reservas: reservasDelDiaFiltradas,
+            total: reservasDelDiaFiltradas.length,
+            mensaje: `${reservasDelDiaFiltradas.length} reservas encontradas para ${fechaParsed}`
+          };
+        } catch (error) {
+          result = {
+            success: false,
+            error: error instanceof Error ? error.message : 'Error procesando fecha',
+            mensaje: 'No pude entender la fecha. Por favor, indique la fecha en formato día de la semana, "mañana", o "hoy".'
+          };
+        }
         break;
 
       case 'obtener_horarios_y_dias_cerrados':

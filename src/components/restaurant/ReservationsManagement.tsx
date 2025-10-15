@@ -158,13 +158,6 @@ export default function ReservationsManagement({
         <h2 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
           Gestión de Reservas
         </h2>
-        <Button 
-          onClick={loadAllReservations}
-          className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white"
-        >
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Actualizar
-        </Button>
       </div>
 
       {/* Filtros */}

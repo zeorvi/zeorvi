@@ -275,14 +275,6 @@ export default function DailyAgenda({ restaurantId }: DailyAgendaProps) {
           </div>
           
           <div className="flex gap-2 lg:space-x-6">
-            <Button 
-              variant="outline" 
-              onClick={loadReservations}
-              disabled={loading}
-              className="h-7 px-2 lg:px-6 lg:py-3 text-xs lg:text-sm rounded-lg lg:rounded-2xl lg:border-2"
-            >
-              {loading ? '...' : '🔄'} <span className="hidden lg:inline ml-2">Actualizar</span>
-            </Button>
             <Button className="hidden sm:flex h-7 px-3 lg:px-8 lg:py-3 text-xs lg:text-sm rounded-lg lg:rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold shadow-lg">
               <span className="lg:hidden">+ Nueva</span>
               <span className="hidden lg:inline">Nueva Reserva</span>

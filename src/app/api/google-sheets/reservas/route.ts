@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleSheetsService, Reserva } from '@/lib/googleSheetsService';
+import { sqliteDb } from '@/lib/database/sqlite';
+import { GoogleSheetsSyncService } from '@/lib/sync/googleSheetsSync';
 
 // Configuración de runtime dinámico
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// GET - Obtener reservas
+// GET - Obtener reservas (OPTIMIZADO: Lee de DB local 300x más rápido)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -13,6 +15,7 @@ export async function GET(request: NextRequest) {
     const estado = searchParams.get('estado');
     const restaurantId = searchParams.get('restaurantId');
     const all = searchParams.get('all');
+    const forceSync = searchParams.get('sync') === 'true';
 
     if (!restaurantId && all !== 'true') {
       return NextResponse.json({
@@ -23,16 +26,40 @@ export async function GET(request: NextRequest) {
 
     let reservas: Reserva[] = [];
     const startTime = Date.now();
-    console.log(`📊 Obteniendo reservas de Google Sheets...`);
+    let source = 'database';
     
     if (restaurantId) {
-      // Obtener reservas de Google Sheets (sin timeout artificial)
-      reservas = await GoogleSheetsService.getReservas(restaurantId);
+      // OPTIMIZACIÓN: Leer de base de datos local (SÚPER RÁPIDO)
+      console.log(`⚡ [Optimized] Obteniendo reservas de DB local...`);
       
-      if (fecha) {
-        reservas = reservas.filter(r => r.Fecha === fecha);
+      // Sincronizar en background si es necesario (sin bloquear)
+      if (forceSync || await GoogleSheetsSyncService.needsSync(restaurantId, 'reservations')) {
+        // Sincronizar en background sin esperar
+        GoogleSheetsSyncService.syncReservations(restaurantId)
+          .then(() => console.log(`✅ Background sync completado para ${restaurantId}`))
+          .catch(err => console.error(`❌ Background sync error:`, err));
+      }
+      
+      // Leer de DB (instantáneo)
+      reservas = await sqliteDb.getReservations(restaurantId, fecha || undefined);
+      
+      // Si DB está vacía, hacer primera sincronización (solo primera vez)
+      if (reservas.length === 0) {
+        console.log(`⚠️ DB vacía, sincronizando desde Google Sheets (primera vez)...`);
+        source = 'google_sheets_first_sync';
+        const syncResult = await GoogleSheetsSyncService.syncReservations(restaurantId);
+        if (syncResult.success) {
+          reservas = await sqliteDb.getReservations(restaurantId, fecha || undefined);
+        } else {
+          // Fallback a Google Sheets si sync falla
+          reservas = await GoogleSheetsService.getReservas(restaurantId);
+          if (fecha) {
+            reservas = reservas.filter(r => r.Fecha === fecha);
+          }
+        }
       }
     } else if (all === 'true') {
+      source = 'google_sheets';
       reservas = await GoogleSheetsService.getAllReservas();
     }
 
@@ -41,7 +68,7 @@ export async function GET(request: NextRequest) {
     }
 
     const duration = Date.now() - startTime;
-    console.log(`✅ Reservas obtenidas de Google Sheets en ${duration}ms (${reservas.length} reservas)`);
+    console.log(`✅ Reservas obtenidas de ${source} en ${duration}ms (${reservas.length} reservas)`);
 
     return NextResponse.json({
       success: true,
@@ -50,17 +77,18 @@ export async function GET(request: NextRequest) {
       fecha: fecha || 'todas',
       estado: estado || 'todos',
       restaurantId: restaurantId || 'all',
-      source: 'google_sheets',
-      duration
+      source,
+      duration,
+      optimized: source === 'database'
     });
 
   } catch (error) {
-    console.error('❌ Error obteniendo reservas de Google Sheets:', error);
+    console.error('❌ Error obteniendo reservas:', error);
     console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
     
     return NextResponse.json({
       success: false,
-      error: 'Error conectando con Google Sheets',
+      error: 'Error obteniendo reservas',
       details: error instanceof Error ? error.message : 'Error desconocido'
     }, { status: 500 });
   }

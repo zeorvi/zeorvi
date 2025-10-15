@@ -501,16 +501,23 @@ export class GoogleSheetsService {
       });
       
       // Verificar reservas existentes para esa fecha/hora
-      const reservasExistentes = reservas.filter(reserva => 
-        reserva.Fecha === fecha && 
-        reserva.Hora === hora && 
-        (reserva.Estado.toLowerCase() === 'confirmada' || reserva.Estado.toLowerCase() === 'pendiente')
-      );
+      // SOLO consideramos ocupadas las reservas que NO están completadas ni canceladas
+      const reservasExistentes = reservas.filter(reserva => {
+        if (reserva.Fecha !== fecha || reserva.Hora !== hora) return false;
+        
+        const estado = (reserva.Estado || '').toLowerCase().trim();
+        // Estados que ocupan mesa: confirmada, pendiente, reservada, ocupada
+        // Estados que NO ocupan mesa: completada, cancelada
+        return !['completada', 'cancelada'].includes(estado);
+      });
       
       // Verificar mesas que se liberarán antes de la hora solicitada
       const mesasQueSeLiberan = [];
       for (const reserva of reservas) {
-        if (reserva.Estado.toLowerCase() === 'confirmada' || reserva.Estado.toLowerCase() === 'pendiente') {
+        const estado = (reserva.Estado || '').toLowerCase().trim();
+        
+        // Solo considerar reservas activas (no completadas ni canceladas)
+        if (!['completada', 'cancelada'].includes(estado)) {
           const fechaHoraReserva = new Date(`${reserva.Fecha}T${reserva.Hora}:00`);
           
           // Calcular cuándo se liberará la mesa (2 horas después)

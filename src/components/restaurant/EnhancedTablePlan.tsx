@@ -207,6 +207,16 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
     setFilteredTables(filtered);
   }, [tablesWithReservations, statusFilter, searchTerm]);
 
+  // Actualizar estado de mesas cada minuto para reflejar cambios de tiempo
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Forzar re-render para actualizar estados basados en tiempo
+      setFilteredTables([...filteredTables]);
+    }, 60000); // 1 minuto
+    
+    return () => clearInterval(interval);
+  }, [filteredTables]);
+
   const handleTableStatusChange = (tableId: string, newStatus: TableStatus) => {
     if (!isRestaurantOpen) {
       toast.error('El restaurante está cerrado hoy');
@@ -225,6 +235,59 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
     } else {
       updateTableStatus(tableId, newStatus);
     }
+  };
+
+  // Función para determinar el estado real de la mesa basado en la hora actual
+  const getRealTimeTableStatus = (table: any): TableStatus => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const currentTime = currentHour * 60 + currentMinute; // Convertir a minutos para comparar
+    
+    // Buscar reservas activas para esta mesa hoy
+    const today = now.toISOString().split('T')[0];
+    const activeReservation = todayReservations.find((reserva: Reservation) => {
+      if (reserva.Fecha !== today || reserva.Mesa !== table.name) return false;
+      
+      const estadoNormalizado = (reserva.Estado || '').toLowerCase().trim();
+      const isCompleted = ['completada', 'cancelada'].includes(estadoNormalizado);
+      
+      if (isCompleted) return false; // Mesa libre si está completada
+      
+      return true; // Hay una reserva activa
+    });
+    
+    if (activeReservation) {
+      const [reservaHour, reservaMinute] = activeReservation.Hora.split(':').map(Number);
+      const reservaTime = reservaHour * 60 + reservaMinute;
+      
+      // LÓGICA ESPECIAL: Si son las 12:00 AM (medianoche)
+      // Solo las reservas de 01:00 AM en adelante deben estar activas
+      if (currentHour === 0) { // 12:00 AM (medianoche)
+        if (reservaHour >= 1) { // Reserva a las 01:00 AM o después
+          // Mesa RESERVADA para el día siguiente
+          return 'reserved';
+        } else {
+          // Reserva anterior a las 01:00 AM, mesa libre
+          return 'available';
+        }
+      }
+      
+      // LÓGICA NORMAL: Para el resto del día
+      // - Si es EXACTAMENTE la hora de reserva O ya pasó → OCUPADA (roja)
+      // - Si aún no es la hora de reserva → RESERVADA (naranja)
+      
+      if (currentTime >= reservaTime) {
+        // Es la hora exacta o ya pasó → Mesa OCUPADA
+        return 'occupied';
+      } else {
+        // Aún no es la hora → Mesa RESERVADA
+        return 'reserved';
+      }
+    }
+    
+    // Si no hay reservas activas, usar el estado base de la mesa
+    return table.status || 'available';
   };
 
   const getStatusColor = (status: TableStatus) => {
@@ -336,31 +399,6 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
           </div>
           
           <div className="flex items-center space-x-1 sm:space-x-2">
-            <Button 
-              onClick={async () => {
-                // Invalidar caché de mesas y reservas
-                try {
-                  await fetch('/api/cache/invalidate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ restaurantId, type: 'all' })
-                  });
-                } catch (error) {
-                  console.error('Error invalidando caché:', error);
-                }
-                
-                // Recargar datos
-                refreshTables();
-                window.location.reload();
-              }}
-              variant="outline" 
-              size="sm" 
-              className="h-7 w-7 sm:h-8 sm:w-auto sm:px-2 lg:h-9 lg:px-3 p-1"
-            >
-              <RefreshCw className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-              <span className="hidden sm:inline ml-1 text-xs lg:text-sm">Actualizar</span>
-            </Button>
-            
             <Dialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="h-7 w-7 sm:h-8 sm:w-auto sm:px-2 lg:h-9 lg:px-3 p-1">
@@ -487,17 +525,19 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
 
       {/* Grid de Mesas responsive */}
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 lg:gap-5">
-        {filteredTables.map((table) => (
+        {filteredTables.map((table) => {
+          const realTimeStatus = getRealTimeTableStatus(table);
+          return (
           <Card key={table.id} className={`transition-all duration-200 hover:shadow-lg lg:hover:scale-105 ${
-            getCardBackgroundColor(normalizeTableStatus(table.status))
+            getCardBackgroundColor(realTimeStatus)
           }`}>
             <CardHeader className="p-2 sm:p-3 lg:pb-4 pb-2">
               <div className="flex items-center justify-between mb-1">
                 <CardTitle className="text-sm sm:text-base lg:text-xl text-white font-bold">
                   {table.name}
                 </CardTitle>
-                <Badge className={`text-[10px] sm:text-xs lg:text-sm px-1.5 py-0.5 lg:px-2 lg:py-1 ${getStatusColor(normalizeTableStatus(table.status))}`}>
-                  {getStatusIcon(normalizeTableStatus(table.status))} <span className="hidden lg:inline">{getStatusText(normalizeTableStatus(table.status))}</span>
+                <Badge className={`text-[10px] sm:text-xs lg:text-sm px-1.5 py-0.5 lg:px-2 lg:py-1 ${getStatusColor(realTimeStatus)}`}>
+                  {getStatusIcon(realTimeStatus)} <span className="hidden lg:inline">{getStatusText(realTimeStatus)}</span>
                 </Badge>
               </div>
               <CardDescription className="text-white/90 text-xs lg:text-sm">
@@ -520,7 +560,7 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
                 <Button
                   onClick={() => handleTableStatusChange(table.id, 'available')}
                   size="sm"
-                  variant={table.status === 'available' ? 'default' : 'outline'}
+                  variant={realTimeStatus === 'available' ? 'default' : 'outline'}
                   className="h-7 px-2 lg:h-auto lg:px-4 lg:py-2.5 text-[10px] sm:text-xs lg:text-sm bg-green-500 hover:bg-green-600 text-white font-semibold border-2 border-white"
                   disabled={!isRestaurantOpen}
                 >
@@ -529,7 +569,7 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
                 <Button
                   onClick={() => handleTableStatusChange(table.id, 'occupied')}
                   size="sm"
-                  variant={table.status === 'occupied' ? 'default' : 'outline'}
+                  variant={realTimeStatus === 'occupied' ? 'default' : 'outline'}
                   className="h-7 px-2 lg:h-auto lg:px-4 lg:py-2.5 text-[10px] sm:text-xs lg:text-sm bg-red-500 hover:bg-red-600 text-white font-semibold"
                   disabled={!isRestaurantOpen}
                 >
@@ -546,12 +586,62 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
                 </Button>
               </div>
               
-              {table.client && (
-                <div className="text-[10px] sm:text-xs lg:text-sm text-white/80 border-t border-white/20 pt-2">
-                  <div className="font-semibold truncate">{table.client.name}</div>
-                  <div className="truncate">{table.client.partySize} <span className="hidden lg:inline">personas</span><span className="lg:hidden">pers.</span></div>
-                </div>
-              )}
+              {/* Mostrar información de reserva activa si existe */}
+              {(() => {
+                const now = new Date();
+                const today = now.toISOString().split('T')[0];
+                const activeReservation = todayReservations.find((reserva: Reservation) => 
+                  reserva.Fecha === today && 
+                  reserva.Mesa === table.name &&
+                  !['completada', 'cancelada'].includes((reserva.Estado || '').toLowerCase().trim())
+                );
+                
+                if (activeReservation) {
+                  const [reservaHour, reservaMinute] = activeReservation.Hora.split(':').map(Number);
+                  const reservaTime = reservaHour * 60 + reservaMinute;
+                  const currentTime = now.getHours() * 60 + now.getMinutes();
+                  const timeDiff = currentTime - reservaTime;
+                  
+                  // Lógica especial para medianoche
+                  let timeText = '';
+                  if (now.getHours() === 0) { // 12:00 AM
+                    if (reservaHour >= 1) {
+                      // Reserva del día siguiente
+                      const minutesUntilReservation = (reservaHour * 60 + reservaMinute);
+                      timeText = `(En ${minutesUntilReservation} min)`;
+                    } else {
+                      timeText = '(Mesa libre)';
+                    }
+                  } else {
+                    // Lógica normal
+                    if (timeDiff >= 0) {
+                      timeText = `(Ocupada ${timeDiff} min)`;
+                    } else {
+                      timeText = `(En ${Math.abs(timeDiff)} min)`;
+                    }
+                  }
+                  
+                  return (
+                    <div className="text-[10px] sm:text-xs lg:text-sm text-white/80 border-t border-white/20 pt-2">
+                      <div className="font-semibold truncate">{activeReservation.Cliente}</div>
+                      <div className="truncate">{activeReservation.Personas} <span className="hidden lg:inline">personas</span><span className="lg:hidden">pers.</span></div>
+                      <div className="text-xs text-white/70">
+                        Reserva: {activeReservation.Hora}
+                        <span className="ml-1 text-orange-300">
+                          {timeText}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                }
+                
+                return table.client ? (
+                  <div className="text-[10px] sm:text-xs lg:text-sm text-white/80 border-t border-white/20 pt-2">
+                    <div className="font-semibold truncate">{table.client.name}</div>
+                    <div className="truncate">{table.client.partySize} <span className="hidden lg:inline">personas</span><span className="lg:hidden">pers.</span></div>
+                  </div>
+                ) : null;
+              })()}
               
               <div className="hidden lg:flex text-sm text-white/80 items-center">
                 <Clock className="h-4 w-4 mr-2" />
@@ -559,7 +649,8 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
               </div>
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       {filteredTables.length === 0 && (
