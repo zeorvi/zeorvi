@@ -8,36 +8,89 @@ export const runtime = 'nodejs';
 
 // --- Función auxiliar para obtener fecha con zona horaria española ---
 function obtenerFecha(fechaTexto: string): string {
+  console.log(`🔍 [obtenerFecha] Input recibido: "${fechaTexto}"`);
+  const normalized = fechaTexto.toLowerCase().trim();
+  console.log(`🔍 [obtenerFecha] Normalizado: "${normalized}"`);
+  
   const zona = "Europe/Madrid";
+  const hoy = DateTime.now().setZone(zona);
 
-  if (fechaTexto === "mañana" || fechaTexto === "tomorrow" || fechaTexto.includes('{{')) {
-    return DateTime.now().setZone(zona).plus({ days: 1 }).toISODate() || '';
-  } else if (fechaTexto === "hoy" || fechaTexto === "today") {
-    return DateTime.now().setZone(zona).toISODate() || '';
-  } else if (fechaTexto === "pasado mañana") {
-    return DateTime.now().setZone(zona).plus({ days: 2 }).toISODate() || '';
-  } else {
-    // Si ya viene en formato ISO (YYYY-MM-DD), devolverlo
-    if (/^\d{4}-\d{2}-\d{2}$/.test(fechaTexto)) {
-      return fechaTexto;
-    }
-    
-    // Buscar días de la semana
-    const dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
-    const textoLower = fechaTexto.toLowerCase().trim();
-    const idx = dias.findIndex(d => textoLower.includes(d) || textoLower.includes(d.replace('é','e')));
-    
-    if (idx >= 0) {
-      const hoy = DateTime.now().setZone(zona);
-      const diaSemana = hoy.weekday === 7 ? 0 : hoy.weekday; // Convertir domingo de 7 a 0
-      let diff = idx - diaSemana;
-      if (diff <= 0) diff += 7;
-      return hoy.plus({ days: diff }).toISODate() || '';
-    }
-    
-    // Fallback: mañana
-    return DateTime.now().setZone(zona).plus({ days: 1 }).toISODate() || '';
+  // Si ya es una fecha en formato YYYY-MM-DD, devolverla
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    console.log(`✅ [obtenerFecha] Es fecha ISO: "${normalized}"`);
+    return normalized;
   }
+  
+  // Función para normalizar quitando acentos
+  const removeAccents = (str: string) => {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  };
+  
+  const normalizedNoAccents = removeAccents(normalized);
+  
+  // Mapeo de días de la semana (con y sin acentos)
+  const daysMap: Record<string, number> = {
+    'domingo': 0,
+    'lunes': 1,
+    'martes': 2,
+    'miercoles': 3,   // Sin acento
+    'miércoles': 3,   // Con acento
+    'jueves': 4,
+    'viernes': 5,
+    'sabado': 6,      // Sin acento
+    'sábado': 6       // Con acento
+  };
+  
+  // Buscar día de la semana en el mapa
+  if (daysMap[normalized] !== undefined) {
+    const dayIndex = daysMap[normalized];
+    const currentDayIndex = hoy.weekday === 7 ? 0 : hoy.weekday; // luxon usa 1-7, convertir domingo
+    
+    let daysToAdd = dayIndex - currentDayIndex;
+    if (daysToAdd <= 0) daysToAdd += 7;
+    
+    const result = hoy.plus({ days: daysToAdd }).toISODate() || '';
+    console.log(`✅ [obtenerFecha] ${normalized} → ${result} (en ${daysToAdd} días)`);
+    return result;
+  }
+  
+  // Intentar sin acentos
+  if (daysMap[normalizedNoAccents] !== undefined) {
+    const dayIndex = daysMap[normalizedNoAccents];
+    const currentDayIndex = hoy.weekday === 7 ? 0 : hoy.weekday;
+    
+    let daysToAdd = dayIndex - currentDayIndex;
+    if (daysToAdd <= 0) daysToAdd += 7;
+    
+    const result = hoy.plus({ days: daysToAdd }).toISODate() || '';
+    console.log(`✅ [obtenerFecha] ${normalizedNoAccents} → ${result} (en ${daysToAdd} días)`);
+    return result;
+  }
+
+  // Manejar "hoy"
+  if (normalized === "hoy" || normalized === "today") {
+    const result = hoy.toISODate() || '';
+    console.log(`✅ [obtenerFecha] Es "hoy": "${result}"`);
+    return result;
+  }
+  
+  // Manejar "mañana"
+  if (normalized === "mañana" || normalized === "tomorrow" || normalizedNoAccents === "manana" || fechaTexto.includes('{{')) {
+    const result = hoy.plus({ days: 1 }).toISODate() || '';
+    console.log(`✅ [obtenerFecha] Es "mañana": "${result}"`);
+    return result;
+  }
+  
+  // Manejar "pasado mañana"
+  if (normalized === "pasado mañana" || normalized === "pasadomañana" || normalizedNoAccents === "pasado manana") {
+    const result = hoy.plus({ days: 2 }).toISODate() || '';
+    console.log(`✅ [obtenerFecha] Es "pasado mañana": "${result}"`);
+    return result;
+  }
+  
+  // Fallback: si no se pudo parsear, devolver mañana como antes
+  console.warn(`⚠️ [obtenerFecha] No se pudo parsear "${fechaTexto}", usando mañana como fallback`);
+  return hoy.plus({ days: 1 }).toISODate() || '';
 }
 
 export async function POST(req: Request) {
