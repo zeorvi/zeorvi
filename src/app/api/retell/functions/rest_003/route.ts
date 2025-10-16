@@ -21,10 +21,6 @@ function parseRelativeDate(dateInput: string): string {
     return normalized;
   }
   
-  // Días de la semana en español con normalización de acentos
-  const daysOfWeek = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
-  const daysOfWeekWithAccents = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-  
   // Función para normalizar quitando acentos
   const removeAccents = (str: string) => {
     return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -32,6 +28,61 @@ function parseRelativeDate(dateInput: string): string {
   
   const normalizedNoAccents = removeAccents(normalized);
   console.log(`🔍 [parseRelativeDate] Normalizado sin acentos: "${normalizedNoAccents}"`);
+  
+  // Mapeo de días de la semana (con y sin acentos)
+  const daysMap: Record<string, number> = {
+    'domingo': 0,
+    'lunes': 1,
+    'martes': 2,
+    'miercoles': 3,   // Sin acento
+    'miércoles': 3,   // Con acento
+    'jueves': 4,
+    'viernes': 5,
+    'sabado': 6,      // Sin acento
+    'sábado': 6       // Con acento
+  };
+  
+  // También intentar buscar la palabra exacta
+  if (daysMap[normalized] !== undefined) {
+    const dayIndex = daysMap[normalized];
+    const currentDayIndex = today.getDay();
+    const daysNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+    console.log(`✅ [parseRelativeDate] Día encontrado: "${normalized}" → ${daysNames[dayIndex]}`);
+    
+    let daysToAdd = dayIndex - currentDayIndex;
+    
+    // Si el día ya pasó esta semana, ir a la próxima semana
+    if (daysToAdd <= 0) {
+      daysToAdd += 7;
+    }
+    
+    const targetDate = new Date(today);
+    targetDate.setDate(today.getDate() + daysToAdd);
+    const result = targetDate.toISOString().split('T')[0];
+    console.log(`✅ [parseRelativeDate] ${normalized} → ${result} (en ${daysToAdd} días)`);
+    return result;
+  }
+  
+  // Si no se encontró con acentos, intentar sin acentos
+  if (daysMap[normalizedNoAccents] !== undefined) {
+    const dayIndex = daysMap[normalizedNoAccents];
+    const currentDayIndex = today.getDay();
+    const daysNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+    console.log(`✅ [parseRelativeDate] Día encontrado sin acentos: "${normalizedNoAccents}" → ${daysNames[dayIndex]}`);
+    
+    let daysToAdd = dayIndex - currentDayIndex;
+    
+    // Si el día ya pasó esta semana, ir a la próxima semana
+    if (daysToAdd <= 0) {
+      daysToAdd += 7;
+    }
+    
+    const targetDate = new Date(today);
+    targetDate.setDate(today.getDate() + daysToAdd);
+    const result = targetDate.toISOString().split('T')[0];
+    console.log(`✅ [parseRelativeDate] ${normalizedNoAccents} → ${result} (en ${daysToAdd} días)`);
+    return result;
+  }
   
   // Manejar "hoy"
   if (normalized === 'hoy') {
@@ -55,38 +106,6 @@ function parseRelativeDate(dateInput: string): string {
     dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
     const result = dayAfterTomorrow.toISOString().split('T')[0];
     console.log(`✅ [parseRelativeDate] Es "pasado mañana": "${result}"`);
-    return result;
-  }
-  
-  // Manejar días de la semana (primero buscar con acentos, luego sin acentos)
-  let dayIndex = daysOfWeekWithAccents.findIndex(day => normalized.includes(day));
-  
-  if (dayIndex === -1) {
-    // Intentar sin acentos
-    dayIndex = daysOfWeek.findIndex(day => normalizedNoAccents.includes(day));
-    console.log(`🔍 [parseRelativeDate] Buscando día de semana sin acentos... dayIndex: ${dayIndex}`);
-  } else {
-    console.log(`🔍 [parseRelativeDate] Buscando día de semana con acentos... dayIndex: ${dayIndex}`);
-  }
-  
-  if (dayIndex !== -1) {
-    const currentDayIndex = today.getDay();
-    console.log(`🔍 [parseRelativeDate] Día actual: ${daysOfWeek[currentDayIndex]} (índice ${currentDayIndex})`);
-    console.log(`🔍 [parseRelativeDate] Día objetivo: ${daysOfWeek[dayIndex]} (índice ${dayIndex})`);
-    
-    let daysToAdd = dayIndex - currentDayIndex;
-    
-    // Si el día ya pasó esta semana, ir a la próxima semana
-    if (daysToAdd <= 0) {
-      daysToAdd += 7;
-    }
-    
-    console.log(`🔍 [parseRelativeDate] Días a añadir: ${daysToAdd}`);
-    
-    const targetDate = new Date(today);
-    targetDate.setDate(today.getDate() + daysToAdd);
-    const result = targetDate.toISOString().split('T')[0];
-    console.log(`✅ [parseRelativeDate] Resultado: "${result}"`);
     return result;
   }
   
