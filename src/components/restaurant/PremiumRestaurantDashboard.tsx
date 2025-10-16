@@ -127,33 +127,101 @@ const PremiumRestaurantDashboard = memo(function PremiumRestaurantDashboard({
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
+          // Validar que data.reservas sea un array
+          const reservasArray = Array.isArray(data.reservas) ? data.reservas : [];
+          
+          if (reservasArray.length === 0) {
+            console.log('📅 No hay reservas para hoy');
+            setReservations([]);
+            return;
+          }
+          
+          // Hora actual para calcular auto-completado
+          const now = new Date();
+          const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
+          
           // Convertir formato de Google Sheets al formato del dashboard
-          const todayReservations = data.reservas
+          const todayReservations = reservasArray
             .sort((a: Record<string, string>, b: Record<string, string>) => (a.Hora || '').localeCompare(b.Hora || ''))
-            .map((reserva: Record<string, unknown>, index: number) => ({
-              id: (reserva.ID as string) || `res_${Date.now()}_${index}`,
-              date: (reserva.Fecha as string),
-              time: (reserva.Hora as string),
-              clientName: (reserva.Cliente as string),
-              partySize: (reserva.Personas as number),
-              table: (reserva.Mesa as string) || 'Por asignar',
-              status: (() => {
-                const estado = ((reserva.Estado as string) || '').toLowerCase().trim();
-                console.log(`🔍 PremiumDashboard - Estado de reserva ${reserva.ID}: "${estado}"`);
-                switch (estado) {
-                  case 'ocupada': return 'occupied';
-                  case 'completada': return 'completed';
-                  case 'cancelada': return 'cancelled';
-                  case 'confirmada': return 'confirmed';
-                  case 'reservada': return 'confirmed';
-                  case '':
-                  case 'pendiente': return 'confirmed';
-                  default: return 'confirmed';
+            .map((reserva: Record<string, unknown>, index: number) => {
+              const reservaId = (reserva.ID as string) || `res_${Date.now()}_${index}`;
+              const reservaHora = (reserva.Hora as string) || '';
+              
+              // 1. Leer estado desde Google Sheets
+              const estadoGoogleSheets = ((reserva.Estado as string) || '').toLowerCase().trim();
+              console.log(`🔍 PremiumDashboard - Estado de reserva ${reservaId}: "${estadoGoogleSheets}"`);
+              
+              // 2. Mapear estado de Google Sheets
+              let calculatedStatus: 'confirmed' | 'occupied' | 'completed' | 'cancelled' = 'confirmed';
+              
+              switch (estadoGoogleSheets) {
+                case 'ocupada':
+                  calculatedStatus = 'occupied';
+                  break;
+                case 'completada':
+                  calculatedStatus = 'completed';
+                  break;
+                case 'cancelada':
+                  calculatedStatus = 'cancelled';
+                  break;
+                case 'confirmada':
+                case 'reservada':
+                case '':
+                case 'pendiente':
+                  calculatedStatus = 'confirmed';
+                  break;
+                default:
+                  calculatedStatus = 'confirmed';
+              }
+              
+              // 3. Auto-completar si pasaron más de 2 horas (solo si aún está confirmada/ocupada)
+              if (calculatedStatus === 'confirmed' || calculatedStatus === 'occupied') {
+                // Parsear hora de reserva (aceptar tanto "13:30" como "13.30")
+                const normalizedTime = reservaHora.replace('.', ':');
+                const timeParts = normalizedTime.split(':');
+                
+                if (timeParts.length >= 2) {
+                  const hours = parseInt(timeParts[0]) || 0;
+                  const minutes = parseInt(timeParts[1]) || 0;
+                  const reservaTimeInMinutes = hours * 60 + minutes;
+                  
+                  // Duración: 2 horas para comida, 2.5 horas para cena
+                  const isDinnerTime = hours >= 20 || hours < 2;
+                  const estimatedDuration = isDinnerTime ? 150 : 120; // minutos
+                  const reservaEndTime = reservaTimeInMinutes + estimatedDuration;
+                  
+                  // Si la reserva ya terminó, auto-completar
+                  if (currentTimeInMinutes > reservaEndTime) {
+                    console.log(`⏰ [PremiumDashboard] Auto-completando reserva ${reservaId} (${reservaHora}) - terminó hace ${Math.floor((currentTimeInMinutes - reservaEndTime) / 60)}h ${(currentTimeInMinutes - reservaEndTime) % 60}min`);
+                    calculatedStatus = 'completed';
+                    
+                    // Actualizar en Google Sheets en segundo plano (sin esperar)
+                    fetch('/api/google-sheets/update-reservation-status', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        restaurantId,
+                        reservationId: reservaId,
+                        newStatus: 'completed',
+                        fecha: reserva.Fecha || today
+                      })
+                    }).catch(err => console.error('Error auto-completando en Google Sheets:', err));
+                  }
                 }
-              })(),
-              notes: (reserva.Notas as string) || '',
-              phone: (reserva.Telefono as string) || ''
-            }));
+              }
+              
+              return {
+                id: reservaId,
+                date: (reserva.Fecha as string),
+                time: reservaHora,
+                clientName: (reserva.Cliente as string),
+                partySize: (reserva.Personas as number),
+                table: (reserva.Mesa as string) || 'Por asignar',
+                status: calculatedStatus,
+                notes: (reserva.Notas as string) || '',
+                phone: (reserva.Telefono as string) || ''
+              };
+            });
 
           // Eliminar duplicados por ID y asegurar keys únicas
           const uniqueReservations = todayReservations.reduce((acc: Reservation[], current: Reservation) => {

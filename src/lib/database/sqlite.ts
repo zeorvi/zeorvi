@@ -576,20 +576,29 @@ class SQLiteDatabase {
       
       const stmt = this.db.prepare(query);
       const rows = (params.length > 0 ? stmt.all(...params) : stmt.all()) as unknown as any[];
-      return rows.map(row => ({
-        ID: row.id,
-        Fecha: row.fecha,
-        Hora: row.hora,
-        Turno: row.turno,
-        Cliente: row.cliente,
-        Telefono: row.telefono,
-        Personas: row.personas,
-        Zona: row.zona,
-        Mesa: row.mesa,
-        Estado: row.estado,
-        Notas: row.notas,
-        Creado: row.creado
-      }));
+      
+      // Filtrar filas null y mapear datos
+      if (!rows || !Array.isArray(rows)) {
+        console.log(`⚠️ [DB] No rows returned for ${restaurantId}`);
+        return [];
+      }
+      
+      return rows
+        .filter(row => row !== null && row !== undefined)
+        .map(row => ({
+          ID: row.id,
+          Fecha: row.fecha,
+          Hora: row.hora,
+          Turno: row.turno,
+          Cliente: row.cliente,
+          Telefono: row.telefono,
+          Personas: row.personas,
+          Zona: row.zona,
+          Mesa: row.mesa,
+          Estado: row.estado,
+          Notas: row.notas,
+          Creado: row.creado
+        }));
     } catch (error) {
       console.error('❌ [DB] Error getting reservations:', error);
       return [];

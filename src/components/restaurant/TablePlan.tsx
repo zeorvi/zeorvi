@@ -59,11 +59,13 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
           if (response.ok) {
             const data = await response.json();
             
-            if (data.success && data.reservas && data.reservas.length > 0) {
+            const reservasArray = Array.isArray(data.reservas) ? data.reservas : [];
+            
+            if (data.success && reservasArray.length > 0) {
               // Crear mapa de reservas por mesa
               const reservationMap = new Map();
               
-              data.reservas.forEach((reserva: Record<string, unknown>) => {
+              reservasArray.forEach((reserva: Record<string, unknown>) => {
                 const mesaNombre = ((reserva.Mesa as string) || (reserva.mesa as string) || '').toLowerCase().trim();
                 const estado = ((reserva.Estado as string) || (reserva.estado as string) || '').toLowerCase().trim();
                 
@@ -103,7 +105,7 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
               });
               
               setTablesWithReservations(updatedTables);
-              console.log('✅ Mesas sincronizadas con', data.reservas.length, 'reservas');
+              console.log('✅ Mesas sincronizadas con', reservasArray.length, 'reservas');
             } else {
               setTablesWithReservations(hookTables as TableWithReservation[]);
             }

@@ -28,18 +28,21 @@ export function useRestaurantTables(restaurantId: string) {
 
   // Cargar mesas desde el endpoint /api/restaurant/tables
   const loadTables = useCallback(async () => {
+    console.log('🚀 [useRestaurantTables] loadTables called');
+    
     if (!restaurantId) {
-      console.log('❌ No restaurantId provided');
+      console.warn('⚠️ [useRestaurantTables] No restaurantId provided');
       return;
     }
     
+    console.log(`🔄 [useRestaurantTables] Loading tables for ${restaurantId}...`);
     setIsLoading(true);
     try {
       // Timeout de 25 segundos para Google Sheets
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 25000);
       
-      const response = await fetch(`/api/restaurant/tables?restaurantId=${restaurantId}`, {
+      const response = await fetch(`/api/google-sheets/mesas?restaurantId=${restaurantId}`, {
         signal: controller.signal
       });
       
@@ -51,19 +54,92 @@ export function useRestaurantTables(restaurantId: string) {
       
       const result = await response.json();
       
-      if (result.success && result.data) {
-        // Convertir las mesas de Google Sheets al formato esperado
-        const tablesWithStatus: TableStatus[] = result.data.map((table: Record<string, unknown>) => ({
-          id: (table.ID as string) || `table-${Math.random().toString(36).substr(2, 9)}`,
-          name: (table.ID as string) || `Mesa ${table.ID}`,
+      // Validar que result.data sea un array
+      const tablesArray = Array.isArray(result.data) ? result.data : [];
+      
+      if (result.success && tablesArray.length > 0) {
+        // Obtener reservas activas para calcular estados reales
+        const reservationsResponse = await fetch(`/api/google-sheets/reservas?restaurantId=${restaurantId}`);
+        const reservationsData = await reservationsResponse.json();
+        const activeReservations = Array.isArray(reservationsData.reservas) ? reservationsData.reservas : [];
+        
+        // Función para calcular si una mesa está realmente ocupada/reservada
+        const calculateTableStatus = (tableId: string, staticStatus: string) => {
+          const now = new Date();
+          const currentTime = now.getHours() * 60 + now.getMinutes(); // minutos desde medianoche
+          
+          // Normalizar ID de mesa para comparación (case-insensitive, sin espacios)
+          const normalizedTableId = tableId.toLowerCase().trim().replace(/\s+/g, '');
+          
+          // Buscar reservas activas para esta mesa (comparación flexible)
+          const activeReservation = activeReservations.find((reserva: any) => {
+            const reservaMesa = (reserva.Mesa || '').toLowerCase().trim().replace(/\s+/g, '');
+            const estado = (reserva.Estado || '').toLowerCase().trim();
+            return reservaMesa === normalizedTableId && 
+                   estado !== 'completada' && 
+                   estado !== 'cancelada';
+          });
+          
+          if (!activeReservation) {
+            return 'available'; // Sin reserva activa = libre
+          }
+          
+          // Calcular si la reserva ya terminó
+          const reservationTime = activeReservation.Hora || '00:00';
+          
+          // Normalizar hora: aceptar tanto "13:30" como "13.30"
+          const normalizedTime = reservationTime.replace('.', ':');
+          const timeParts = normalizedTime.split(':');
+          
+          if (timeParts.length < 2) {
+            console.warn(`⚠️ [useRestaurantTables] Formato de hora inválido para mesa ${tableId}: "${reservationTime}"`);
+            return 'available'; // Si no podemos parsear la hora, marcar como libre
+          }
+          
+          const hours = parseInt(timeParts[0]) || 0;
+          const minutes = parseInt(timeParts[1]) || 0;
+          const reservationStartTime = hours * 60 + minutes;
+          
+          // Duración estimada: 2 horas para comida, 2.5 horas para cena
+          const isDinnerTime = hours >= 20 || hours < 2;
+          const estimatedDuration = isDinnerTime ? 150 : 120; // minutos
+          const reservationEndTime = reservationStartTime + estimatedDuration;
+          
+          // Verificar si la reserva ya terminó
+          if (currentTime > reservationEndTime) {
+            return 'available';
+          }
+          
+          // Verificar si la reserva está activa ahora
+          if (currentTime >= reservationStartTime && currentTime <= reservationEndTime) {
+            return activeReservation.Estado === 'ocupada' ? 'occupied' : 'reserved';
+          }
+          
+          // Reserva futura (antes de que comience)
+          if (currentTime < reservationStartTime) {
+            return 'available'; // Mesa libre hasta que llegue la hora
+          }
+          
+          // Por defecto (no debería llegar aquí)
+          return 'available';
+        };
+        
+        // Convertir las mesas de Google Sheets al formato esperado con estado calculado
+        const tablesWithStatus: TableStatus[] = tablesArray.map((table: Record<string, unknown>) => {
+          const tableId = (table.ID as string) || '';
+          const staticStatus = (table.Estado as string) || 'Libre';
+          const calculatedStatus = calculateTableStatus(tableId, staticStatus);
+          
+          return {
+            id: tableId || `table-${Math.random().toString(36).substr(2, 9)}`,
+            name: tableId || `Mesa ${table.ID}`,
           capacity: (table.Capacidad as number) || 4,
           location: (table.Zona as string) || 'Sala principal',
-          status: (table.Estado as string) === 'Libre' ? 'available' : 
-                  (table.Estado as string) === 'Ocupada' ? 'occupied' : 
-                  (table.Estado as string) === 'Reservada' ? 'reserved' : 'available',
+            status: calculatedStatus,
           lastUpdated: new Date().toISOString(),
           updatedBy: 'system'
-        }));
+          };
+        });
         
         setTables(tablesWithStatus);
         setLastUpdate(new Date());
@@ -169,6 +245,7 @@ export function useRestaurantTables(restaurantId: string) {
 
   // Cargar mesas al montar el componente
   useEffect(() => {
+    console.log('🎯 [useRestaurantTables] useEffect triggered - calling loadTables');
     loadTables();
   }, [loadTables]);
 

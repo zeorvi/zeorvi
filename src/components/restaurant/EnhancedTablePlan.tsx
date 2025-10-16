@@ -125,7 +125,9 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
 
   // Sincronizar mesas con reservas del día
   const tablesWithReservations = useMemo(() => {
-    if (!tables.length || !todayReservations.length) return tables;
+    if (!tables.length || !todayReservations.length) {
+      return tables;
+    }
     
     const now = new Date();
     const currentHour = now.getHours();
@@ -152,25 +154,40 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
         return table;
       }
       
-      // Parsear hora de la reserva
-      const [reservaHour, reservaMinute] = (reservation.Hora || '').split(':').map(Number);
+      // Parsear hora de la reserva (aceptar tanto "13:30" como "13.30")
+      const normalizedTime = (reservation.Hora || '00:00').replace('.', ':');
+      const timeParts = normalizedTime.split(':');
       
-      // Calcular diferencia en minutos
+      if (timeParts.length < 2) {
+        // Formato de hora inválido, mantener estado actual
+        return table;
+      }
+      
+      const reservaHour = parseInt(timeParts[0]) || 0;
+      const reservaMinute = parseInt(timeParts[1]) || 0;
+      
+      // Calcular tiempos en minutos
       const currentTimeInMinutes = currentHour * 60 + currentMinute;
-      const reservaTimeInMinutes = reservaHour * 60 + (reservaMinute || 0);
-      const diffMinutes = reservaTimeInMinutes - currentTimeInMinutes;
+      const reservaTimeInMinutes = reservaHour * 60 + reservaMinute;
       
-      // Determinar el estado de la mesa
+      // Duración estimada: 2 horas para comida, 2.5 horas para cena
+      const isDinnerTime = reservaHour >= 20 || reservaHour < 2;
+      const estimatedDuration = isDinnerTime ? 150 : 120; // minutos
+      const reservaEndTime = reservaTimeInMinutes + estimatedDuration;
+      
+      // Determinar el estado de la mesa basándose en el tiempo
       let newStatus: TableStatus = table.status;
       
-      if (estado === 'ocupada') {
-        // Mesa ocupada ahora
-        newStatus = 'occupied';
-      } else if (diffMinutes > 0 && diffMinutes <= 60) {
-        // Reserva en la próxima hora -> NARANJA (reserved)
-        newStatus = 'reserved';
-      } else if (diffMinutes > 60) {
-        // Reserva futura (más de 1 hora) -> disponible por ahora
+      // 1. Verificar si la reserva ya terminó
+      if (currentTimeInMinutes > reservaEndTime) {
+        newStatus = 'available';
+      }
+      // 2. Verificar si la reserva está activa ahora
+      else if (currentTimeInMinutes >= reservaTimeInMinutes && currentTimeInMinutes <= reservaEndTime) {
+        newStatus = estado === 'ocupada' ? 'occupied' : 'reserved';
+      }
+      // 3. Reserva futura (antes de que comience)
+      else if (currentTimeInMinutes < reservaTimeInMinutes) {
         newStatus = 'available';
       }
       
@@ -239,54 +256,8 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
 
   // Función para determinar el estado real de la mesa basado en la hora actual
   const getRealTimeTableStatus = (table: any): TableStatus => {
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const currentTime = currentHour * 60 + currentMinute; // Convertir a minutos para comparar
-    
-    // Buscar reservas activas para esta mesa hoy
-    const today = now.toISOString().split('T')[0];
-    const activeReservation = todayReservations.find((reserva: Reservation) => {
-      if (reserva.Fecha !== today || reserva.Mesa !== table.name) return false;
-      
-      const estadoNormalizado = (reserva.Estado || '').toLowerCase().trim();
-      const isCompleted = ['completada', 'cancelada'].includes(estadoNormalizado);
-      
-      if (isCompleted) return false; // Mesa libre si está completada
-      
-      return true; // Hay una reserva activa
-    });
-    
-    if (activeReservation) {
-      const [reservaHour, reservaMinute] = activeReservation.Hora.split(':').map(Number);
-      const reservaTime = reservaHour * 60 + reservaMinute;
-      
-      // LÓGICA ESPECIAL: Si son las 12:00 AM (medianoche)
-      // Solo las reservas de 01:00 AM en adelante deben estar activas
-      if (currentHour === 0) { // 12:00 AM (medianoche)
-        if (reservaHour >= 1) { // Reserva a las 01:00 AM o después
-          // Mesa RESERVADA para el día siguiente
-          return 'reserved';
-        } else {
-          // Reserva anterior a las 01:00 AM, mesa libre
-          return 'available';
-        }
-      }
-      
-      // LÓGICA NORMAL: Para el resto del día
-      // - Si es EXACTAMENTE la hora de reserva O ya pasó → OCUPADA (roja)
-      // - Si aún no es la hora de reserva → RESERVADA (naranja)
-      
-      if (currentTime >= reservaTime) {
-        // Es la hora exacta o ya pasó → Mesa OCUPADA
-        return 'occupied';
-      } else {
-        // Aún no es la hora → Mesa RESERVADA
-        return 'reserved';
-      }
-    }
-    
-    // Si no hay reservas activas, usar el estado base de la mesa
+    // USAR EL ESTADO YA CALCULADO EN tablesWithReservations
+    // No recalcular aquí para evitar inconsistencias
     return table.status || 'available';
   };
 

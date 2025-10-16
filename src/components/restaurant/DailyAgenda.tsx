@@ -147,8 +147,16 @@ export default function DailyAgenda({ restaurantId }: DailyAgendaProps) {
         const data = await response.json();
         if (data.success) {
           // Convertir formato de Google Sheets al formato del dashboard
-          console.log('📊 Datos de reservas desde Google Sheets:', data.reservas);
-          const formattedReservations = data.reservas.map((reserva: {
+          const reservasArray = Array.isArray(data.reservas) ? data.reservas : [];
+          console.log('📊 Datos de reservas desde Google Sheets:', reservasArray);
+          // Hora actual para calcular auto-completado
+          const now = new Date();
+          const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
+          
+          console.log('🕐 [DailyAgenda] Hora actual:', `${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')}`, `(${currentTimeInMinutes} min)`);
+          console.log('📊 [DailyAgenda] Procesando', reservasArray.length, 'reservas...');
+          
+          const formattedReservations = reservasArray.map((reserva: {
             ID?: string;
             Fecha?: string;
             Hora?: string;
@@ -167,37 +175,89 @@ export default function DailyAgenda({ restaurantId }: DailyAgendaProps) {
             estado?: string;
             notas?: string;
             telefono?: string;
-          }) => ({
-            id: reserva.ID || reserva.id || `res_${Date.now()}_${Math.random()}`,
-            time: reserva.Hora || reserva.hora || '',
-            clientName: reserva.Cliente || reserva.cliente || 'Sin nombre',
-            partySize: reserva.Personas || reserva.personas || 1,
-            table: reserva.Mesa || reserva.mesa || 'Por asignar',
-            status: (() => {
-              const estado = (reserva.Estado || reserva.estado || '').toLowerCase().trim();
+          }) => {
+            const reservaId = reserva.ID || reserva.id || `res_${Date.now()}_${Math.random()}`;
+            const reservaHora = reserva.Hora || reserva.hora || '';
+            
+            // 1. Leer estado desde Google Sheets
+            const estadoGoogleSheets = (reserva.Estado || reserva.estado || '').toLowerCase().trim();
+            
+            console.log(`📋 [DailyAgenda] Reserva ${reservaId} (${reservaHora}):`, {
+              cliente: reserva.Cliente,
+              estadoOriginal: estadoGoogleSheets,
+              mesa: reserva.Mesa
+            });
+            
+            // 2. Mapear estado de Google Sheets
+            let calculatedStatus: Reservation['status'] = 'reserved';
+            
+            switch (estadoGoogleSheets) {
+              case 'ocupada':
+                calculatedStatus = 'occupied';
+                break;
+              case 'completada':
+                calculatedStatus = 'completed';
+                break;
+              case 'cancelada':
+                calculatedStatus = 'cancelled';
+                break;
+              case 'confirmada':
+              case 'reservada':
+              case '':
+              case 'pendiente':
+                calculatedStatus = 'reserved';
+                break;
+              default:
+                calculatedStatus = 'reserved';
+            }
+            
+            // 3. Auto-completar si pasaron más de 2 horas (solo si aún está reservada/ocupada)
+            if (calculatedStatus === 'reserved' || calculatedStatus === 'occupied') {
+              // Parsear hora de reserva (aceptar tanto "13:30" como "13.30")
+              const normalizedTime = reservaHora.replace('.', ':');
+              const timeParts = normalizedTime.split(':');
               
-              // Mapear todos los posibles estados
-              switch (estado) {
-                case 'ocupada':
-                  return 'occupied';
-                case 'completada':
-                  return 'completed';
-                case 'cancelada':
-                  return 'cancelled';
-                case 'confirmada':
-                  return 'reserved';
-                case 'reservada':
-                  return 'reserved';
-                case '':
-                case 'pendiente':
-                  return 'reserved'; // Por defecto siempre reservada
-                default:
-                  return 'reserved';
+              if (timeParts.length >= 2) {
+                const hours = parseInt(timeParts[0]) || 0;
+                const minutes = parseInt(timeParts[1]) || 0;
+                const reservaTimeInMinutes = hours * 60 + minutes;
+                
+                // Duración: 2 horas para comida, 2.5 horas para cena
+                const isDinnerTime = hours >= 20 || hours < 2;
+                const estimatedDuration = isDinnerTime ? 150 : 120; // minutos
+                const reservaEndTime = reservaTimeInMinutes + estimatedDuration;
+                
+                // Si la reserva ya terminó, auto-completar
+                if (currentTimeInMinutes > reservaEndTime) {
+                  console.log(`⏰ [DailyAgenda] Auto-completando reserva ${reservaId} (${reservaHora}) - terminó hace ${Math.floor((currentTimeInMinutes - reservaEndTime) / 60)}h ${(currentTimeInMinutes - reservaEndTime) % 60}min`);
+                  calculatedStatus = 'completed';
+                  
+                  // Actualizar en Google Sheets en segundo plano (sin esperar)
+                  fetch('/api/google-sheets/update-reservation-status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      restaurantId,
+                      reservationId: reservaId,
+                      newStatus: 'completed',
+                      fecha: reserva.Fecha || new Date().toISOString().split('T')[0]
+                    })
+                  }).catch(err => console.error('Error auto-completando en Google Sheets:', err));
+                }
               }
-            })(),
-            notes: reserva.Notas || reserva.notas || '',
-            phone: reserva.Telefono || reserva.telefono || ''
-          }));
+            }
+            
+            return {
+              id: reservaId,
+              time: reservaHora,
+              clientName: reserva.Cliente || reserva.cliente || 'Sin nombre',
+              partySize: reserva.Personas || reserva.personas || 1,
+              table: reserva.Mesa || reserva.mesa || 'Por asignar',
+              status: calculatedStatus,
+              notes: reserva.Notas || reserva.notas || '',
+              phone: reserva.Telefono || reserva.telefono || ''
+            };
+          });
           
           console.log('📋 Reservas formateadas para mostrar:', formattedReservations);
           setReservations(formattedReservations);

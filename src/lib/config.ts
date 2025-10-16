@@ -1,9 +1,6 @@
 // Configuración de la aplicación
-import { config as dotenvConfig } from 'dotenv';
-import path from 'path';
-
-// Cargar variables de entorno desde .env.local
-dotenvConfig({ path: path.join(process.cwd(), '.env.local') });
+// Next.js carga automáticamente las variables de entorno desde .env.local
+// No necesitamos dotenv manualmente
 
 // Función para validar que las variables requeridas existan
 function requireEnv(key: string, defaultValue?: string): string {

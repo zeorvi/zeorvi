@@ -87,7 +87,8 @@ export default function ReservationCalendar({ restaurantId, isDarkMode = false, 
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          const formattedReservations = data.reservas.map((reserva: any, index: number) => ({
+          const reservasArray = Array.isArray(data.reservas) ? data.reservas : [];
+          const formattedReservations = reservasArray.map((reserva: any, index: number) => ({
             id: reserva.ID || `res_${Date.now()}_${index}`,
             clientName: reserva.Cliente,
             date: normalizeDateString(reserva.Fecha),
