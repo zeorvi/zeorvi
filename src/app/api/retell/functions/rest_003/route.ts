@@ -151,9 +151,12 @@ export async function POST(request: NextRequest) {
 
       case 'crear_reserva':
         try {
+          console.log(`📅 [crear_reserva] Parámetros completos:`, JSON.stringify(parameters));
           console.log(`📅 [crear_reserva] Fecha recibida original: "${parameters.fecha}"`);
+          console.log(`📅 [crear_reserva] Tipo de fecha:`, typeof parameters.fecha);
+          
           const fechaParsed = parseRelativeDate(parameters.fecha);
-          console.log(`📅 [crear_reserva] Fecha convertida: "${fechaParsed}"`);
+          console.log(`📅 [crear_reserva] Fecha convertida exitosamente: "${fechaParsed}"`);
           
           const reservaResult = await GoogleSheetsService.addReserva(restaurantId, {
             Fecha: fechaParsed,
@@ -177,11 +180,17 @@ export async function POST(request: NextRequest) {
             end_call_message: "Queda confirmada la reserva. Les esperamos en Restaurante La Gaviota. Muchas gracias."
           };
         } catch (error) {
-          console.error('❌ [crear_reserva] Error:', error);
+          console.error('❌ [crear_reserva] Error completo:', error);
+          console.error('❌ [crear_reserva] Error stack:', error instanceof Error ? error.stack : 'No stack');
+          console.error('❌ [crear_reserva] Error message:', error instanceof Error ? error.message : String(error));
           result = {
             success: false,
             error: error instanceof Error ? error.message : 'Error procesando la reserva',
-            mensaje: 'No se pudo crear la reserva. Por favor, verifique la fecha y vuelva a intentarlo.'
+            mensaje: 'No se pudo crear la reserva. Por favor, verifique la fecha y vuelva a intentarlo.',
+            debug: {
+              fechaRecibida: parameters.fecha,
+              errorCompleto: error instanceof Error ? error.message : String(error)
+            }
           };
         }
         break;
