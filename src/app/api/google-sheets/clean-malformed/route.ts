@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     console.log(`📊 Total filas encontradas: ${values.length}`);
 
     // Identificar filas mal formateadas
-    const malformedRowNumbers = [];
+    const malformedRowNumbers: number[] = [];
     
     values.forEach((row, index) => {
       const rowNumber = index + 1; // +1 porque las filas empiezan en 1
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
         await new Promise(resolve => setTimeout(resolve, 500));
         
       } catch (error) {
-        console.log(`❌ Error eliminando fila ${rowNumber}: ${error.message}`);
+        console.log(`❌ Error eliminando fila ${rowNumber}: ${error instanceof Error ? error.message : 'Error desconocido'}`);
       }
     }
 
