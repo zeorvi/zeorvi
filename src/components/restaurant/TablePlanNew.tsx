@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import OccupyTableDialog from './OccupyTableDialog';
+import { toast } from 'sonner';
 
 interface TablePlanProps {
   restaurantId: string;
@@ -31,6 +33,17 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
   const [filteredTables, setFilteredTables] = useState(tables);
   const [statusFilter, setStatusFilter] = useState<'available' | 'occupied' | 'reserved' | 'maintenance' | 'all'>('available');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Estado para el modal
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedTable, setSelectedTable] = useState<{
+    id: string;
+    name: string;
+    capacity: number;
+    location: string;
+    status: 'available' | 'occupied' | 'reserved' | 'maintenance';
+  } | null>(null);
+  const [pendingStatus, setPendingStatus] = useState<'occupied' | 'reserved' | null>(null);
 
   // Filtrar mesas cuando cambian los filtros o las mesas
   useEffect(() => {
@@ -59,17 +72,83 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
   }
 
   const handleTableStatusChange = (tableId: string, newStatus: 'available' | 'occupied' | 'reserved' | 'maintenance') => {
+    const table = tables.find(t => t.id === tableId);
+    
+    if (!table) {
+      console.error('Mesa no encontrada:', tableId);
+      return;
+    }
+    
+    // Si es ocupar o reservar, mostrar el modal para capturar datos
     if (newStatus === 'occupied' || newStatus === 'reserved') {
-      // Simular datos de cliente para demo
-      const clientData = {
-        name: 'Cliente Walk-in',
-        phone: '+34 600 000 000',
-        partySize: Math.floor(Math.random() * 4) + 1,
-        notes: newStatus === 'occupied' ? 'Mesa ocupada por el gerente' : 'Reserva manual'
-      };
-      updateTableStatus(tableId, newStatus, clientData);
+      setSelectedTable(table);
+      setPendingStatus(newStatus);
+      setDialogOpen(true);
     } else {
+      // Para liberar o mantenimiento, actualizar directamente
       updateTableStatus(tableId, newStatus);
+      toast.success(`Mesa ${table.name} actualizada a: ${getStatusText(newStatus)}`);
+    }
+  };
+
+  const handleConfirmOccupy = async (data: {
+    cliente: string;
+    telefono: string;
+    personas: number;
+    notas?: string;
+  }) => {
+    if (!selectedTable || !pendingStatus) return;
+
+    try {
+      console.log('📝 Creando reserva para mesa:', selectedTable.name);
+      console.log('   Estado:', pendingStatus);
+      console.log('   Datos:', data);
+
+      // Llamar al endpoint para crear la reserva en Google Sheets
+      const response = await fetch('/api/restaurant/occupy-table', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          restaurantId,
+          mesaId: selectedTable.id,
+          mesaNombre: selectedTable.name,
+          zona: selectedTable.location,
+          cliente: data.cliente,
+          telefono: data.telefono,
+          personas: data.personas,
+          notas: data.notas,
+          estado: pendingStatus, // 'occupied' o 'reserved'
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Actualizar el estado local de la mesa
+        updateTableStatus(selectedTable.id, pendingStatus, {
+          name: data.cliente,
+          phone: data.telefono,
+          partySize: data.personas,
+          notes: data.notas
+        });
+
+        toast.success(`✅ Mesa ${selectedTable.name} ${pendingStatus === 'occupied' ? 'ocupada' : 'reservada'} exitosamente`);
+        toast.info(`⏰ Se liberará automáticamente en 2 horas`);
+        
+        console.log('✅ Reserva creada:', result.reservaId);
+      } else {
+        toast.error(`Error: ${result.error}`);
+        console.error('Error al crear reserva:', result.error);
+      }
+    } catch (error) {
+      console.error('Error al ocupar mesa:', error);
+      toast.error('Error al procesar la solicitud');
+    } finally {
+      setDialogOpen(false);
+      setSelectedTable(null);
+      setPendingStatus(null);
     }
   };
 
@@ -269,6 +348,21 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
             Limpiar filtros
           </Button>
         </div>
+      )}
+
+      {/* Modal para ocupar/reservar mesa */}
+      {selectedTable && (
+        <OccupyTableDialog
+          isOpen={dialogOpen}
+          onClose={() => {
+            setDialogOpen(false);
+            setSelectedTable(null);
+            setPendingStatus(null);
+          }}
+          onConfirm={handleConfirmOccupy}
+          tableName={selectedTable.name}
+          tableCapacity={selectedTable.capacity}
+        />
       )}
     </div>
   );
