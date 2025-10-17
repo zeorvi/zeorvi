@@ -40,7 +40,7 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
     id: string;
     name: string;
     capacity: number;
-    location: string;
+    location?: string;
     status: 'available' | 'occupied' | 'reserved' | 'maintenance';
   } | null>(null);
   const [pendingStatus, setPendingStatus] = useState<'occupied' | 'reserved' | null>(null);
