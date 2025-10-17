@@ -124,9 +124,19 @@ export class GoogleSheetsService {
       const reservaId = `R${Date.now()}`;
       const creado = new Date().toISOString();
       
-      await sheets.spreadsheets.values.append({
+      // 🔧 FIX: Primero encontrar la siguiente fila vacía leyendo solo columna A
+      const existingData = await sheets.spreadsheets.values.get({
         spreadsheetId: sheetId,
-        range: "Reservas!A:L",
+        range: "Reservas!A:A",
+      });
+      
+      const nextRow = (existingData.data.values?.length || 1) + 1;
+      console.log(`📝 Insertando reserva en fila ${nextRow}`);
+      
+      // Usar UPDATE en lugar de APPEND para garantizar la posición exacta
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: sheetId,
+        range: `Reservas!A${nextRow}:L${nextRow}`,
         valueInputOption: "USER_ENTERED",
         requestBody: { 
           values: [[
@@ -146,7 +156,7 @@ export class GoogleSheetsService {
         },
       });
       
-      console.log(`✅ Reserva creada exitosamente: ${reserva.Cliente} - Mesa ${mesaFinal} - ${reserva.Fecha} ${reserva.Hora}`);
+      console.log(`✅ Reserva creada exitosamente en fila ${nextRow}: ${reserva.Cliente} - Mesa ${mesaFinal} - ${reserva.Fecha} ${reserva.Hora}`);
       
       // Invalidar caché de reservas
       googleSheetsCache.invalidate(`reservas:${restaurantId}`);
