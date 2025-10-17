@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import GoogleSheetsService from '@/lib/googleSheetsService';
+import { GoogleSheetsService } from '@/lib/googleSheetsService';
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     // El estado puede ser 'occupied' o 'reserved'
-    const estadoFinal = estado === 'reserved' ? 'reservada' : 'ocupada';
+    const estadoFinal: 'confirmada' = 'confirmada'; // Todas las mesas ocupadas/reservadas manualmente tienen estado confirmada
     const tipoAccion = estado === 'reserved' ? 'Reserva manual' : 'Walk-in';
 
     console.log(`📝 [occupy-table] Creando ${tipoAccion} para mesa ${mesaNombre}...`);
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       Zona: zona || 'Sin zona',
       Mesa: mesaNombre,
       Estado: estadoFinal,
-      Notas: notas ? `${tipoAccion}: ${notas}` : `${tipoAccion} - Mesa ${estadoFinal === 'ocupada' ? 'ocupada' : 'reservada'} por el encargado`
+      Notas: notas ? `${tipoAccion}: ${notas}` : `${tipoAccion} - Mesa ${estado === 'reserved' ? 'reservada' : 'ocupada'} por el encargado`
     };
 
     console.log('💾 Guardando reserva en Google Sheets:', reserva);
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         reservaId: result.ID,
-        mensaje: `Mesa ${mesaNombre} ${estadoFinal === 'ocupada' ? 'ocupada' : 'reservada'} exitosamente`,
+        mensaje: `Mesa ${mesaNombre} ${estado === 'reserved' ? 'reservada' : 'ocupada'} exitosamente`,
         detalles: {
           cliente,
           personas,
