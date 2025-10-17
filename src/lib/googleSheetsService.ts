@@ -62,7 +62,7 @@ export class GoogleSheetsService {
           
           const res = await sheets.spreadsheets.values.get({
             spreadsheetId: sheetId,
-            range: "Reservas!A2:K",
+            range: "Reservas!A2:L",
           });
           
           const values = res.data.values || [];
@@ -126,7 +126,7 @@ export class GoogleSheetsService {
       
       await sheets.spreadsheets.values.append({
         spreadsheetId: sheetId,
-        range: "Reservas!A:K",
+        range: "Reservas!A:L",
         valueInputOption: "USER_ENTERED",
         requestBody: { 
           values: [[
@@ -167,7 +167,7 @@ export class GoogleSheetsService {
       // Leer todas las reservas
       const data = await sheets.spreadsheets.values.get({
         spreadsheetId: sheetId,
-        range: "Reservas!A2:K",
+        range: "Reservas!A2:L",
       });
       
       const values = data.data.values || [];
@@ -198,7 +198,7 @@ export class GoogleSheetsService {
       const rowIndex = index + 2; // +2 porque empieza en fila 2
       await sheets.spreadsheets.values.update({
         spreadsheetId: sheetId,
-        range: `Reservas!A${rowIndex}:K${rowIndex}`,
+        range: `Reservas!A${rowIndex}:L${rowIndex}`,
         valueInputOption: "USER_ENTERED",
         requestBody: { values: [updated] },
       });
