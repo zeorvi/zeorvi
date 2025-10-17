@@ -172,22 +172,15 @@ export async function POST(req: Request) {
           // 🧭 Zona horaria correcta
           const zona = "Europe/Madrid";
 
-          // ✅ 1️⃣ Normalizar fecha con luxon
-          let fechaFinal: string;
+          // ✅ 1️⃣ Normalizar fecha usando la función obtenerFecha (maneja días de la semana)
           const fechaInput = args.fecha || "mañana";
+          const fechaFinal = obtenerFecha(fechaInput);
           
-          if (fechaInput === "mañana" || fechaInput === "tomorrow") {
-            fechaFinal = DateTime.now().setZone(zona).plus({ days: 1 }).toISODate() || '';
-          } else if (fechaInput === "hoy" || fechaInput === "today") {
-            fechaFinal = DateTime.now().setZone(zona).toISODate() || '';
-          } else {
-            // Si viene "2025-10-11" o similar, lo validamos
-            const f = DateTime.fromISO(fechaInput, { zone: zona });
-            if (f.isValid) {
-              fechaFinal = f.toISODate() || '';
-            } else {
-              throw new Error(`Fecha inválida: ${fechaInput}`);
-            }
+          console.log(`📅 [crear_reserva] Fecha normalizada: "${fechaInput}" → "${fechaFinal}"`);
+          
+          // Validar que obtuvimos una fecha válida
+          if (!fechaFinal || !/^\d{4}-\d{2}-\d{2}$/.test(fechaFinal)) {
+            throw new Error(`No se pudo convertir la fecha: ${fechaInput}`);
           }
 
           // ✅ 2️⃣ Recuperar número de teléfono

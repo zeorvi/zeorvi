@@ -502,6 +502,7 @@ export class GoogleSheetsService {
       
       // Verificar reservas existentes para esa fecha/hora
       // SOLO consideramos ocupadas las reservas que NO están completadas ni canceladas
+      // ⚠️ IMPORTANTE: Las mesas con estado "Completada" o "Cancelada" están LIBRES y disponibles
       const reservasExistentes = reservas.filter(reserva => {
         if (reserva.Fecha !== fecha || reserva.Hora !== hora) return false;
         
@@ -509,6 +510,13 @@ export class GoogleSheetsService {
         // Estados que ocupan mesa: confirmada, pendiente, reservada, ocupada
         // Estados que NO ocupan mesa: completada, cancelada
         return !['completada', 'cancelada'].includes(estado);
+      });
+      
+      // Contar mesas completadas que ahora están libres
+      const mesasCompletadas = reservas.filter(reserva => {
+        if (reserva.Fecha !== fecha) return false;
+        const estado = (reserva.Estado || '').toLowerCase().trim();
+        return estado === 'completada';
       });
       
       // Verificar mesas que se liberarán antes de la hora solicitada
@@ -571,6 +579,11 @@ export class GoogleSheetsService {
           if (liberacion) {
             mensaje += ` (se liberará a las ${new Date(liberacion.liberacion).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })})`;
           }
+        }
+        
+        // Información adicional sobre mesas completadas que están libres
+        if (mesasCompletadas.length > 0) {
+          mensaje += `. Nota: ${mesasCompletadas.length} mesa${mesasCompletadas.length > 1 ? 's' : ''} con estado "Completada" ${mesasCompletadas.length > 1 ? 'están' : 'está'} libre${mesasCompletadas.length > 1 ? 's' : ''} y disponible${mesasCompletadas.length > 1 ? 's' : ''} para nuevas reservas.`;
         }
         
         return {

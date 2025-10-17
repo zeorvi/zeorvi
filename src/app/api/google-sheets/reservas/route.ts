@@ -57,16 +57,31 @@ export async function GET(request: NextRequest) {
     const duration = Date.now() - startTime;
     console.log(`✅ Reservas obtenidas de ${source} en ${duration}ms (${reservas.length} reservas)`);
 
+    // Contar reservas por estado para información del agente
+    const estadisticas = {
+      total: reservas.length,
+      completadas: reservas.filter(r => (r.Estado || '').toLowerCase() === 'completada').length,
+      canceladas: reservas.filter(r => (r.Estado || '').toLowerCase() === 'cancelada').length,
+      activas: reservas.filter(r => {
+        const estado = (r.Estado || '').toLowerCase();
+        return !['completada', 'cancelada'].includes(estado);
+      }).length
+    };
+    
+    console.log(`📊 Estadísticas: ${estadisticas.completadas} completadas (mesas libres), ${estadisticas.activas} activas`);
+
     return NextResponse.json({
       success: true,
       reservas,
       total: reservas.length,
+      estadisticas,
       fecha: fecha || 'todas',
       estado: estado || 'todos',
       restaurantId: restaurantId || 'all',
       source,
       duration,
-      optimized: source === 'database'
+      optimized: source === 'database',
+      nota: `Las ${estadisticas.completadas} reservas con estado "Completada" tienen sus mesas libres y disponibles para nuevas reservas`
     });
 
   } catch (error) {
