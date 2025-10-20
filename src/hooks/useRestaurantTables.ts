@@ -54,8 +54,21 @@ export function useRestaurantTables(restaurantId: string) {
       
       const result = await response.json();
       
+      console.log(`📦 [useRestaurantTables] Resultado del API:`, {
+        success: result.success,
+        dataType: typeof result.data,
+        isArray: Array.isArray(result.data),
+        dataLength: Array.isArray(result.data) ? result.data.length : 'N/A',
+        data: result.data
+      });
+      
       // Validar que result.data sea un array
       const tablesArray = Array.isArray(result.data) ? result.data : [];
+      
+      console.log(`📋 [useRestaurantTables] Mesas array:`, {
+        length: tablesArray.length,
+        firstItem: tablesArray[0]
+      });
       
       if (result.success && tablesArray.length > 0) {
         // Obtener reservas activas para calcular estados reales
@@ -131,10 +144,18 @@ export function useRestaurantTables(restaurantId: string) {
         };
         
         // Convertir las mesas de Google Sheets al formato esperado con estado calculado
+        console.log(`📊 [useRestaurantTables] Mesas recibidas de Google Sheets: ${tablesArray.length}`);
+        console.log(`📋 [useRestaurantTables] Primeras mesas:`, tablesArray.slice(0, 3));
+        
         const tablesWithStatus: TableStatus[] = tablesArray.map((table: Record<string, unknown>) => {
           const tableId = (table.ID as string) || '';
           const staticStatus = (table.Estado as string) || 'Libre';
           const calculatedStatus = calculateTableStatus(tableId, staticStatus);
+          
+          console.log(`🔍 [useRestaurantTables] Procesando mesa ${tableId}:`, {
+            staticStatus,
+            calculatedStatus
+          });
           
           return {
             id: tableId || `table-${Math.random().toString(36).substr(2, 9)}`,
@@ -147,9 +168,19 @@ export function useRestaurantTables(restaurantId: string) {
           };
         });
         
+        console.log(`✅ [useRestaurantTables] Total mesas procesadas: ${tablesWithStatus.length}`);
+        console.log(`📋 [useRestaurantTables] Estados de mesas:`, 
+          tablesWithStatus.map(t => ({ id: t.id, status: t.status }))
+        );
+        
         setTables(tablesWithStatus);
         setLastUpdate(new Date());
       } else {
+        console.warn(`⚠️ [useRestaurantTables] No se cargaron mesas:`, {
+          success: result.success,
+          tablesArrayLength: tablesArray.length,
+          result
+        });
         setTables([]);
       }
     } catch (error: unknown) {

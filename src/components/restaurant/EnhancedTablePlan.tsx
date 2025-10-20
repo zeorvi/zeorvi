@@ -53,8 +53,14 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
     refreshTables 
   } = useRestaurantTables(restaurantId);
   
+  console.log('📊 [EnhancedTablePlan] Estado de mesas:', {
+    tablesCount: tables.length,
+    isLoading,
+    tables: tables.map(t => ({ id: t.id, name: t.name, status: t.status }))
+  });
+  
   const [filteredTables, setFilteredTables] = useState(tables);
-  const [statusFilter, setStatusFilter] = useState<TableStatus | 'all'>('available');
+  const [statusFilter, setStatusFilter] = useState<TableStatus | 'all'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [restaurantSchedule, setRestaurantSchedule] = useState<RestaurantSchedule>({
@@ -234,23 +240,75 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
     return () => clearInterval(interval);
   }, [filteredTables]);
 
-  const handleTableStatusChange = (tableId: string, newStatus: TableStatus) => {
+  const handleTableStatusChange = async (tableId: string, newStatus: TableStatus) => {
     if (!isRestaurantOpen) {
       toast.error('El restaurante está cerrado hoy');
       return;
     }
 
+    const table = tables.find(t => t.id === tableId);
+    if (!table) {
+      toast.error('Mesa no encontrada');
+      return;
+    }
+
     if (newStatus === 'occupied' || newStatus === 'reserved') {
-      // Simular datos de cliente para demo
-      const clientData = {
-        name: 'Cliente Walk-in',
-        phone: '+34 600 000 000',
-        partySize: Math.floor(Math.random() * 4) + 1,
-        notes: 'Mesa ocupada por el gerente'
-      };
-      updateTableStatus(tableId, newStatus, clientData);
+      try {
+        // Generar un ID único para la reserva
+        const reservaId = `RES-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Datos de cliente automáticos
+        const now = new Date();
+        const clientData = {
+          name: '👤 Encargado',
+          phone: 'Reserva manual',
+          partySize: 2,
+          notes: `${newStatus === 'occupied' ? 'Mesa ocupada' : 'Mesa reservada'} manualmente por el encargado`
+        };
+
+        console.log(`📝 Creando ${newStatus === 'occupied' ? 'ocupación' : 'reserva'} en Google Sheets para mesa ${table.name}`);
+
+        // Llamar al endpoint para crear la reserva en Google Sheets
+        const response = await fetch('/api/restaurant/occupy-table', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            restaurantId,
+            mesaId: table.id,
+            mesaNombre: table.name,
+            zona: table.location || 'Sin zona',
+            cliente: clientData.name,
+            telefono: clientData.phone,
+            personas: clientData.partySize,
+            notas: clientData.notes,
+            estado: newStatus, // 'occupied' o 'reserved'
+          }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          // Actualizar el estado local de la mesa
+          updateTableStatus(tableId, newStatus, clientData);
+          
+          toast.success(`✅ Mesa ${table.name} ${newStatus === 'occupied' ? 'ocupada' : 'reservada'}`);
+          toast.info(`🆔 ID: ${result.reservaId || reservaId}`);
+          
+          // Refrescar las mesas para actualizar el estado desde Google Sheets
+          setTimeout(() => refreshTables(), 1000);
+        } else {
+          toast.error(`Error: ${result.error || 'No se pudo crear la reserva'}`);
+        }
+      } catch (error) {
+        console.error('Error al crear reserva:', error);
+        toast.error('Error al crear la reserva en Google Sheets');
+      }
     } else {
+      // Para liberar o mantenimiento, solo actualizar el estado local
       updateTableStatus(tableId, newStatus);
+      toast.success(`Mesa ${table.name} actualizada`);
     }
   };
 
@@ -454,10 +512,10 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
           </div>
           
           <div className="flex flex-wrap gap-1.5 lg:gap-3">
-            {['available', 'occupied', 'reserved'].map((status) => (
+            {['all', 'available', 'occupied', 'reserved'].map((status) => (
               <Button
                 key={status}
-                onClick={() => setStatusFilter(status as TableStatus)}
+                onClick={() => setStatusFilter(status as TableStatus | 'all')}
                 variant={statusFilter === status ? 'default' : 'outline'}
                 size="sm"
                 className={`h-8 px-2 lg:h-10 lg:px-4 lg:py-2.5 text-xs lg:text-sm ${
@@ -468,7 +526,8 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
                       : ''
                 }`}
               >
-                {status === 'available' ? 'Libres' :
+                {status === 'all' ? 'Todas' :
+                 status === 'available' ? 'Libres' :
                  status === 'occupied' ? 'Ocupadas' :
                  status === 'reserved' ? 'Reservadas' : status}
               </Button>

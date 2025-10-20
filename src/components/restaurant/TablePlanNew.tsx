@@ -27,11 +27,15 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
     refreshTables 
   } = useRestaurantTables(restaurantId);
   
-  console.log('📊 Tables from hook:', tables);
-  console.log('⏳ Is loading:', isLoading);
+  console.log('📊 [TablePlanNew] Estado actual:', {
+    restaurantId,
+    tablesCount: tables.length,
+    isLoading,
+    tables: tables.map(t => ({ id: t.id, name: t.name, status: t.status }))
+  });
   
   const [filteredTables, setFilteredTables] = useState(tables);
-  const [statusFilter, setStatusFilter] = useState<'available' | 'occupied' | 'reserved' | 'maintenance' | 'all'>('available');
+  const [statusFilter, setStatusFilter] = useState<'available' | 'occupied' | 'reserved' | 'maintenance' | 'all'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   
   // Estado para el modal
@@ -47,6 +51,13 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
 
   // Filtrar mesas cuando cambian los filtros o las mesas
   useEffect(() => {
+    console.log('🔍 Filtrando mesas:', {
+      totalTables: tables.length,
+      statusFilter,
+      searchTerm,
+      tables: tables.map(t => ({ id: t.id, name: t.name, status: t.status }))
+    });
+    
     let filtered = tables;
     
     // Filtrar por estado
@@ -62,6 +73,7 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
       );
     }
     
+    console.log('✅ Mesas filtradas:', filtered.length);
     setFilteredTables(filtered);
   }, [tables, statusFilter, searchTerm]);
 
@@ -216,6 +228,25 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
     );
   }
 
+  // Si no hay mesas en absoluto (no es problema de filtro)
+  if (!isLoading && tables.length === 0) {
+    return (
+      <div className={`p-6 text-center ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-50'}`}>
+        <div className="max-w-md mx-auto">
+          <div className="text-4xl mb-4">🪑</div>
+          <h3 className="text-xl font-semibold mb-2">No hay mesas configuradas</h3>
+          <p className={`mb-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            Este restaurante aún no tiene mesas en Google Sheets.
+          </p>
+          <Button onClick={() => refreshTables()} className="bg-blue-500 hover:bg-blue-600">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refrescar
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`p-4 md:p-6 transition-colors duration-300 ${
       isDarkMode ? 'bg-gray-900' : 'bg-gray-50'
@@ -258,8 +289,8 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
             />
           </div>
           
-          <div className="flex space-x-2">
-            {['available', 'occupied', 'reserved', 'maintenance'].map((status) => (
+          <div className="flex space-x-2 flex-wrap">
+            {['all', 'available', 'occupied', 'reserved', 'maintenance'].map((status) => (
               <Button
                 key={status}
                 onClick={() => setStatusFilter(status as any)}
@@ -267,7 +298,8 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
                 size="sm"
                 className={statusFilter === status ? 'bg-blue-500 text-white' : isDarkMode ? 'text-white border-gray-600 hover:bg-gray-700 bg-gray-800' : ''}
               >
-                {status === 'available' ? 'Libres' :
+                {status === 'all' ? 'Todas' :
+                 status === 'available' ? 'Libres' :
                  status === 'occupied' ? 'Ocupadas' :
                  status === 'reserved' ? 'Reservadas' :
                  status === 'maintenance' ? 'Mantenimiento' : status}
