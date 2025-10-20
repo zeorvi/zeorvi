@@ -87,6 +87,10 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
     } else {
       // Para liberar o mantenimiento, actualizar directamente
       updateTableStatus(tableId, newStatus);
+      
+      // Cambiar el filtro para mostrar el nuevo estado de la mesa
+      setStatusFilter(newStatus);
+      
       toast.success(`Mesa ${table.name} actualizada a: ${getStatusText(newStatus)}`);
     }
   };
@@ -134,10 +138,18 @@ export default function TablePlan({ restaurantId, isDarkMode = false }: TablePla
           notes: data.notas
         });
 
+        // Cambiar el filtro para mostrar el nuevo estado de la mesa
+        setStatusFilter(pendingStatus);
+
         toast.success(`✅ Mesa ${selectedTable.name} ${pendingStatus === 'occupied' ? 'ocupada' : 'reservada'} exitosamente`);
         toast.info(`⏰ Se liberará automáticamente en 2 horas`);
         
         console.log('✅ Reserva creada:', result.reservaId);
+        
+        // Cerrar el diálogo
+        setDialogOpen(false);
+        setSelectedTable(null);
+        setPendingStatus(null);
       } else {
         toast.error(`Error: ${result.error}`);
         console.error('Error al crear reserva:', result.error);

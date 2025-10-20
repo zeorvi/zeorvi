@@ -115,9 +115,15 @@ export function useRestaurantTables(restaurantId: string) {
             return activeReservation.Estado === 'ocupada' ? 'occupied' : 'reserved';
           }
           
-          // Reserva futura (antes de que comience)
-          if (currentTime < reservationStartTime) {
-            return 'available'; // Mesa libre hasta que llegue la hora
+          // Reserva futura: mostrar como reservada 1 hora antes
+          const oneHourBefore = reservationStartTime - 60; // 60 minutos antes
+          if (currentTime >= oneHourBefore && currentTime < reservationStartTime) {
+            return 'reserved'; // Mesa reservada (aparece en amarillo)
+          }
+          
+          // Muy pronto para la reserva (más de 1 hora antes)
+          if (currentTime < oneHourBefore) {
+            return 'available'; // Mesa libre
           }
           
           // Por defecto (no debería llegar aquí)
